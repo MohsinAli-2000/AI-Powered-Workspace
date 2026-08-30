@@ -129,7 +129,7 @@ An organization acts as a tenant boundary for:
 * Conversations
 * Knowledge
 
-A user may eventually be able to belong to multiple organizations.
+A user can belong to multiple organizations, each with a different role.
 
 ---
 
@@ -151,19 +151,28 @@ Each organization has exactly one owner.
 
 The platform uses role-based access control (RBAC).
 
-Example conceptual roles:
+Organization roles:
 
 ```text
-OWNER
-ADMIN
-MEMBER
+OWNER  — full control over the organization and all its resources
+ADMIN  — manages membership; does not automatically control every project
+MEMBER — regular user with access to authorized resources
 ```
 
-The exact permission matrix will be defined during the database and authorization design phase.
+Project roles:
 
-The important principle is:
+```text
+PROJECT_MANAGER — manages project membership and project resources
+PROJECT_MEMBER  — regular access to project resources
+```
+
+The important principles are:
 
 > Users can only perform actions that their role and organization membership allow.
+
+> An organization must always have at least one ADMIN.
+
+> A project must always have at least one PROJECT_MANAGER.
 
 ---
 
@@ -221,19 +230,97 @@ Image processing can be added later without redesigning the entire system.
 
 ---
 
-## 7. Duplicate Document Detection
+## 7. Projects / Departments
 
-The system should prevent unnecessary duplicate uploads.
+Documents are organized into projects (also called departments) within an organization.
+
+```text
+Organization
+├── HR
+├── Finance
+├── Engineering
+└── Legal
+```
+
+A user can belong to multiple projects. Project membership is separate from organization membership.
+
+An organization ADMIN does not automatically have project-management authority over every project.
+
+---
+
+## 8. Groups
+
+Groups provide efficient bulk access control.
+
+Instead of creating individual permission rules for hundreds of users, groups allow:
+
+```text
+Document
+  → Group Access Rule
+    → Group
+      → Group Members
+```
+
+Example groups: "Executive Team", "HR Leadership", "Finance Team".
+
+A group belongs to one organization and can only contain members of that organization.
+
+---
+
+## 9. Document Access Control
+
+Documents have two access modes:
+
+```text
+PROJECT    — accessible to all authorized project members
+RESTRICTED — subject to additional per-user / group / role rules
+```
+
+For restricted documents, access rules can be based on:
+
+* Individual user
+* Group
+* Organization role
+* Project role
+
+**DENY has the highest precedence.** If any DENY rule matches, the user is denied even if an ALLOW rule also exists.
+
+---
+
+## 10. Document Versioning
+
+Documents support multiple versions. Historical versions are preserved.
+
+This allows the system to answer questions such as:
+
+> "Previously this was X, but now it has changed to Y."
+
+RAG provenance identifies which version supported an answer.
+
+---
+
+## 11. Audit Logging
+
+Audit logging is part of the V1 design.
+
+Audit logs are:
+
+* Append-only (no updates or deletes)
+* Organization-scoped
+
+Captured events include: member invited, member removed, role changed, document uploaded, document deleted, permissions changed, and other important security operations.
+
+---
+
+## 12. Duplicate Document Detection
+
+The system prevents unnecessary duplicate uploads.
 
 A document that is identical to an already uploaded document should not be processed again unnecessarily.
 
-However, if a new document contains:
+Duplicate detection is based on content hash — not just filename.
 
-* additional information
-* edited information
-* updated information
-
-then it should be allowed as a new version/document according to the eventual document-versioning design.
+Modified documents with the same filename are allowed as a new version.
 
 ---
 
@@ -949,23 +1036,24 @@ ai-knowledge-platform/
 
 # 🛠️ Technology Stack
 
-| Layer             | Technology           |
-| ----------------- | -------------------- |
-| Frontend          | Next.js + TypeScript |
-| UI                | React                |
-| Core Backend      | Node.js + TypeScript |
-| AI Backend        | Python + FastAPI     |
-| Background Worker | Python               |
-| Database          | PostgreSQL           |
-| Vector Search     | pgvector             |
-| Job Queue         | RabbitMQ             |
-| Object Storage    | MinIO → AWS S3       |
-| Local AI Runtime  | Ollama               |
-| Initial LLM       | Qwen                 |
-| Email             | Resend               |
-| Monitoring        | Sentry               |
-| Containerization  | Docker               |
-| Version Control   | Git + GitHub         |
+| Layer             | Technology                          |
+| ----------------- | ----------------------------------- |
+| Frontend          | Next.js + TypeScript                |
+| UI Components     | React + Shadcn/ui + Tailwind CSS    |
+| State Management  | Zustand + React Query               |
+| Core Backend      | Node.js + TypeScript (Express.js)   |
+| AI Backend        | Python + FastAPI                    |
+| Background Worker | Python                              |
+| Database          | PostgreSQL                          |
+| Vector Search     | pgvector (PostgreSQL extension)     |
+| Job Queue         | RabbitMQ                            |
+| Object Storage    | MinIO (dev) → AWS S3 (prod)         |
+| Local AI Runtime  | Ollama                              |
+| Initial LLM       | Qwen (via Ollama)                   |
+| Email             | Resend                              |
+| Monitoring        | Sentry                              |
+| Containerization  | Docker + Docker Compose             |
+| Version Control   | Git + GitHub                        |
 
 ---
 
@@ -1033,7 +1121,7 @@ The architecture is intentionally designed so that infrastructure providers can 
 
 # 📋 Current Development Status
 
-### Planning
+### ✅ Design & Planning — Complete
 
 * [x] Product idea defined
 * [x] Problem identified
@@ -1044,39 +1132,41 @@ The architecture is intentionally designed so that infrastructure providers can 
 * [x] RAG flow designed
 * [x] Multi-tenant concept defined
 * [x] Security boundaries defined
+* [x] Authorization model designed (roles, groups, DENY precedence, document access modes)
+* [x] Database / domain model designed
+* [x] ERD created (see `ERD/` directory)
+* [x] All 20 database tables defined with columns, types, and constraints
+* [x] Document versioning designed
+* [x] Audit logging designed
+* [x] 20 architectural decisions confirmed and documented
 
-### In Progress
+### ⏭️ Next — Immediate
 
-* [ ] Database/domain design
-* [ ] ERD
-* [ ] PostgreSQL schema
-* [ ] API specification
-* [ ] RBAC permission matrix
-* [ ] Detailed security design
+* [ ] PostgreSQL schema implementation (enums, tables, constraints, indexes, pgvector, migrations)
 
-### Implementation
+### 🔮 Implementation (Not Started)
 
-* [ ] Next.js frontend
-* [ ] Node.js backend
-* [ ] Authentication
-* [ ] Organizations
-* [ ] Memberships
-* [ ] Invitations
-* [ ] RBAC
-* [ ] Document upload
-* [ ] Object storage
-* [ ] RabbitMQ
-* [ ] Python worker
-* [ ] Document extraction
-* [ ] Chunking
-* [ ] Embeddings
+* [ ] Node.js backend foundation
+* [ ] Authentication (registration, email verification, login, JWT)
+* [ ] Organizations & ownership management
+* [ ] Members & invitation flow
+* [ ] Project management
+* [ ] Group management
+* [ ] Document upload & validation
+* [ ] Object storage integration
+* [ ] RabbitMQ job publishing
+* [ ] Python AI Worker (extraction, chunking, embedding)
 * [ ] pgvector retrieval
-* [ ] RAG
-* [ ] AI chat
+* [ ] Authorization-aware RAG pipeline
+* [ ] Conversations & AI chat
 * [ ] Source citations
+* [ ] Document access control (RESTRICTED mode)
+* [ ] Audit logging
 * [ ] Email integration
-* [ ] Monitoring
+* [ ] Monitoring (Sentry)
+* [ ] Next.js frontend
 * [ ] Dockerization
+* [ ] CI/CD pipeline
 * [ ] Deployment
 
 ---
@@ -1090,7 +1180,7 @@ Potential future features include:
 * Image/document understanding
 * OCR
 * Additional document formats
-* Document versioning
+* User-facing document version management (upload new versions; design already in schema)
 * Advanced organization permissions
 * Multiple organizations per user
 * Advanced search
@@ -1158,28 +1248,35 @@ The project prioritizes:
 
 # 📚 Documentation
 
-Detailed engineering documentation will be maintained under `/docs`.
-
-Planned documentation:
+Detailed engineering documentation is maintained under `/docs`.
 
 ```text
 docs/
 │
-├── product-idea.md
-├── functional-requirements.md
-├── architecture.md
-├── database-design.md
-├── api-design.md
-├── security-design.md
+├── product/
+│   └── product-idea.md             — Product concept, users, problem, MVP definition
 │
-└── decisions/
-    ├── ADR-001-postgresql-pgvector.md
-    ├── ADR-002-rabbitmq.md
-    ├── ADR-003-object-storage.md
-    └── ADR-004-ai-service-separation.md
+├── requirements/
+│   └── functional-requirements.md  — Full functional requirements (FR-AUTH-*, FR-ORG-*, etc.)
+│
+├── architecture/
+│   ├── architecture.md             — Architecture overview + component matrix
+│   ├── system-architecture.md      — Detailed Mermaid diagrams (original)
+│   ├── database.md                 — Database model (all 20 tables, columns, constraints)
+│   ├── authorization.md            — Authorization model (roles, rules, DENY precedence)
+│   └── rag.md                      — RAG system design (processing + retrieval pipeline)
+│
+└── decision-log.md                 — All 20 confirmed architectural/product decisions
 ```
 
-Architecture decisions should explain not only **what** technology was selected, but also **why** it was selected and what alternatives were considered.
+Also at the root:
+
+```text
+project-status.md   — Central progress tracker (completed, next, future, TODOs, conflicts)
+ERD/                — Entity Relationship Diagram (PNG + PDF)
+```
+
+Architecture decisions document not only **what** technology was selected, but also **why** it was selected.
 
 ---
 
@@ -1219,30 +1316,44 @@ License details will be added when the project reaches the appropriate stage.
 
 # 👨‍💻 Project Status
 
-This project is currently in the **architecture and database-design stage**.
+This project has completed the **design phase** and is ready to begin implementation.
 
-The system is being developed incrementally from:
+The system is being developed incrementally:
 
 ```text
-Product Idea
+✅ Product Idea
       ↓
-Requirements
+✅ Requirements
       ↓
-Architecture
+✅ Architecture
       ↓
-Database Design
+✅ Database Design (ERD complete)
       ↓
-API Design
+⏭️ PostgreSQL Schema Implementation  ← NEXT
       ↓
-Implementation
+⬜ Node.js Backend
       ↓
-Testing
+⬜ Authentication
       ↓
-Containerization
+⬜ Organization & Member Management
       ↓
-Deployment
+⬜ Document Upload & Processing
       ↓
-Production Hardening
+⬜ RAG Pipeline
+      ↓
+⬜ Next.js Frontend
+      ↓
+⬜ Testing
+      ↓
+⬜ Containerization
+      ↓
+⬜ Deployment
+      ↓
+⬜ Production Hardening
 ```
+
+See [project-status.md](project-status.md) for the full progress tracker, open TODOs, and known conflicts.
+
+See [docs/decision-log.md](docs/decision-log.md) for all 20 confirmed architectural and product decisions.
 
 The objective is to build the system end-to-end while maintaining production-oriented engineering practices throughout the development process.

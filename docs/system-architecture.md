@@ -1,3 +1,5 @@
+> **Note:** This file has been reorganized. The canonical copy is at `docs/architecture/system-architecture.md`. An expanded architecture overview is at `docs/architecture/architecture.md`. This file is preserved for reference.
+
 # Complete System Architecture
 
 > **Architecture Style:** Modular SaaS + Separate AI Service

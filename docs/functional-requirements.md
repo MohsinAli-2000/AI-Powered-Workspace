@@ -1,3 +1,5 @@
+> **Note:** This file has been reorganized. The canonical copy is at `docs/requirements/functional-requirements.md`. This file is preserved for reference.
+
 # AI Knowledge Workspace — Functional Requirements
 
 ## 1. Document Purpose
