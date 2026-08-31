@@ -1,6 +1,6 @@
 # Database Model
 
-> **Status:** Confirmed baseline — ERD created and treated as current database design baseline.  
+> **Status:** Confirmed baseline — Schema implemented in PostgreSQL (`ai_workspace`: 20 tables, 6 enums).  
 > **Sources:** `ERD/ERD Diagram.png`, `ERD/ERD.pdf`, system architecture decisions.  
 > **Database:** PostgreSQL + pgvector  
 > **Vector storage:** pgvector (integrated into PostgreSQL — do not replace without explicit decision)

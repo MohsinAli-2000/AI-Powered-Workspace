@@ -1,23 +1,23 @@
 # Project Status
 
-> **Last synchronized:** 2026-08-30  
+> **Last synchronized:** 2026-09-01  
 > **Purpose:** Single source of truth for project phase, completed work, in-progress work, and planned work.
 
 ---
 
 ## Current Phase
 
-**Phase: Design & Documentation Complete → Ready for Implementation**
+**Phase: Database Schema Implemented → Ready for Backend Foundation**
 
-All core product decisions, architecture, authorization model, database schema (ERD), and functional requirements have been defined and documented. No application code has been written yet.
+All core product decisions, architecture, authorization model, database schema (ERD), and functional requirements have been defined and documented. The PostgreSQL database schema (all 20 tables, 6 enums, foreign keys, and indexes) has been successfully implemented in the PostgreSQL database.
 
-The immediate next implementation phase is **PostgreSQL Schema Implementation**.
+The immediate next implementation phase is **Phase 3 — Node.js Backend Foundation**.
 
 ---
 
 ## ✅ Completed
 
-The following have been decided, designed, and documented:
+The following have been decided, designed, and documented / implemented:
 
 ### Product & Requirements
 - [x] Product concept and problem statement
@@ -54,14 +54,41 @@ The following have been decided, designed, and documented:
 - [x] Conversation authorization rules defined
 - [x] Ownership transfer rules defined
 
-### Database / Domain Model
+### Database / Domain Model & PostgreSQL Schema Implementation
 - [x] ERD created and exported (PNG + PDF in `/ERD/`)
 - [x] All core entities defined with columns and types
-- [x] Enums defined (organization_role, project_role, document_access_mode, document_effect, document_version_status, message_role)
-- [x] Foreign key relationships defined
-- [x] Unique constraints and composite constraints designed
-- [x] Deletion strategy decided (cascade for tight dependencies, explicit for major business resources)
-- [x] Audit log design confirmed (append-only, org-scoped)
+- [x] PostgreSQL Enums created:
+  - `organization_role` (OWNER, ADMIN, MEMBER)
+  - `project_role` (PROJECT_MANAGER, PROJECT_MEMBER)
+  - `document_access_mode` (PROJECT, RESTRICTED)
+  - `document_effect` (ALLOW, DENY)
+  - `document_version_status` (QUEUED, PROCESSING, READY, FAILED)
+  - `message_role` (USER, ASSISTANT, SYSTEM)
+- [x] All 20 tables created with columns, primary keys, and foreign keys:
+  - `users`
+  - `organizations`
+  - `organization_memberships`
+  - `invitations`
+  - `projects`
+  - `project_memberships`
+  - `groups`
+  - `group_memberships`
+  - `documents`
+  - `document_versions`
+  - `document_chunks` (with embedding column for pgvector)
+  - `document_user_access`
+  - `document_group_access`
+  - `document_org_role_access`
+  - `document_project_role_access`
+  - `conversations`
+  - `conversation_projects`
+  - `messages`
+  - `message_sources`
+  - `audit_logs`
+- [x] Foreign key relationships defined with appropriate ON DELETE behavior
+- [x] Unique constraints and composite constraints created
+- [x] Indexes configured for scoping, performance, and uniqueness
+- [x] Audit log design confirmed and table created (append-only, org-scoped)
 
 ### RAG Design
 - [x] Async document processing pipeline designed
@@ -79,78 +106,38 @@ The following have been decided, designed, and documented:
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation.
-
-Documentation synchronization (this task) is the current active work.
+Nothing currently in active implementation. Ready to initiate Phase 3 (Node.js Backend Foundation).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### PostgreSQL Schema Implementation
+### Phase 3 — Node.js Backend Foundation
 
-This is the next concrete implementation task. Nothing else should be started before this is complete.
+This is the next concrete implementation task.
 
 **Scope:**
 
-- [ ] Create PostgreSQL enums:
-  - `organization_role` (OWNER, ADMIN, MEMBER)
-  - `project_role` (PROJECT_MANAGER, PROJECT_MEMBER)
-  - `document_access_mode` (PROJECT, RESTRICTED)
-  - `document_effect` (ALLOW, DENY)
-  - `document_version_status` (QUEUED, PROCESSING, READY, FAILED)
-  - `message_role` (USER, ASSISTANT, SYSTEM)
-
-- [ ] Create all tables with correct column types and constraints:
-  - `users`
-  - `organizations`
-  - `organization_memberships`
-  - `invitations`
-  - `projects`
-  - `project_memberships`
-  - `groups`
-  - `group_memberships`
-  - `documents`
-  - `document_versions`
-  - `document_chunks` (with pgvector `embedding` column)
-  - `document_user_access`
-  - `document_group_access`
-  - `document_org_role_access`
-  - `document_project_role_access`
-  - `conversations`
-  - `conversation_projects`
-  - `messages`
-  - `message_sources`
-  - `audit_logs`
-
-- [ ] Install and configure `pgvector` extension
-- [ ] Add all foreign keys with appropriate ON DELETE behavior
-- [ ] Add all composite unique constraints
-- [ ] Add partial unique indexes (e.g., one current version per document)
-- [ ] Add performance indexes (organization_id scoping, project_id, etc.)
-- [ ] Create HNSW or IVFFlat vector index on `document_chunks.embedding`
-- [ ] Set up migration tooling (choose: Flyway, Liquibase, or manual SQL files)
-- [ ] Validate schema against ERD and all data integrity invariants
+- [ ] Project setup (Node.js + Express.js / TypeScript)
+- [ ] Environment configuration (`.env.example`, configuration module)
+- [ ] Database connection & pool configuration (PostgreSQL client / ORM / query builder)
+- [ ] Request validation middleware (Zod or similar)
+- [ ] Centralized error handling middleware
+- [ ] Structured logging (Pino / Winston)
+- [ ] Sentry error monitoring integration
+- [ ] Health check endpoint (`GET /health`)
+- [ ] Base repository / data access layer setup
 
 **Reference files for this phase:**
-- `docs/architecture/database.md` — full table/column specifications
-- `ERD/ERD Diagram.png` — visual ERD reference
-- `ERD/ERD.pdf` — ERD PDF reference
+- `docs/architecture/architecture.md` — backend architecture and component matrix
+- `docs/architecture/database.md` — full database schema and entity details
+- `docs/decision-log.md` — technology and architectural decisions
 
 ---
 
 ## 🔮 Future Phases (Not Started)
 
-The following phases are planned but not yet started. Order may vary based on priorities.
-
-### Phase 3 — Node.js Backend Foundation
-- Project setup (Express.js + TypeScript)
-- Environment configuration
-- Database connection (PostgreSQL client / ORM)
-- Request validation (Zod or similar)
-- Error handling middleware
-- Structured logging
-- Sentry integration
+The following phases are planned following backend foundation. Order may vary based on priorities:
 
 ### Phase 4 — Authentication
 - User registration
