@@ -1,9 +1,11 @@
 import express, { type Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { httpLogger } from './middlewares/logger.middleware.js';
 
 const app: Application = express();
 
+app.use(httpLogger);
 // Core standard middlewares
 app.use(helmet());
 app.use(cors());
