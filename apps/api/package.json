@@ -1,0 +1,34 @@
+{
+  "name": "@workspace/api",
+  "version": "1.0.0",
+  "description": "Multi Tenant AI Workspace",
+  "keywords": [
+    "AI",
+    "Workspace"
+  ],
+  "license": "ISC",
+  "author": "Mohsin Ali",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "rimraf dist && tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.4.1",
+    "rimraf": "^6.1.3",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  }
+}
