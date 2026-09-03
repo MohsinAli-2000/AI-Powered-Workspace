@@ -1,17 +1,17 @@
 # Project Status
 
-> **Last synchronized:** 2026-09-01  
+> **Last synchronized:** 2026-09-03  
 > **Purpose:** Single source of truth for project phase, completed work, in-progress work, and planned work.
 
 ---
 
 ## Current Phase
 
-**Phase: Database Schema Implemented → Ready for Backend Foundation**
+**Phase: Phase 3 Completed → Ready for Phase 4 (Authentication)**
 
-All core product decisions, architecture, authorization model, database schema (ERD), and functional requirements have been defined and documented. The PostgreSQL database schema (all 20 tables, 6 enums, foreign keys, and indexes) has been successfully implemented in the PostgreSQL database.
+Phase 3 (Node.js Backend Foundation) has been fully implemented in `apps/api/`, verified, and committed. All foundational backend infrastructure — Express app setup, environment configuration, PostgreSQL connection pool, generic BaseRepository, request validation & error handling middlewares, Pino structured logging, Sentry monitoring integration, and database-aware health check endpoint — is in place and tested.
 
-The immediate next implementation phase is **Phase 3 — Node.js Backend Foundation**.
+The immediate next implementation phase is **Phase 4 — Authentication**.
 
 ---
 
@@ -102,36 +102,44 @@ The following have been decided, designed, and documented / implemented:
 ### Decision Log
 - [x] 20 confirmed decisions documented in `docs/decision-log.md`
 
+### Phase 3 — Node.js Backend Foundation
+- [x] Project setup (Node.js + Express.js 5 / TypeScript / ESM `NodeNext`)
+- [x] Environment configuration (`.env.example`, Zod-validated `src/config/env.ts`)
+- [x] Database connection & pool configuration (`pg.Pool` in `src/db/pool.ts` with lifecycle logging and graceful shutdown)
+- [x] Request validation middleware & normalization (Zod error handling in `error.middleware.ts`)
+- [x] Centralized error handling middleware (`AppError` hierarchy, `errorHandler`, `notFoundHandler`)
+- [x] Structured logging (Pino logger + `pino-http` request tracing with sensitive field redaction)
+- [x] Sentry error monitoring integration (Sentry SDK v10 with Express error handler and operational 4xx filter)
+- [x] Health check endpoint (`GET /health` & `GET /api/v1/health` with live PostgreSQL readiness probe)
+- [x] Base repository / data access layer setup (Generic `BaseRepository<T>` with parameterized queries and `withTransaction`)
+
 ---
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Ready to initiate Phase 3 (Node.js Backend Foundation).
+Nothing currently in active implementation. Phase 3 completed. Ready to initiate Phase 4 (Authentication).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 3 — Node.js Backend Foundation
+### Phase 4 — Authentication
 
 This is the next concrete implementation task.
 
 **Scope:**
-
-- [ ] Project setup (Node.js + Express.js / TypeScript)
-- [ ] Environment configuration (`.env.example`, configuration module)
-- [ ] Database connection & pool configuration (PostgreSQL client / ORM / query builder)
-- [ ] Request validation middleware (Zod or similar)
-- [ ] Centralized error handling middleware
-- [ ] Structured logging (Pino / Winston)
-- [ ] Sentry error monitoring integration
-- [ ] Health check endpoint (`GET /health`)
-- [ ] Base repository / data access layer setup
+- [ ] User registration (with secure password hashing via Argon2 / Bcrypt)
+- [ ] Email verification token generation and verification flow (via Resend)
+- [ ] Login endpoint + access token (JWT) issuance
+- [ ] Refresh token rotation and secure storage
+- [ ] Password reset request and token verification flow
+- [ ] Logout and token revocation
+- [ ] Authentication middleware (JWT verification + `req.user` context injection)
 
 **Reference files for this phase:**
-- `docs/architecture/architecture.md` — backend architecture and component matrix
-- `docs/architecture/database.md` — full database schema and entity details
-- `docs/decision-log.md` — technology and architectural decisions
+- `docs/architecture/architecture.md` — Section 6: Auth Module
+- `docs/architecture/database.md` — `users` table entity
+- `docs/decision-log.md` — Security and authentication decisions
 
 ---
 
