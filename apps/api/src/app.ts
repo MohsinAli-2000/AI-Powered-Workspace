@@ -7,6 +7,7 @@ import { httpLogger } from './middlewares/logger.middleware.js';
 import { notFoundHandler } from './middlewares/not-found.middleware.js';
 import { errorHandler } from './middlewares/error.middleware.js';
 import { healthRouter } from './modules/health/health.router.js';
+import { authRouter } from './modules/auth/auth.router.js';
 
 const app: Application = express();
 
@@ -21,6 +22,7 @@ app.use(express.urlencoded({ extended: true }));
 // Application routes
 app.use('/health', healthRouter);
 app.use(`${env.API_PREFIX}/health`, healthRouter);
+app.use(`${env.API_PREFIX}/auth`, authRouter);
 
 // Not found route handler
 app.use(notFoundHandler);

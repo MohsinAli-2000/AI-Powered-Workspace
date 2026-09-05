@@ -21,6 +21,13 @@ const envSchema = z.object({
 
   // Sentry
   SENTRY_DSN: z.string().optional(),
+
+  // JWT & Authentication
+  JWT_SECRET: z.string().min(32, { message: 'JWT_SECRET must be at least 32 characters long' }),
+  JWT_EXPIRES_IN: z.string().default('15m'),
+  JWT_REFRESH_SECRET: z.string().min(32, { message: 'JWT_REFRESH_SECRET must be at least 32 characters long' }),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  BCRYPT_SALT_ROUNDS: z.coerce.number().default(12),
 });
 
 const parseEnv = () => {

@@ -1,108 +1,123 @@
 import { pool, type PoolClient, type QueryResultRow } from './pool.js';
 import { logger } from '../utils/logger.js';
 
-export abstract class BaseRepository<T extends QueryResultRow> {
+export abstract class BaseRepository<TEntity extends QueryResultRow> {
   protected abstract readonly tableName: string;
 
   /**
-   * Executes a parameterized query against the pool or an existing transaction client.
+   * Executes a parameterized query against the connection pool, or reuses an existing transaction client.
    */
-  public async query<R extends QueryResultRow = T>(
-    sql: string,
-    params: unknown[] = [],
-    client?: PoolClient
-  ): Promise<R[]> {
-    const executor = client ?? pool;
-    const start = Date.now();
+  public async query<TRow extends QueryResultRow = TEntity>(
+    sqlQuery: string,
+    queryParameters: unknown[] = [],
+    databaseClient?: PoolClient
+  ): Promise<TRow[]> {
+    // If a databaseClient (such as a transactionClient) is provided, use it; otherwise, use the global connection pool.
+    const queryExecutor = databaseClient ?? pool;
+    const startTimeMs = Date.now();
 
     try {
-      const result = await executor.query<R>(sql, params);
-      const duration = Date.now() - start;
+      const queryResult = await queryExecutor.query<TRow>(sqlQuery, queryParameters);
+      const executionDurationMs = Date.now() - startTimeMs;
 
       logger.trace(
-        { sql, params, duration, rowCount: result.rowCount },
+        {
+          sqlQuery,
+          queryParameters,
+          executionDurationMs,
+          affectedRowCount: queryResult.rowCount,
+        },
         'Executed database query'
       );
 
-      return result.rows;
-    } catch (error) {
-      logger.error({ sql, params, error }, 'Database query execution failed');
-      throw error;
+      return queryResult.rows;
+    } catch (databaseError) {
+      logger.error(
+        { sqlQuery, queryParameters, databaseError },
+        'Database query execution failed'
+      );
+      throw databaseError;
     }
   }
 
   /**
    * Executes a query expecting zero or one row.
    */
-  public async queryOne<R extends QueryResultRow = T>(
-    sql: string,
-    params: unknown[] = [],
-    client?: PoolClient
-  ): Promise<R | null> {
-    const rows = await this.query<R>(sql, params, client);
-    return rows[0] ?? null;
+  public async queryOne<TRow extends QueryResultRow = TEntity>(
+    sqlQuery: string,
+    queryParameters: unknown[] = [],
+    databaseClient?: PoolClient
+  ): Promise<TRow | null> {
+    const matchingRows = await this.query<TRow>(sqlQuery, queryParameters, databaseClient);
+    return matchingRows[0] ?? null;
   }
 
   /**
    * Finds a single record by its UUID primary key.
    */
-  public async findById(id: string, client?: PoolClient): Promise<T | null> {
-    const sql = `SELECT * FROM ${this.tableName} WHERE id = $1 LIMIT 1;`;
-    return this.queryOne<T>(sql, [id], client);
+  public async findById(recordId: string, databaseClient?: PoolClient): Promise<TEntity | null> {
+    const sqlQuery = `SELECT * FROM ${this.tableName} WHERE id = $1 LIMIT 1;`;
+    return this.queryOne<TEntity>(sqlQuery, [recordId], databaseClient);
   }
 
   /**
    * Deletes a single record by its UUID primary key.
-   * Returns true if a record was deleted, false otherwise.
    */
-  public async deleteById(id: string, client?: PoolClient): Promise<boolean> {
-    const sql = `DELETE FROM ${this.tableName} WHERE id = $1;`;
-    const executor = client ?? pool;
-    const result = await executor.query(sql, [id]);
-    return (result.rowCount ?? 0) > 0;
+  public async deleteById(recordId: string, databaseClient?: PoolClient): Promise<boolean> {
+    const sqlQuery = `DELETE FROM ${this.tableName} WHERE id = $1;`;
+    const queryExecutor = databaseClient ?? pool;
+    const deleteResult = await queryExecutor.query(sqlQuery, [recordId]);
+    return (deleteResult.rowCount ?? 0) > 0;
   }
 
   /**
    * Counts records in the table, optionally matching simple filter criteria.
    */
   public async count(
-    criteria: Record<string, unknown> = {},
-    client?: PoolClient
+    filterCriteria: Record<string, unknown> = {},
+    databaseClient?: PoolClient
   ): Promise<number> {
-    const keys = Object.keys(criteria);
-    let sql = `SELECT COUNT(*)::int AS total FROM ${this.tableName}`;
-    const params: unknown[] = [];
+    const filterFieldNames = Object.keys(filterCriteria);
+    let sqlQuery = `SELECT COUNT(*)::int AS total_count FROM ${this.tableName}`;
+    const queryParameters: unknown[] = [];
 
-    if (keys.length > 0) {
-      const clauses = keys.map((key, idx) => `${key} = $${idx + 1}`);
-      sql += ` WHERE ${clauses.join(' AND ')}`;
-      params.push(...Object.values(criteria));
+    if (filterFieldNames.length > 0) {
+      const whereClauses = filterFieldNames.map(
+        (fieldName, parameterIndex) => `${fieldName} = $${parameterIndex + 1}`
+      );
+      sqlQuery += ` WHERE ${whereClauses.join(' AND ')}`;
+      queryParameters.push(...Object.values(filterCriteria));
     }
 
-    const row = await this.queryOne<{ total: number }>(sql, params, client);
-    return row?.total ?? 0;
+    const countRow = await this.queryOne<{ total_count: number }>(
+      sqlQuery,
+      queryParameters,
+      databaseClient
+    );
+    return countRow?.total_count ?? 0;
   }
 
   /**
    * Runs multiple database operations inside a single atomic transaction.
-   * Automatically executes BEGIN, COMMIT, ROLLBACK, and releases the client.
+   * Explicit flow:
+   *   pool.connect() -> transactionClient -> transactionCallback(transactionClient) -> COMMIT / ROLLBACK
    */
-  public static async withTransaction<R>(
-    callback: (client: PoolClient) => Promise<R>
-  ): Promise<R> {
-    const client = await pool.connect();
+  public static async withTransaction<TResult>(
+    transactionCallback: (transactionClient: PoolClient) => Promise<TResult>
+  ): Promise<TResult> {
+    const transactionClient = await pool.connect();
 
     try {
-      await client.query('BEGIN');
-      const result = await callback(client);
-      await client.query('COMMIT');
-      return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      logger.error({ error }, 'Transaction rolled back due to error');
-      throw error;
+      await transactionClient.query('BEGIN');
+      const transactionResult = await transactionCallback(transactionClient);
+      await transactionClient.query('COMMIT');
+      return transactionResult;
+    } catch (transactionError) {
+      await transactionClient.query('ROLLBACK');
+      logger.error({ transactionError }, 'Transaction rolled back due to error');
+      throw transactionError;
     } finally {
-      client.release();
+      transactionClient.release();
     }
   }
 }
