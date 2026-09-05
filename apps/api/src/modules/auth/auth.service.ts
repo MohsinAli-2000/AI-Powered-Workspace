@@ -1,13 +1,26 @@
 import { userRepository, type UserRepository } from '../users/user.repository.js';
 import { toSafeUser, type SafeUser } from '../users/user.entity.js';
+import { emailService, type EmailService } from '../email/email.service.js';
 import { hashPassword, comparePassword } from '../../utils/password.js';
 import {
   generateAccessToken,
   generateRefreshToken,
   verifyRefreshToken,
+  generateEmailVerificationToken,
+  verifyEmailVerificationToken,
+  generatePasswordResetToken,
+  verifyPasswordResetToken,
 } from '../../utils/jwt.js';
 import { ConflictError, UnauthorizedError } from '../../errors/app-error.js';
-import type { RegisterInput, LoginInput, RefreshTokenInput } from './auth.schema.js';
+import type {
+  RegisterInput,
+  LoginInput,
+  RefreshTokenInput,
+  VerifyEmailInput,
+  ResendVerificationInput,
+  ForgotPasswordInput,
+  ResetPasswordInput,
+} from './auth.schema.js';
 
 export interface AuthenticationResult {
   authenticatedUser: SafeUser;
@@ -21,10 +34,13 @@ export interface TokenRefreshResult {
 }
 
 export class AuthService {
-  constructor(private readonly userStore: UserRepository = userRepository) {}
+  constructor(
+    private readonly userStore: UserRepository = userRepository,
+    private readonly mailer: EmailService = emailService
+  ) {}
 
   /**
-   * Registers a new user account with secure password hashing and issues initial auth tokens.
+   * Registers a new user account with secure password hashing, dispatches email verification, and issues initial auth tokens.
    */
   public async registerUser(
     registrationInput: RegisterInput
@@ -41,6 +57,14 @@ export class AuthService {
       email: registrationInput.email,
       password_hash: securePasswordHash,
       name: registrationInput.name,
+    });
+
+    // Generate email verification token and send verification email
+    const emailVerificationToken = generateEmailVerificationToken(newlyCreatedUser.id);
+    await this.mailer.sendVerificationEmail({
+      recipientEmail: newlyCreatedUser.email,
+      recipientName: newlyCreatedUser.name,
+      verificationToken: emailVerificationToken,
     });
 
     const accessTokenString = generateAccessToken({
@@ -126,6 +150,98 @@ export class AuthService {
       accessTokenString: newAccessTokenString,
       refreshTokenString: newRefreshTokenString,
     };
+  }
+
+  /**
+   * Verifies a user's email address using a valid verification token.
+   */
+  public async verifyUserEmail(
+    verificationInput: VerifyEmailInput
+  ): Promise<SafeUser> {
+    const decodedToken = verifyEmailVerificationToken(verificationInput.token);
+
+    const matchedUser = await this.userStore.findById(decodedToken.userId);
+
+    if (!matchedUser) {
+      throw new UnauthorizedError('User account associated with this verification link no longer exists.');
+    }
+
+    if (matchedUser.email_verified_at) {
+      return toSafeUser(matchedUser); // already verified
+    }
+
+    const updatedVerifiedUser = await this.userStore.markEmailVerified(matchedUser.id);
+    return toSafeUser(updatedVerifiedUser!);
+  }
+
+  /**
+   * Resends an email verification link to an unverified user account.
+   */
+  public async resendVerificationEmail(
+    resendInput: ResendVerificationInput
+  ): Promise<void> {
+    const matchedUser = await this.userStore.findByEmail(resendInput.email);
+
+    // Prevent account enumeration: do not reveal whether the email exists or is verified
+    if (!matchedUser || matchedUser.email_verified_at) {
+      return;
+    }
+
+    const emailVerificationToken = generateEmailVerificationToken(matchedUser.id);
+    await this.mailer.sendVerificationEmail({
+      recipientEmail: matchedUser.email,
+      recipientName: matchedUser.name,
+      verificationToken: emailVerificationToken,
+    });
+  }
+
+  /**
+   * Initiates a password reset request by sending a reset link to the user's email.
+   */
+  public async requestPasswordReset(
+    forgotPasswordInput: ForgotPasswordInput
+  ): Promise<void> {
+    const matchedUser = await this.userStore.findByEmail(forgotPasswordInput.email);
+
+    // Prevent account enumeration: do not reveal whether the email exists
+    if (!matchedUser) {
+      return;
+    }
+
+    const resetTokenString = generatePasswordResetToken(
+      matchedUser.id,
+      matchedUser.password_hash
+    );
+
+    await this.mailer.sendPasswordResetEmail({
+      recipientEmail: matchedUser.email,
+      recipientName: matchedUser.name,
+      resetToken: resetTokenString,
+    });
+  }
+
+  /**
+   * Resets a user's password after verifying the reset token.
+   */
+  public async resetUserPassword(
+    resetPasswordInput: ResetPasswordInput
+  ): Promise<void> {
+    const decodedToken = verifyPasswordResetToken(resetPasswordInput.token);
+
+    const matchedUser = await this.userStore.findById(decodedToken.userId);
+
+    if (!matchedUser) {
+      throw new UnauthorizedError('User account associated with this reset link no longer exists.');
+    }
+
+    // Verify that the token has not already been invalidated by a previous password change
+    if (matchedUser.password_hash.slice(-16) !== decodedToken.hashFingerprint) {
+      throw new UnauthorizedError('This password reset link has already been used or is no longer valid.');
+    }
+
+    const newPasswordHash = await hashPassword(resetPasswordInput.newPassword);
+
+    await this.userStore.updatePassword(matchedUser.id, newPasswordHash);
   }
 }
 

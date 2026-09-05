@@ -1,17 +1,17 @@
 # Project Status
 
-> **Last synchronized:** 2026-09-03  
+> **Last synchronized:** 2026-09-05  
 > **Purpose:** Single source of truth for project phase, completed work, in-progress work, and planned work.
 
 ---
 
 ## Current Phase
 
-**Phase: Phase 3 Completed → Ready for Phase 4 (Authentication)**
+**Phase: Phase 4 Completed → Ready for Phase 5 (Organization Management)**
 
-Phase 3 (Node.js Backend Foundation) has been fully implemented in `apps/api/`, verified, and committed. All foundational backend infrastructure — Express app setup, environment configuration, PostgreSQL connection pool, generic BaseRepository, request validation & error handling middlewares, Pino structured logging, Sentry monitoring integration, and database-aware health check endpoint — is in place and tested.
+Phase 4 (Authentication & User Management) has been fully implemented in `apps/api/`, verified against live PostgreSQL, and tested end-to-end. The platform now features robust user registration, bcrypt password hashing, login, JWT access & refresh token rotation, authentication middleware (`authenticateUser`), email verification flow, single-use password reset flow, and user logout.
 
-The immediate next implementation phase is **Phase 4 — Authentication**.
+The immediate next implementation phase is **Phase 5 — Organization Management**.
 
 ---
 
@@ -113,54 +113,54 @@ The following have been decided, designed, and documented / implemented:
 - [x] Health check endpoint (`GET /health` & `GET /api/v1/health` with live PostgreSQL readiness probe)
 - [x] Base repository / data access layer setup (Generic `BaseRepository<T>` with parameterized queries and `withTransaction`)
 
+### Phase 4 — Authentication & User Management
+- [x] User registration with email uniqueness enforcement (`POST /api/v1/auth/register`)
+- [x] Password security via bcrypt with configurable salt rounds (FR-AUTH-003)
+- [x] User login with timing-safe credential verification (FR-AUTH-006, FR-AUTH-007)
+- [x] Access Token (JWT) issuance & verification with custom claims
+- [x] Refresh token rotation and session management (`POST /api/v1/auth/refresh`)
+- [x] Authentication middleware (`authenticateUser`) with Express Request module augmentation
+- [x] Protected profile endpoint (`GET /api/v1/auth/me`)
+- [x] Email verification flow with signed 24h tokens (`POST /api/v1/auth/verify-email`, `POST /api/v1/auth/resend-verification`)
+- [x] Transactional email service integration (`src/modules/email/email.service.ts`)
+- [x] Password reset flow with single-use fingerprint tokens (`POST /api/v1/auth/forgot-password`, `POST /api/v1/auth/reset-password`)
+- [x] User logout endpoint (`POST /api/v1/auth/logout`) (FR-AUTH-009)
+
 ---
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 3 completed. Ready to initiate Phase 4 (Authentication).
+Nothing currently in active implementation. Phase 4 completed. Ready to initiate Phase 5 (Organization Management).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 4 — Authentication
+### Phase 5 — Organization Management
 
 This is the next concrete implementation task.
 
 **Scope:**
-- [ ] User registration (with secure password hashing via Argon2 / Bcrypt)
-- [ ] Email verification token generation and verification flow (via Resend)
-- [ ] Login endpoint + access token (JWT) issuance
-- [ ] Refresh token rotation and secure storage
-- [ ] Password reset request and token verification flow
-- [ ] Logout and token revocation
-- [ ] Authentication middleware (JWT verification + `req.user` context injection)
+- [ ] Organization entity, types, and `OrganizationRepository`
+- [ ] Organization membership repository (owner assignment and role tracking)
+- [ ] Create organization endpoint (`POST /api/v1/organizations` with atomic owner membership creation via `withTransaction`)
+- [ ] List user's organizations (`GET /api/v1/organizations`)
+- [ ] Get organization details (`GET /api/v1/organizations/:id`)
+- [ ] Update organization settings (OWNER/ADMIN only) (`PATCH /api/v1/organizations/:id`)
+- [ ] Transfer ownership flow with strict invariant checks (`POST /api/v1/organizations/:id/transfer-ownership`)
+- [ ] Delete organization endpoint (`DELETE /api/v1/organizations/:id`)
+- [ ] Tenant context middleware (`requireOrganization` / active organization scoping)
 
 **Reference files for this phase:**
-- `docs/architecture/architecture.md` — Section 6: Auth Module
-- `docs/architecture/database.md` — `users` table entity
-- `docs/decision-log.md` — Security and authentication decisions
+- `docs/architecture/architecture.md` — Section 6: Organization Module
+- `docs/architecture/database.md` — `organizations`, `organization_memberships` tables
+- `docs/decision-log.md` — Multi-tenant organization decisions
 
 ---
 
 ## 🔮 Future Phases (Not Started)
 
-The following phases are planned following backend foundation. Order may vary based on priorities:
-
-### Phase 4 — Authentication
-- User registration
-- Email verification flow
-- Login + JWT issuance
-- Refresh token rotation
-- Password reset flow
-- Logout
-
-### Phase 5 — Organization Management
-- Create organization
-- View organizations (user's memberships)
-- Organization settings (OWNER only)
-- Transfer ownership
-- Delete organization
+The following phases are planned following organization management. Order may vary based on priorities:
 
 ### Phase 6 — Member and Invitation Management
 - Invite member (email + role)

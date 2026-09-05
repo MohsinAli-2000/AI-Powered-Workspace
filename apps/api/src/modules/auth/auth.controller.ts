@@ -1,6 +1,14 @@
 import type { Request, Response, NextFunction } from 'express';
 import { authService, type AuthService } from './auth.service.js';
-import type { RegisterInput, LoginInput, RefreshTokenInput } from './auth.schema.js';
+import type {
+  RegisterInput,
+  LoginInput,
+  RefreshTokenInput,
+  VerifyEmailInput,
+  ResendVerificationInput,
+  ForgotPasswordInput,
+  ResetPasswordInput,
+} from './auth.schema.js';
 
 export class AuthController {
   constructor(private readonly authenticationService: AuthService = authService) {}
@@ -19,7 +27,7 @@ export class AuthController {
 
       outgoingResponse.status(201).json({
         success: true,
-        message: 'User account registered successfully.',
+        message: 'User account registered successfully. A verification email has been dispatched.',
         data: {
           user: authenticationResult.authenticatedUser,
           tokens: {
@@ -103,6 +111,107 @@ export class AuthController {
         data: {
           user: incomingRequest.authenticatedUser,
         },
+      });
+    } catch (controllerError) {
+      nextMiddleware(controllerError);
+    }
+  };
+
+  /**
+   * Handles email address verification with a token.
+   */
+  public verifyEmailHandler = async (
+    incomingRequest: Request<Record<string, never>, unknown, VerifyEmailInput>,
+    outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      const verifiedUser = await this.authenticationService.verifyUserEmail(incomingRequest.body);
+
+      outgoingResponse.status(200).json({
+        success: true,
+        message: 'Email address verified successfully.',
+        data: {
+          user: verifiedUser,
+        },
+      });
+    } catch (controllerError) {
+      nextMiddleware(controllerError);
+    }
+  };
+
+  /**
+   * Handles resending the email verification link.
+   */
+  public resendVerificationHandler = async (
+    incomingRequest: Request<Record<string, never>, unknown, ResendVerificationInput>,
+    outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      await this.authenticationService.resendVerificationEmail(incomingRequest.body);
+
+      outgoingResponse.status(200).json({
+        success: true,
+        message: 'If the account exists and is unverified, a new verification link has been sent.',
+      });
+    } catch (controllerError) {
+      nextMiddleware(controllerError);
+    }
+  };
+
+  /**
+   * Handles requesting a password reset link.
+   */
+  public forgotPasswordHandler = async (
+    incomingRequest: Request<Record<string, never>, unknown, ForgotPasswordInput>,
+    outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      await this.authenticationService.requestPasswordReset(incomingRequest.body);
+
+      outgoingResponse.status(200).json({
+        success: true,
+        message: 'If an account exists with this email, a password reset link has been dispatched.',
+      });
+    } catch (controllerError) {
+      nextMiddleware(controllerError);
+    }
+  };
+
+  /**
+   * Handles resetting a user's password using a reset token.
+   */
+  public resetPasswordHandler = async (
+    incomingRequest: Request<Record<string, never>, unknown, ResetPasswordInput>,
+    outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      await this.authenticationService.resetUserPassword(incomingRequest.body);
+
+      outgoingResponse.status(200).json({
+        success: true,
+        message: 'Password has been reset successfully. You can now log in with your new password.',
+      });
+    } catch (controllerError) {
+      nextMiddleware(controllerError);
+    }
+  };
+
+  /**
+   * Handles user logout.
+   */
+  public logoutHandler = async (
+    _incomingRequest: Request,
+    outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      outgoingResponse.status(200).json({
+        success: true,
+        message: 'User logged out successfully. Active session ended.',
       });
     } catch (controllerError) {
       nextMiddleware(controllerError);

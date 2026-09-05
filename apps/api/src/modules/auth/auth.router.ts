@@ -5,6 +5,10 @@ import {
   registerSchema,
   loginSchema,
   refreshTokenSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } from './auth.schema.js';
 import { authController } from './auth.controller.js';
 
@@ -48,6 +52,56 @@ authenticationRouter.get(
   '/me',
   authenticateUser,
   authController.getCurrentUserHandler
+);
+
+/**
+ * Route: POST /api/v1/auth/verify-email
+ * Description: Verify user email using verification token
+ */
+authenticationRouter.post(
+  '/verify-email',
+  validateRequest(verifyEmailSchema),
+  authController.verifyEmailHandler
+);
+
+/**
+ * Route: POST /api/v1/auth/resend-verification
+ * Description: Resend verification email to user
+ */
+authenticationRouter.post(
+  '/resend-verification',
+  validateRequest(resendVerificationSchema),
+  authController.resendVerificationHandler
+);
+
+/**
+ * Route: POST /api/v1/auth/forgot-password
+ * Description: Request a password reset link
+ */
+authenticationRouter.post(
+  '/forgot-password',
+  validateRequest(forgotPasswordSchema),
+  authController.forgotPasswordHandler
+);
+
+/**
+ * Route: POST /api/v1/auth/reset-password
+ * Description: Reset password with token
+ */
+authenticationRouter.post(
+  '/reset-password',
+  validateRequest(resetPasswordSchema),
+  authController.resetPasswordHandler
+);
+
+/**
+ * Route: POST /api/v1/auth/logout
+ * Description: Log out an authenticated user session
+ */
+authenticationRouter.post(
+  '/logout',
+  authenticateUser,
+  authController.logoutHandler
 );
 
 export const authRouter = authenticationRouter;
