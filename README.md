@@ -1137,19 +1137,19 @@ The architecture is intentionally designed so that infrastructure providers can 
 * [x] ERD created (see `ERD/` directory)
 * [x] All 20 database tables defined with columns, types, and constraints
 * [x] PostgreSQL schema implemented (6 enums, 20 tables, constraints, foreign keys, indexes)
+* [x] Node.js backend foundation (TypeScript ESM, Express 5, connection pool, error handling, logging, Sentry, BaseRepository)
+* [x] Authentication & User management (registration, bcrypt, login, JWT rotation, email verification, password reset)
+* [x] Organization management (multi-tenant CRUD, roles, tenant isolation middleware, atomic ownership transfer)
 * [x] Document versioning designed
 * [x] Audit logging designed
 * [x] 20 architectural decisions confirmed and documented
 
 ### ⏭️ Next — Immediate
 
-* [ ] Node.js backend foundation (Project setup, TypeScript, PostgreSQL connection, error handling, logging)
+* [ ] Members & invitation flow (Invite member, role assignment, accept/reject tokens, ADMIN count rule)
 
 ### 🔮 Implementation (Not Started)
 
-* [ ] Authentication (registration, email verification, login, JWT)
-* [ ] Organizations & ownership management
-* [ ] Members & invitation flow
 * [ ] Project management
 * [ ] Group management
 * [ ] Document upload & validation
@@ -1331,11 +1331,17 @@ The system is being developed incrementally:
       ↓
 ✅ PostgreSQL Schema Implementation (20 tables, 6 enums)
       ↓
-⏭️ Node.js Backend Foundation  ← NEXT
+✅ Node.js Backend Foundation
       ↓
-⬜ Authentication
+✅ Authentication & User Management
       ↓
-⬜ Organization & Member Management
+✅ Organization Management (Multi-tenant CRUD, roles, transfer)
+      ↓
+⏭️ Member & Invitation Management  ← NEXT
+      ↓
+⬜ Project Management
+      ↓
+⬜ Group Management
       ↓
 ⬜ Document Upload & Processing
       ↓

@@ -1,17 +1,17 @@
 # Project Status
 
-> **Last synchronized:** 2026-09-05  
+> **Last synchronized:** 2026-09-06  
 > **Purpose:** Single source of truth for project phase, completed work, in-progress work, and planned work.
 
 ---
 
 ## Current Phase
 
-**Phase: Phase 4 Completed → Ready for Phase 5 (Organization Management)**
+**Phase: Phase 5 Completed → Ready for Phase 6 (Member and Invitation Management)**
 
-Phase 4 (Authentication & User Management) has been fully implemented in `apps/api/`, verified against live PostgreSQL, and tested end-to-end. The platform now features robust user registration, bcrypt password hashing, login, JWT access & refresh token rotation, authentication middleware (`authenticateUser`), email verification flow, single-use password reset flow, and user logout.
+Phase 5 (Organization Management) has been fully implemented in `apps/api/`, verified against live PostgreSQL, and tested end-to-end with 14 automated integration scenarios. The platform features multi-tenant organization creation, membership tracking, role-based authorization (OWNER, ADMIN, MEMBER), tenant isolation middleware, single-owner invariant enforcement, atomic ownership transfer, and cascading organization deletion.
 
-The immediate next implementation phase is **Phase 5 — Organization Management**.
+The immediate next implementation phase is **Phase 6 — Member and Invitation Management**.
 
 ---
 
@@ -126,41 +126,54 @@ The following have been decided, designed, and documented / implemented:
 - [x] Password reset flow with single-use fingerprint tokens (`POST /api/v1/auth/forgot-password`, `POST /api/v1/auth/reset-password`)
 - [x] User logout endpoint (`POST /api/v1/auth/logout`) (FR-AUTH-009)
 
+### Phase 5 — Organization Management
+- [x] Organization entity, types, and `OrganizationRepository`
+- [x] Organization membership repository (`OrganizationMembershipRepository`)
+- [x] Create organization endpoint (`POST /api/v1/organizations` with atomic owner membership creation via `withTransaction`)
+- [x] List user's organizations (`GET /api/v1/organizations`)
+- [x] Get organization details (`GET /api/v1/organizations/:id` with tenant isolation check)
+- [x] List organization members (`GET /api/v1/organizations/:id/members`)
+- [x] Update organization settings (`PATCH /api/v1/organizations/:id` - OWNER/ADMIN only)
+- [x] Transfer ownership flow with strict single-owner invariant checks (`POST /api/v1/organizations/:id/transfer-ownership`)
+- [x] Delete organization endpoint (`DELETE /api/v1/organizations/:id` - OWNER only)
+- [x] Tenant context & role authorization middleware (`requireOrgMembership`, `requireOrgRole`)
+
 ---
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 4 completed. Ready to initiate Phase 5 (Organization Management).
+Nothing currently in active implementation. Phase 5 completed. Ready to initiate Phase 6 (Member and Invitation Management).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 5 — Organization Management
+### Phase 6 — Member and Invitation Management
 
 This is the next concrete implementation task.
 
 **Scope:**
-- [ ] Organization entity, types, and `OrganizationRepository`
-- [ ] Organization membership repository (owner assignment and role tracking)
-- [ ] Create organization endpoint (`POST /api/v1/organizations` with atomic owner membership creation via `withTransaction`)
-- [ ] List user's organizations (`GET /api/v1/organizations`)
-- [ ] Get organization details (`GET /api/v1/organizations/:id`)
-- [ ] Update organization settings (OWNER/ADMIN only) (`PATCH /api/v1/organizations/:id`)
-- [ ] Transfer ownership flow with strict invariant checks (`POST /api/v1/organizations/:id/transfer-ownership`)
-- [ ] Delete organization endpoint (`DELETE /api/v1/organizations/:id`)
-- [ ] Tenant context middleware (`requireOrganization` / active organization scoping)
+- [ ] Invitation entity, types, and `InvitationRepository`
+- [ ] Invite member endpoint (`POST /api/v1/organizations/:id/invitations` with role assignment and token generation)
+- [ ] Prevent duplicate active invitations rule (FR-MEMBER-004)
+- [ ] List organization invitations (`GET /api/v1/organizations/:id/invitations`)
+- [ ] Revoke invitation endpoint (`DELETE /api/v1/organizations/:id/invitations/:invitationId`)
+- [ ] Accept invitation flow (`POST /api/v1/invitations/accept` for authenticated users and new users)
+- [ ] Reject invitation flow (`POST /api/v1/invitations/reject`)
+- [ ] Remove member endpoint with ADMIN minimum count enforcement (`DELETE /api/v1/organizations/:id/members/:userId`)
+- [ ] Update member role endpoint with OWNER protection (`PATCH /api/v1/organizations/:id/members/:userId/role`)
+- [ ] Invitation transactional email dispatch via `EmailService`
 
 **Reference files for this phase:**
-- `docs/architecture/architecture.md` — Section 6: Organization Module
-- `docs/architecture/database.md` — `organizations`, `organization_memberships` tables
-- `docs/decision-log.md` — Multi-tenant organization decisions
+- `docs/functional-requirements.md` — Section 6: Member and Invitation Requirements
+- `docs/architecture/authorization.md` — Section 2: Organization Roles & ADMIN Minimum Count Rule
+- `docs/architecture/database.md` — `invitations`, `organization_memberships` tables
 
 ---
 
 ## 🔮 Future Phases (Not Started)
 
-The following phases are planned following organization management. Order may vary based on priorities:
+The following phases are planned following member and invitation management:
 
 ### Phase 6 — Member and Invitation Management
 - Invite member (email + role)
