@@ -107,18 +107,22 @@ SYSTEM
 | `id` | uuid (pk) | |
 | `organization_id` | uuid (not null) | FK → organizations |
 | `email` | varchar (not null) | |
-| `role` | organization_role (not null) | Role to assign on acceptance |
+| `role` | organization_role (not null) | Role to assign on acceptance (ADMIN, MEMBER) |
 | `invited_by` | uuid (not null) | FK → users |
-| `token_hash` | text | Secure token for invite link |
+| `token_hash` | text | Secure SHA-256 token hash for invite link |
+| `status` | varchar(20) (not null) | PENDING, ACCEPTED, REJECTED, REVOKED (default: PENDING) |
 | `expires_at` | timestamp (not null) | |
 | `accepted_at` | timestamp | null = not yet accepted |
 | `created_at` | timestamp | |
 
 **Indexes:**
+- `(email, organization_id, status)`
+- `(token_hash)`
+- `(organization_id, created_at DESC)`
 - `(organization_id)`, `(created_at)`
 
 **Business rules:**
-- Prevent duplicate active invitations for same email + organization
+- Prevent duplicate active invitations for same email + organization (FR-MEMBER-004)
 
 ---
 

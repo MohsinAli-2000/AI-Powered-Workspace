@@ -1,17 +1,17 @@
 # Project Status
 
-> **Last synchronized:** 2026-09-06  
+> **Last synchronized:** 2026-09-08  
 > **Purpose:** Single source of truth for project phase, completed work, in-progress work, and planned work.
 
 ---
 
 ## Current Phase
 
-**Phase: Phase 5 Completed → Ready for Phase 6 (Member and Invitation Management)**
+**Phase: Phase 6 Completed → Ready for Phase 7 (Project Management)**
 
-Phase 5 (Organization Management) has been fully implemented in `apps/api/`, verified against live PostgreSQL, and tested end-to-end with 14 automated integration scenarios. The platform features multi-tenant organization creation, membership tracking, role-based authorization (OWNER, ADMIN, MEMBER), tenant isolation middleware, single-owner invariant enforcement, atomic ownership transfer, and cascading organization deletion.
+Phase 6 (Member and Invitation Management) has been fully implemented in `apps/api/`, verified against live PostgreSQL, and type-checked with zero compilation errors. The platform features the complete invitation lifecycle (create, list, revoke, accept, reject), secure SHA-256 token hashing, invitation email dispatch with expiration, duplicate active invitation prevention (FR-MEMBER-004), member role update with single-owner protection, and member removal with ADMIN minimum count (DEC-017) enforcement.
 
-The immediate next implementation phase is **Phase 6 — Member and Invitation Management**.
+The immediate next implementation phase is **Phase 7 — Project Management**.
 
 ---
 
@@ -138,57 +138,55 @@ The following have been decided, designed, and documented / implemented:
 - [x] Delete organization endpoint (`DELETE /api/v1/organizations/:id` - OWNER only)
 - [x] Tenant context & role authorization middleware (`requireOrgMembership`, `requireOrgRole`)
 
+### Phase 6 — Member and Invitation Management
+- [x] Invitation entity, types, and `InvitationRepository` with lifecycle tracking (`PENDING`, `ACCEPTED`, `REJECTED`, `REVOKED`)
+- [x] Invite member endpoint (`POST /api/v1/organizations/:id/invitations` with role assignment and token generation)
+- [x] Prevent duplicate active invitations rule (FR-MEMBER-004)
+- [x] List organization invitations (`GET /api/v1/organizations/:id/invitations`)
+- [x] Revoke invitation endpoint (`DELETE /api/v1/organizations/:id/invitations/:invitationId`)
+- [x] Accept invitation flow (`POST /api/v1/invitations/accept` for authenticated users and new users)
+- [x] Reject invitation flow (`POST /api/v1/invitations/reject`)
+- [x] Remove member endpoint with ADMIN minimum count enforcement (`DELETE /api/v1/organizations/:id/members/:userId`)
+- [x] Update member role endpoint with OWNER protection (`PATCH /api/v1/organizations/:id/members/:userId/role`)
+- [x] Invitation transactional email dispatch via `EmailService`
+- [x] Database migration applied for `status` column and lookup indexes
+
 ---
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 5 completed. Ready to initiate Phase 6 (Member and Invitation Management).
+Nothing currently in active implementation. Phase 6 completed. Ready to initiate Phase 7 (Project Management).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 6 — Member and Invitation Management
+### Phase 7 — Project Management
 
 This is the next concrete implementation task.
 
 **Scope:**
-- [ ] Invitation entity, types, and `InvitationRepository`
-- [ ] Invite member endpoint (`POST /api/v1/organizations/:id/invitations` with role assignment and token generation)
-- [ ] Prevent duplicate active invitations rule (FR-MEMBER-004)
-- [ ] List organization invitations (`GET /api/v1/organizations/:id/invitations`)
-- [ ] Revoke invitation endpoint (`DELETE /api/v1/organizations/:id/invitations/:invitationId`)
-- [ ] Accept invitation flow (`POST /api/v1/invitations/accept` for authenticated users and new users)
-- [ ] Reject invitation flow (`POST /api/v1/invitations/reject`)
-- [ ] Remove member endpoint with ADMIN minimum count enforcement (`DELETE /api/v1/organizations/:id/members/:userId`)
-- [ ] Update member role endpoint with OWNER protection (`PATCH /api/v1/organizations/:id/members/:userId/role`)
-- [ ] Invitation transactional email dispatch via `EmailService`
+- [ ] Project entity, types, and `ProjectRepository`
+- [ ] Project membership repository (`ProjectMembershipRepository`)
+- [ ] Create project endpoint (`POST /api/v1/organizations/:id/projects` with default PROJECT_MANAGER assignment)
+- [ ] List user's authorized projects (`GET /api/v1/organizations/:id/projects`)
+- [ ] Get project details with access control (`GET /api/v1/projects/:id`)
+- [ ] Update project settings (`PATCH /api/v1/projects/:id`)
+- [ ] Delete project endpoint (`DELETE /api/v1/projects/:id`)
+- [ ] Add member to project (`POST /api/v1/projects/:id/members`)
+- [ ] Remove member from project with PROJECT_MANAGER minimum count enforcement (`DELETE /api/v1/projects/:id/members/:userId`)
+- [ ] Update project member role (`PATCH /api/v1/projects/:id/members/:userId/role`)
 
 **Reference files for this phase:**
-- `docs/functional-requirements.md` — Section 6: Member and Invitation Requirements
-- `docs/architecture/authorization.md` — Section 2: Organization Roles & ADMIN Minimum Count Rule
-- `docs/architecture/database.md` — `invitations`, `organization_memberships` tables
+- `docs/functional-requirements.md` — Section 7: Project Requirements
+- `docs/architecture/authorization.md` — Section 3: Project Roles & PROJECT_MANAGER Minimum Count Rule
+- `docs/architecture/database.md` — `projects`, `project_memberships` tables
 
 ---
 
 ## 🔮 Future Phases (Not Started)
 
-The following phases are planned following member and invitation management:
-
-### Phase 6 — Member and Invitation Management
-- Invite member (email + role)
-- Prevent duplicate active invitations
-- Accept / reject invitation flow
-- Existing user invitation flow
-- New user invitation flow
-- Remove member (with ADMIN minimum count enforcement)
-- Change member role (with OWNER protection)
-
-### Phase 7 — Project Management
-- Create project
-- View projects (authorized)
-- Project membership management
-- PROJECT_MANAGER minimum count enforcement
+The following phases are planned following project management:
 
 ### Phase 8 — Group Management
 - Create group
