@@ -1311,50 +1311,47 @@ License details will be added when the project reaches the appropriate stage.
 
 # 👨‍💻 Project Status
 
-This project has completed the **design phase** and is ready to begin implementation.
+This project has completed **Phase 10 (Asynchronous Document Processing / AI Worker)** and is ready to begin **Phase 11 (Embedding Pipeline / Ollama / pgvector)**.
 
 The system is being developed incrementally:
 
 ```text
-✅ Product Idea
+✅ Product Idea & Requirements
       ↓
-✅ Requirements
-      ↓
-✅ Architecture
-      ↓
-✅ Database Design (ERD complete)
+✅ System Architecture & Database Design (ERD complete)
       ↓
 ✅ PostgreSQL Schema Implementation (20 tables, 6 enums)
       ↓
-✅ Node.js Backend Foundation
+✅ Node.js Backend Foundation & Security
       ↓
-✅ Authentication & User Management
+✅ Authentication & User Management (JWT rotation, password reset)
       ↓
 ✅ Organization Management (Multi-tenant CRUD, roles, transfer)
       ↓
-⏭️ Member & Invitation Management  ← NEXT
+✅ Member & Invitation Management (Invitations, tokens, Resend email)
       ↓
-⬜ Project Management
+✅ Project Management (CRUD, memberships, PM minimum rule)
       ↓
-⬜ Group Management
+✅ Group Management (CRUD, memberships, group project roles)
       ↓
-⬜ Document Upload & Processing
+✅ Document Upload & Object Storage (50MB cap, MinIO/S3, deduplication)
       ↓
-⬜ RAG Pipeline
+✅ Asynchronous Document Processing Worker (Extractors, chunker, RabbitMQ DLQ)
+      ↓
+⏭️ Embedding Pipeline & Vector Storage (Ollama, pgvector)  ← NEXT
+      ↓
+⬜ RAG Pipeline & AI Conversations (Grounded answers, citations)
+      ↓
+⬜ Document Access Control (RESTRICTED mode & custom access rules)
       ↓
 ⬜ Next.js Frontend
       ↓
-⬜ Testing
-      ↓
-⬜ Containerization
-      ↓
-⬜ Deployment
-      ↓
-⬜ Production Hardening
+⬜ Production Containerization & CI/CD Deployment
 ```
 
-See [project-status.md](project-status.md) for the full progress tracker, open TODOs, and known conflicts.
+See [project-status.md](project-status.md) for the full progress tracker, open TODOs, and upcoming milestones.
 
-See [docs/decision-log.md](docs/decision-log.md) for all 20 confirmed architectural and product decisions.
+See [docs/decision-log.md](docs/decision-log.md) for all 27 confirmed architectural and product decisions.
 
 The objective is to build the system end-to-end while maintaining production-oriented engineering practices throughout the development process.
+
