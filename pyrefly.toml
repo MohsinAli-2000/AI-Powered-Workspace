@@ -1,0 +1,11 @@
+python-interpreter = "apps/worker/.venv/bin/python"
+search-path = [
+    "apps/worker",
+    "apps/worker/src",
+]
+
+[errors]
+missing-import = "ignore"
+missing-attribute = "ignore"
+unsupported-operation = "ignore"
+untyped-import = "ignore"

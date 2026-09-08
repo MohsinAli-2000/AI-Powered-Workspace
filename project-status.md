@@ -195,33 +195,41 @@ The following have been decided, designed, and documented / implemented:
 
 ---
 
+### Phase 10 — Asynchronous Document Processing (AI Worker) ✅ COMPLETE (2026-09-09)
+- [x] Python worker service (`apps/worker`) configured with virtual environment and requirements.
+- [x] RabbitMQ consumer with Dead Letter Queue (`document-processing`, `document-processing-dlx`, `document-processing-dlq`).
+- [x] S3 / MinIO storage downloader (`StorageClient`) supporting path-style addressing and custom endpoints.
+- [x] Format extractors with fallback handling:
+  - PDF (`pypdf`) with empty/scanned detection & decryption handling
+  - DOCX (`python-docx`) with paragraphs & table cell extraction
+  - XLSX (`openpyxl`) with memory-efficient sheet and row extraction
+  - PPTX (`python-pptx`) with slides, shapes, and tables
+  - TXT/Markdown/CSV (`TextExtractor`) with multi-encoding auto-detection (UTF-8, Latin-1, CP1252, UTF-16)
+- [x] Text normalizer (`TextNormalizer`) with null-byte stripping, whitespace collapse, and control-character sanitization.
+- [x] Sliding-window chunker (`DocumentChunker`) with configurable size and overlap, preserving logical breaks & page metadata.
+- [x] Database persistence (`db.py`) inserting chunks idempotently into `document_chunks`.
+- [x] Status state machine (`QUEUED` → `PROCESSING` → `READY` / `FAILED` with `processed_at`).
+- [x] All 5 format extractors and live MinIO-to-PostgreSQL pipeline verified.
+
+---
+
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 9 completed. Ready to initiate Phase 10 (Asynchronous Document Processing / AI Worker).
+Nothing currently in active implementation. Phase 10 completed. Ready to initiate Phase 11 (Embedding Pipeline / Ollama / pgvector).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 10 — Asynchronous Document Processing (AI Worker)
+### Phase 11 — Embedding Pipeline
 
 This is the next concrete implementation task.
 
 **Scope:**
-- [ ] RabbitMQ setup and queue configuration (`document.process`, `document.retry`, `document.dlq`)
-- [ ] Python / Node AI Worker consumer setup
-- [ ] Document download from object storage (MinIO / S3)
-- [ ] Content extraction (PDF, DOCX, XLSX, TXT, PPTX)
-- [ ] Text normalization and cleaning
-- [ ] Text chunking (token / character boundary with configurable overlap)
-- [ ] Status transitions (`QUEUED` → `PROCESSING` → `READY` / `FAILED`)
-- [ ] Retry policy and Dead Letter Queue handling
-
-**Reference files for this phase:**
-- `docs/functional-requirements.md` — Section 10: Document Processing Requirements
-- `docs/architecture/system-architecture.md` — Section 4 & 5: Worker Processing Flow
-- `docs/architecture/database.md` — Section 5: `document_chunks` table
-- `docs/architecture/rag.md` — Chunking strategy and schema
+- [ ] Embedding model integration (Ollama / `nomic-embed-text` or similar)
+- [ ] Batch embedding generation for un-embedded chunks in `document_chunks`
+- [ ] Store embeddings in `document_chunks.embedding` (pgvector 768 / 1536 dims)
+- [ ] HNSW / IVFFlat vector index verification and performance testing
 
 ---
 

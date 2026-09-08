@@ -1,0 +1,10 @@
+{
+  "venvPath": "apps/worker",
+  "venv": ".venv",
+  "extraPaths": [
+    "apps/worker",
+    "apps/worker/src"
+  ],
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false
+}
