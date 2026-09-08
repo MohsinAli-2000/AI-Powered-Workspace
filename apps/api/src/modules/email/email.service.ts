@@ -13,6 +13,14 @@ export interface SendPasswordResetEmailInput {
   resetToken: string;
 }
 
+export interface SendInvitationEmailInput {
+  recipientEmail: string;
+  organizationName: string;
+  inviterName: string;
+  assignedRole: string;
+  invitationToken: string;
+}
+
 export class EmailService {
   /**
    * Sends an email verification link to a user.
@@ -51,6 +59,29 @@ export class EmailService {
         passwordResetUrl,
       },
       '📧 [EMAIL SERVICE] Password reset link dispatched'
+    );
+  }
+
+  /**
+   * Sends an organization invitation email to the specified recipient.
+   * The email contains a link that the recipient can use to accept the invitation.
+   */
+  public async sendOrganizationInvitationEmail(
+    input: SendInvitationEmailInput
+  ): Promise<void> {
+    const invitationUrl = `${env.CORS_ORIGIN}/invitations/accept?token=${encodeURIComponent(
+      input.invitationToken
+    )}`;
+
+    logger.info(
+      {
+        recipientEmail: input.recipientEmail,
+        organizationName: input.organizationName,
+        inviterName: input.inviterName,
+        assignedRole: input.assignedRole,
+        invitationUrl,
+      },
+      '📧 [EMAIL SERVICE] Organization invitation link dispatched'
     );
   }
 }

@@ -10,6 +10,7 @@ import {
 import { userRepository, type UserRepository } from '../users/user.repository.js';
 import type {
   Organization,
+  OrganizationRole,
   OrganizationWithRole,
   OrganizationMemberDetail,
   CreateOrganizationInput,
@@ -235,6 +236,154 @@ export class OrganizationService {
     }
 
     await this.organizationRepo.deleteById(organizationId);
+  }
+
+  /**
+   * Removes a member from the organization (FR-MEMBER-010).
+   *
+   * MVP restriction: Only the OWNER can remove members.
+   *
+   * Enforces:
+   * - FR-MEMBER-010: OWNER-only removal
+   * - FR-MEMBER-012: OWNER cannot be removed
+   * - DEC-017: ADMIN minimum count rule
+   * - DEC-019: Removal does not delete the user account
+   */
+  public async removeMember(
+    organizationId: string,
+    targetUserId: string,
+    actingUserId: string
+  ): Promise<void> {
+    // Verify acting user is the OWNER (MVP: OWNER-only for removal)
+    const actingMembership = await this.membershipRepo.findByUserAndOrg(
+      actingUserId,
+      organizationId
+    );
+    if (!actingMembership || actingMembership.role !== 'OWNER') {
+      throw new ForbiddenError('Only the organization OWNER can remove members.');
+    }
+
+    // Find the target member
+    const targetMembership = await this.membershipRepo.findByUserAndOrg(
+      targetUserId,
+      organizationId
+    );
+    if (!targetMembership) {
+      throw new NotFoundError('Member not found in this organization.');
+    }
+
+    // FR-MEMBER-012: Prevent removing the OWNER
+    if (targetMembership.role === 'OWNER') {
+      throw new ForbiddenError(
+        'The OWNER cannot be removed. Transfer ownership to another member first.'
+      );
+    }
+
+    // Prevent OWNER from removing themselves (they must transfer ownership first)
+    if (targetUserId === actingUserId) {
+      throw new BadRequestError(
+        'The OWNER cannot leave the organization without transferring ownership first.'
+      );
+    }
+
+    // DEC-017: ADMIN minimum count enforcement
+    if (targetMembership.role === 'ADMIN') {
+      const adminCount = await this.membershipRepo.countByRole(organizationId, 'ADMIN');
+      if (adminCount <= 1) {
+        throw new BadRequestError(
+          'Cannot remove the last ADMIN. Promote another member to ADMIN first.'
+        );
+      }
+    }
+
+    // DEC-019: Only remove membership — do NOT delete the user account
+    await this.membershipRepo.deleteByUserAndOrg(targetUserId, organizationId);
+  }
+
+  /**
+   * Updates a member's organization role (FR-MEMBER-011).
+   *
+   * Enforces:
+   * - FR-MEMBER-011: Authorized role changes
+   * - FR-MEMBER-012: OWNER role protection (cannot assign or change OWNER via this endpoint)
+   * - DEC-017: ADMIN minimum count rule (prevents demoting the last ADMIN)
+   */
+  public async updateMemberRole(
+    organizationId: string,
+    targetUserId: string,
+    newRole: OrganizationRole,
+    actingUserId: string
+  ): Promise<OrganizationMemberDetail> {
+    // Defense-in-depth: reject OWNER role assignment (schema also enforces this)
+    if (newRole === 'OWNER') {
+      throw new BadRequestError(
+        'OWNER role can only be assigned through the ownership transfer process.'
+      );
+    }
+
+    // Verify acting user's membership and role
+    const actingMembership = await this.membershipRepo.findByUserAndOrg(
+      actingUserId,
+      organizationId
+    );
+    if (!actingMembership) {
+      throw new ForbiddenError('You do not have access to this organization.');
+    }
+    if (actingMembership.role !== 'OWNER' && actingMembership.role !== 'ADMIN') {
+      throw new ForbiddenError(
+        'Insufficient permissions. Only OWNER or ADMIN can change member roles.'
+      );
+    }
+
+    // Find target member
+    const targetMembership = await this.membershipRepo.findByUserAndOrg(
+      targetUserId,
+      organizationId
+    );
+    if (!targetMembership) {
+      throw new NotFoundError('Member not found in this organization.');
+    }
+
+    // FR-MEMBER-012: Prevent changing the OWNER's role
+    if (targetMembership.role === 'OWNER') {
+      throw new ForbiddenError(
+        'The OWNER role cannot be changed directly. Use the ownership transfer process.'
+      );
+    }
+
+    // Same role check
+    if (targetMembership.role === newRole) {
+      throw new BadRequestError('The member already has the specified role.');
+    }
+
+    // ADMIN cannot change another ADMIN's role — only OWNER can
+    if (actingMembership.role === 'ADMIN' && targetMembership.role === 'ADMIN') {
+      throw new ForbiddenError("Only the OWNER can change an ADMIN's role.");
+    }
+
+    // DEC-017: ADMIN minimum count — prevent demoting the last ADMIN
+    if (targetMembership.role === 'ADMIN' && newRole === 'MEMBER') {
+      const adminCount = await this.membershipRepo.countByRole(organizationId, 'ADMIN');
+      if (adminCount <= 1) {
+        throw new BadRequestError(
+          'Cannot demote the last ADMIN. Promote another member to ADMIN first.'
+        );
+      }
+    }
+
+    // Update the role
+    await this.membershipRepo.updateRole(targetMembership.id, newRole);
+
+    // Return the updated member detail by fetching the user info
+    const targetUser = await this.userRepo.findById(targetUserId);
+    return {
+      membership_id: targetMembership.id,
+      user_id: targetUserId,
+      name: targetUser?.name ?? '',
+      email: targetUser?.email ?? '',
+      role: newRole,
+      joined_at: targetMembership.created_at,
+    };
   }
 }
 

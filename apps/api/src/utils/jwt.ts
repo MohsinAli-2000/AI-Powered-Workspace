@@ -164,3 +164,65 @@ export const verifyPasswordResetToken = (
     throw new UnauthorizedError('Invalid password reset token.');
   }
 };
+
+// ---------------------------------------------------------------------------
+// Organization Invitation Tokens
+// ---------------------------------------------------------------------------
+
+export interface InvitationTokenPayload {
+  invitationId: string;
+  email: string;
+  organizationId: string;
+  purpose: 'organization_invitation';
+}
+
+/**
+ * Signs a 7-day invitation token containing the invitation identity, target email,
+ * and organization context. The raw JWT is sent to the invitee via email;
+ * a SHA-256 hash is stored in the `token_hash` column for server-side lookup.
+ */
+export const generateInvitationToken = (
+  invitationId: string,
+  email: string,
+  organizationId: string
+): string => {
+  const payload: InvitationTokenPayload = {
+    invitationId,
+    email,
+    organizationId,
+    purpose: 'organization_invitation',
+  };
+  const tokenString = jwt.sign(payload, env.JWT_SECRET, {
+    expiresIn: '7d',
+  });
+  return tokenString;
+};
+
+/**
+ * Verifies and decodes an organization invitation token.
+ * Throws an UnauthorizedError (401) if invalid or expired.
+ */
+export const verifyInvitationToken = (
+  tokenString: string
+): InvitationTokenPayload => {
+  try {
+    const verifiedPayload = jwt.verify(
+      tokenString,
+      env.JWT_SECRET
+    ) as InvitationTokenPayload;
+
+    if (verifiedPayload.purpose !== 'organization_invitation') {
+      throw new UnauthorizedError('Invalid token purpose. Expected organization invitation token.');
+    }
+
+    return verifiedPayload;
+  } catch (jwtVerificationError) {
+    if (jwtVerificationError instanceof jwt.TokenExpiredError) {
+      throw new UnauthorizedError('Invitation link has expired. Please request a new invitation.');
+    }
+    if (jwtVerificationError instanceof UnauthorizedError) {
+      throw jwtVerificationError;
+    }
+    throw new UnauthorizedError('Invalid invitation token.');
+  }
+};

@@ -7,6 +7,7 @@ import type {
   CreateOrganizationInput,
   UpdateOrganizationInput,
   TransferOwnershipInput,
+  UpdateMemberRoleInput,
 } from './organization.schema.js';
 
 export class OrganizationController {
@@ -189,6 +190,63 @@ export class OrganizationController {
         success: true,
         data: null,
         message: 'Organization deleted successfully.',
+      });
+    } catch (controllerError) {
+      nextMiddleware(controllerError);
+    }
+  };
+
+  /**
+   * Handles removing a member from an organization.
+   * Route: DELETE /api/v1/organizations/:id/members/:userId
+   */
+  public removeMemberHandler = async (
+    incomingRequest: Request<{ id: string; userId: string }>,
+    outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      const actingUserId = incomingRequest.authenticatedUser!.id;
+      const organizationId = incomingRequest.params.id;
+      const targetUserId = incomingRequest.params.userId;
+
+      await this.orgService.removeMember(organizationId, targetUserId, actingUserId);
+
+      outgoingResponse.status(200).json({
+        success: true,
+        data: null,
+        message: 'Member removed from the organization successfully.',
+      });
+    } catch (controllerError) {
+      nextMiddleware(controllerError);
+    }
+  };
+
+  /**
+   * Handles updating a member's organization role.
+   * Route: PATCH /api/v1/organizations/:id/members/:userId/role
+   */
+  public updateMemberRoleHandler = async (
+    incomingRequest: Request<{ id: string; userId: string }, unknown, UpdateMemberRoleInput>,
+    outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      const actingUserId = incomingRequest.authenticatedUser!.id;
+      const organizationId = incomingRequest.params.id;
+      const targetUserId = incomingRequest.params.userId;
+
+      const updatedMember = await this.orgService.updateMemberRole(
+        organizationId,
+        targetUserId,
+        incomingRequest.body.role,
+        actingUserId
+      );
+
+      outgoingResponse.status(200).json({
+        success: true,
+        data: { member: updatedMember },
+        message: 'Member role updated successfully.',
       });
     } catch (controllerError) {
       nextMiddleware(controllerError);

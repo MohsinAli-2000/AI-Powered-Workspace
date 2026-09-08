@@ -11,6 +11,8 @@ import {
   updateOrganizationSchema,
   transferOwnershipSchema,
   organizationIdParamSchema,
+  memberActionParamSchema,
+  updateMemberRoleSchema,
 } from './organization.schema.js';
 
 export const organizationRouter: Router = Router();
@@ -93,4 +95,28 @@ organizationRouter.delete(
   requireOrgMembership('id'),
   requireOrgRole(['OWNER']),
   organizationController.deleteOrganizationHandler
+);
+
+/**
+ * Route: DELETE /api/v1/organizations/:id/members/:userId
+ * Description: Remove a member from the organization (requires OWNER role — MVP)
+ */
+organizationRouter.delete(
+  '/:id/members/:userId',
+  validateRequest(memberActionParamSchema),
+  requireOrgMembership('id'),
+  requireOrgRole(['OWNER']),
+  organizationController.removeMemberHandler
+);
+
+/**
+ * Route: PATCH /api/v1/organizations/:id/members/:userId/role
+ * Description: Update a member's organization role (requires OWNER or ADMIN role)
+ */
+organizationRouter.patch(
+  '/:id/members/:userId/role',
+  validateRequest(updateMemberRoleSchema),
+  requireOrgMembership('id'),
+  requireOrgRole(['OWNER', 'ADMIN']),
+  organizationController.updateMemberRoleHandler
 );
