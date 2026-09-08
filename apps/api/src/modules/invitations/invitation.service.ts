@@ -147,7 +147,11 @@ export class InvitationService {
       invitationToken: rawInvitationToken,
     });
 
-    return updatedInvitation ?? createdInvitation;
+    const result = updatedInvitation ?? createdInvitation;
+    return {
+      ...result,
+      token: rawInvitationToken,
+    };
   }
 
   /**

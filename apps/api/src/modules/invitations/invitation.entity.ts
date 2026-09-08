@@ -31,6 +31,7 @@ export interface Invitation {
   expires_at: Date;
   accepted_at: Date | null;
   created_at: Date;
+  token?: string;
 }
 
 /**
