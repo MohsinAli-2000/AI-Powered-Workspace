@@ -391,3 +391,34 @@ Phase:     Backend implementation
 Affected:  storage.service.ts, env.ts
 ```
 
+---
+
+### DEC-026 — Asynchronous Worker Pipeline with Dead Letter Queuing & Thread-Safe Pooling
+
+```
+Decision:  Implement Python background worker (`apps/worker`) consuming `document-processing`
+           from RabbitMQ with Dead Letter Queue (`document-processing-dlq`), ThreadedConnectionPool
+           for PostgreSQL, and streaming S3 downloader with 50MB file size cap
+Why:       Decouples CPU-intensive document extraction and chunking from the user-facing API;
+           DLQ guarantees malformed or poison messages do not block the queue; thread-safe pooling
+           eliminates database connection corruption across asynchronous events
+Status:    Confirmed & Implemented (Phase 10)
+Phase:     Worker implementation
+Affected:  queue_consumer.py, db.py, storage.py, processor.py
+```
+
+---
+
+### DEC-027 — Semantic Sliding-Window Document Chunking with Natural Boundary Snapping
+
+```
+Decision:  Use 1000-character chunk window with 200-character overlap, automatically snapping
+           boundaries to paragraph breaks (`\n\n`), sentence/line breaks (`\n`), and word boundaries
+Why:       Preserves semantic coherence and context continuity for dense vector embedding quality;
+           word-boundary snapping prevents orphan partial-word tokens from degrading vector search
+Status:    Confirmed & Implemented (Phase 10)
+Phase:     Worker implementation
+Affected:  chunker.py, normalizer.py
+```
+
+

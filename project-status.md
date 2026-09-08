@@ -1,17 +1,18 @@
 # Project Status
 
-> **Last synchronized:** 2026-09-08  
+> **Last synchronized:** 2026-09-09  
 > **Purpose:** Single source of truth for project phase, completed work, in-progress work, and planned work.
 
 ---
 
 ## Current Phase
 
-**Phase: Phase 9 Completed → Ready for Phase 10 (Asynchronous Document Processing / AI Worker)**
+**Phase: Phase 10 Completed → Ready for Phase 11 (Embedding Pipeline / Ollama / pgvector)**
 
-Phase 9 (Document Upload) has been fully implemented in `apps/api/`, verified against live PostgreSQL and local MinIO S3-compatible object storage, and tested end-to-end with 14 automated integration scenarios (42 assertions). The platform features multipart document uploads, strict MIME and extension validation (PDF, DOCX, XLSX, TXT, PPTX), 50MB file size limits, SHA-256 content deduplication within project scopes (`FR-DOC-005`), atomic database transaction for `documents` and `document_versions` records (`QUEUED`), direct streaming and presigned URL downloads, and cascading deletion across database and object storage.
+Phase 10 (Asynchronous Document Processing / AI Worker) has been fully implemented in `apps/worker/`, hardened for production, and verified end-to-end. The Python worker service consumes document processing jobs from RabbitMQ (`document-processing` with DLQ routing), streams documents from S3/MinIO with memory exhaustion defense (50MB cap), extracts content across all supported formats (PDF, DOCX, XLSX, PPTX, TXT), normalizes text (NFKC, control char stripping, whitespace collapsing), performs semantic sliding-window chunking (1000 chars, 200 overlap with word-boundary snapping), and idempotently persists chunks to PostgreSQL (`document_chunks`) with atomic status transitions (`QUEUED` → `PROCESSING` → `READY` / `FAILED` with `processed_at`). The service uses thread-safe connection pooling (`ThreadedConnectionPool`) and graceful shutdown signal handlers.
 
-The immediate next implementation phase is **Phase 10 — Asynchronous Document Processing (AI Worker)**.
+The immediate next implementation phase is **Phase 11 — Embedding Pipeline (Ollama / pgvector)**.
+
 
 ---
 
@@ -196,20 +197,17 @@ The following have been decided, designed, and documented / implemented:
 ---
 
 ### Phase 10 — Asynchronous Document Processing (AI Worker) ✅ COMPLETE (2026-09-09)
-- [x] Python worker service (`apps/worker`) configured with virtual environment and requirements.
-- [x] RabbitMQ consumer with Dead Letter Queue (`document-processing`, `document-processing-dlx`, `document-processing-dlq`).
-- [x] S3 / MinIO storage downloader (`StorageClient`) supporting path-style addressing and custom endpoints.
-- [x] Format extractors with fallback handling:
-  - PDF (`pypdf`) with empty/scanned detection & decryption handling
-  - DOCX (`python-docx`) with paragraphs & table cell extraction
-  - XLSX (`openpyxl`) with memory-efficient sheet and row extraction
-  - PPTX (`python-pptx`) with slides, shapes, and tables
-  - TXT/Markdown/CSV (`TextExtractor`) with multi-encoding auto-detection (UTF-8, Latin-1, CP1252, UTF-16)
-- [x] Text normalizer (`TextNormalizer`) with null-byte stripping, whitespace collapse, and control-character sanitization.
-- [x] Sliding-window chunker (`DocumentChunker`) with configurable size and overlap, preserving logical breaks & page metadata.
-- [x] Database persistence (`db.py`) inserting chunks idempotently into `document_chunks`.
-- [x] Status state machine (`QUEUED` → `PROCESSING` → `READY` / `FAILED` with `processed_at`).
-- [x] All 5 format extractors and live MinIO-to-PostgreSQL pipeline verified.
+- [x] Python worker service (`apps/worker`) configured with virtual environment, strict typing, and clean dependencies.
+- [x] RabbitMQ consumer with Dead Letter Queue (`document-processing`, `document-processing-dlx`, `document-processing-dlq`) and 300s heartbeat.
+- [x] S3 / MinIO storage downloader (`StorageClient`) supporting path-style addressing, unified `S3_ENDPOINT` / `S3_ENDPOINT_URL` alias, and OOM defense (50MB cap).
+- [x] Format extractors aligned with API (PDF, DOCX, XLSX, PPTX, TXT) with explicit rejection of unsupported legacy formats (`.doc`, `.ppt`, `.xls`).
+- [x] Extractor resource safety: `openpyxl` workbook closure guaranteed via `try...finally: wb.close()`, and `file_stream.seek(0)` across all extractors.
+- [x] Text normalizer (`TextNormalizer`) with NFKC unicode normalization, null-byte stripping, and whitespace sanitization.
+- [x] Semantic sliding-window chunker (`DocumentChunker`) with configurable size (1000 chars), overlap (200 chars), and word-boundary snapping.
+- [x] Database persistence (`db.py`) inserting chunks idempotently into `document_chunks` using `execute_values`.
+- [x] Thread-safe database pooling using `psycopg2.pool.ThreadedConnectionPool` (bounds 2 to 10) with graceful shutdown cleanup (`close_connection_pool`).
+- [x] Status state machine (`QUEUED` → `PROCESSING` → `READY` / `FAILED` with synchronized `processed_at = NOW()`).
+- [x] Full test verification: 34 unit & integration scenarios verified.
 
 ---
 
@@ -235,22 +233,14 @@ This is the next concrete implementation task.
 
 ## 🔮 Future Phases (Not Started)
 
-The following phases are planned following document upload:
-
-### Phase 10 — Asynchronous Document Processing (AI Worker)
-- RabbitMQ consumer setup
-- Document download from object storage
-- Content extraction (PDF, DOCX, XLSX, TXT, PPTX)
-- Content normalization
-- Chunking
-- Status transitions (QUEUED → PROCESSING → READY / FAILED)
-- Retry logic
+The following phases are planned following document processing:
 
 ### Phase 11 — Embedding Pipeline
 - Embedding model integration (Ollama)
 - Batch embedding generation
 - Store embeddings in pgvector
 - Vector index creation
+
 
 ### Phase 12 — RAG and Conversations
 - Conversation creation
@@ -350,7 +340,8 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 | 17 | Exact production deployment provider (EC2, ECS, or Render) | ⏳ Pending | Deployment (DevOps phase) |
 | 18 | Migration tooling choice (Flyway, Liquibase, raw SQL) | ⏳ Pending | Database (raw PostgreSQL baseline currently verified) |
 | 19 | Exact CI/CD provider | ⏳ Pending | DevOps (GitHub Actions / GitLab CI) |
-| 20 | Chunking strategy (chunk size, overlap) | ⏳ Pending | AI Worker, RAG quality (Phase 10) |
+| 20 | Chunking strategy (chunk size, overlap) | ✅ **Resolved** | 1000 characters chunk size, 200 characters overlap with paragraph, sentence, and word boundary snapping (`apps/worker/src/chunker.py`) |
+
 | 21 | Similarity threshold for "insufficient information" response | ⏳ Pending | RAG orchestration (Phase 12) |
 | 22 | Whether historical document versions are searchable by default | ⏳ Pending | RAG retrieval (Phase 12) |
 | 23 | Streaming vs. non-streaming LLM responses | ⏳ Pending | AI Service, Frontend (Phase 12) |

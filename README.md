@@ -1140,34 +1140,29 @@ The architecture is intentionally designed so that infrastructure providers can 
 * [x] Node.js backend foundation (TypeScript ESM, Express 5, connection pool, error handling, logging, Sentry, BaseRepository)
 * [x] Authentication & User management (registration, bcrypt, login, JWT rotation, email verification, password reset)
 * [x] Organization management (multi-tenant CRUD, roles, tenant isolation middleware, atomic ownership transfer)
-* [x] Document versioning designed
-* [x] Audit logging designed
-* [x] 20 architectural decisions confirmed and documented
+* [x] Members & invitation flow (Invite member, role assignment, accept/reject tokens, ADMIN count rule, Resend email)
+* [x] Project management (CRUD, project membership, project manager minimum count rule)
+* [x] Group management (Group CRUD, membership, group project role assignments)
+* [x] Document upload & validation (Multipart upload, 50MB limit, PDF/DOCX/XLSX/PPTX/TXT, SHA-256 deduplication)
+* [x] Object storage integration (MinIO in development, AWS S3 in production, streaming & presigned URLs)
+* [x] RabbitMQ job publishing (`PROCESS_DOCUMENT` queue dispatch)
+* [x] Python Background Worker (`apps/worker`: format extractors, NFKC normalizer, sliding-window chunker, ThreadedConnectionPool, DLQ)
+* [x] 27 architectural decisions confirmed and documented
 
 ### ⏭️ Next — Immediate
 
-* [ ] Members & invitation flow (Invite member, role assignment, accept/reject tokens, ADMIN count rule)
+* [ ] Phase 11 — Embedding Pipeline (Ollama / `nomic-embed-text`, batch embedding generation, pgvector storage)
 
 ### 🔮 Implementation (Not Started)
 
-* [ ] Project management
-* [ ] Group management
-* [ ] Document upload & validation
-* [ ] Object storage integration
-* [ ] RabbitMQ job publishing
-* [ ] Python AI Worker (extraction, chunking, embedding)
-* [ ] pgvector retrieval
 * [ ] Authorization-aware RAG pipeline
 * [ ] Conversations & AI chat
 * [ ] Source citations
-* [ ] Document access control (RESTRICTED mode)
+* [ ] Document access control (RESTRICTED mode & custom access rules)
 * [ ] Audit logging
-* [ ] Email integration
-* [ ] Monitoring (Sentry)
 * [ ] Next.js frontend
-* [ ] Dockerization
-* [ ] CI/CD pipeline
-* [ ] Deployment
+* [ ] Production Dockerization & CI/CD deployment
+
 
 ---
 
