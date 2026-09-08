@@ -7,11 +7,11 @@
 
 ## Current Phase
 
-**Phase: Phase 7 Completed → Ready for Phase 8 (Group Management)**
+**Phase: Phase 8 Completed → Ready for Phase 9 (Document Upload)**
 
-Phase 7 (Project Management) has been fully implemented in `apps/api/`, verified against live PostgreSQL, and tested end-to-end with 20 automated integration scenarios (43 assertions). The platform features project creation with atomic creator `PROJECT_MANAGER` assignment, authorized project listing with strict tenant isolation, project details, settings updates, cascading deletion, member invitation & role mutations, self-removal, and strict enforcement of the `PROJECT_MANAGER` minimum count invariant (`FR-PROJ-009`).
+Phase 8 (Group Management) has been fully implemented in `apps/api/`, verified against live PostgreSQL, and tested end-to-end with 11 automated integration scenarios (47 assertions). The platform features organization-scoped group creation, duplicate name protection, authorized group listing, group details, settings updates, cascading deletion, member addition with strict cross-tenant boundary validation, member listing, administrative removal, and self-removal (leaving groups).
 
-The immediate next implementation phase is **Phase 8 — Group Management**.
+The immediate next implementation phase is **Phase 9 — Document Upload**.
 
 ---
 
@@ -163,55 +163,53 @@ The following have been decided, designed, and documented / implemented:
 - [x] Update project member role (`PATCH /api/v1/projects/:id/members/:userId/role`) with `PROJECT_MANAGER` minimum count enforcement
 - [x] Remove member from project (`DELETE /api/v1/projects/:id/members/:userId`) with `PROJECT_MANAGER` minimum count enforcement and self-removal support
 
+### Phase 8 — Group Management
+- [x] Group entity, types, and `GroupRepository`
+- [x] Group membership repository (`GroupMembershipRepository`)
+- [x] Create group endpoint (`POST /api/v1/organizations/:id/groups`) with OWNER/ADMIN role gate & duplicate name check
+- [x] List organization groups (`GET /api/v1/organizations/:id/groups`) with member counts
+- [x] Get group details (`GET /api/v1/groups/:id`) with caller membership flag
+- [x] Update group settings (`PATCH /api/v1/groups/:id`) with rename conflict prevention
+- [x] Delete group endpoint (`DELETE /api/v1/groups/:id`) with clean cascade of memberships
+- [x] Add member to group (`POST /api/v1/groups/:id/members`) with strict cross-tenant validation & duplicate prevention
+- [x] Remove member from group (`DELETE /api/v1/groups/:id/members/:userId`) with OWNER/ADMIN role check and self-removal support
+- [x] List group members (`GET /api/v1/groups/:id/members`) with user details and org roles
+- [x] Custom middleware `requireGroupAccess` & `requireGroupAdmin`
+
 ---
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 7 completed. Ready to initiate Phase 8 (Group Management).
+Nothing currently in active implementation. Phase 8 completed. Ready to initiate Phase 9 (Document Upload).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 8 — Group Management
+### Phase 9 — Document Upload
 
 This is the next concrete implementation task.
 
 **Scope:**
-- [ ] Group entity, types, and `GroupRepository`
-- [ ] Group membership repository (`GroupMembershipRepository`)
-- [ ] Create group endpoint (`POST /api/v1/organizations/:id/groups`)
-- [ ] List organization groups (`GET /api/v1/organizations/:id/groups`)
-- [ ] Get group details (`GET /api/v1/groups/:id`)
-- [ ] Update group settings (`PATCH /api/v1/groups/:id`)
-- [ ] Delete group endpoint (`DELETE /api/v1/groups/:id`)
-- [ ] Add member to group (`POST /api/v1/groups/:id/members`)
-- [ ] Remove member from group (`DELETE /api/v1/groups/:id/members/:userId`)
-- [ ] List group members (`GET /api/v1/groups/:id/members`)
+- [ ] File validation (supported MIME types: PDF, DOCX, XLSX, TXT, PPTX; size limit: 50MB)
+- [ ] Duplicate detection (SHA-256 content hash check per project scope)
+- [ ] Object storage integration (MinIO for development / S3 for production)
+- [ ] Document record creation (`documents` table) with default `PROJECT` access mode
+- [ ] Document version record creation (`document_versions` table with status `QUEUED`)
+- [ ] RabbitMQ integration & job publishing (`PROCESS_DOCUMENT` job)
+- [ ] Document listing and retrieval endpoints with project authorization
 
 **Reference files for this phase:**
-- `docs/functional-requirements.md` — Section 4: Group Model
-- `docs/architecture/authorization.md` — Section 4: Group Model
-- `docs/architecture/database.md` — `groups`, `group_memberships` tables
+- `docs/functional-requirements.md` — Section 9: Document Requirements (`FR-DOC-001` through `FR-DOC-011`)
+- `docs/architecture/system-architecture.md` — Section 4: Document Ingestion Pipeline
+- `docs/architecture/database.md` — Section 5: Documents & Document Versions
+- `docs/architecture/message-broker.md` — RabbitMQ job queues and schemas
 
 ---
 
 ## 🔮 Future Phases (Not Started)
 
-The following phases are planned following group management:
-
-### Phase 9 — Document Upload
-- Create group
-- Add/remove group members
-- View groups
-
-### Phase 9 — Document Upload
-- File validation (type, size)
-- Duplicate detection (content hash)
-- Object storage upload (MinIO/S3)
-- Document record creation
-- Document version record creation
-- Job publication to RabbitMQ
+The following phases are planned following document upload:
 
 ### Phase 10 — Asynchronous Document Processing (AI Worker)
 - RabbitMQ consumer setup
