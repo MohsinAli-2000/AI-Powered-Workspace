@@ -21,6 +21,10 @@ import {
   organizationGroupsRouter,
   groupRouter,
 } from './modules/groups/group.router.js';
+import {
+  projectDocumentsRouter,
+  documentRouter,
+} from './modules/documents/document.router.js';
 
 const app: Application = express();
 
@@ -42,7 +46,9 @@ app.use(`${env.API_PREFIX}/organizations`, organizationProjectsRouter);
 app.use(`${env.API_PREFIX}/organizations`, organizationGroupsRouter);
 app.use(`${env.API_PREFIX}/invitations`, invitationPublicRouter);
 app.use(`${env.API_PREFIX}/projects`, projectRouter);
+app.use(`${env.API_PREFIX}/projects`, projectDocumentsRouter);
 app.use(`${env.API_PREFIX}/groups`, groupRouter);
+app.use(`${env.API_PREFIX}/documents`, documentRouter);
 
 // Not found route handler
 app.use(notFoundHandler);

@@ -7,11 +7,11 @@
 
 ## Current Phase
 
-**Phase: Phase 8 Completed → Ready for Phase 9 (Document Upload)**
+**Phase: Phase 9 Completed → Ready for Phase 10 (Asynchronous Document Processing / AI Worker)**
 
-Phase 8 (Group Management) has been fully implemented in `apps/api/`, verified against live PostgreSQL, and tested end-to-end with 11 automated integration scenarios (47 assertions). The platform features organization-scoped group creation, duplicate name protection, authorized group listing, group details, settings updates, cascading deletion, member addition with strict cross-tenant boundary validation, member listing, administrative removal, and self-removal (leaving groups).
+Phase 9 (Document Upload) has been fully implemented in `apps/api/`, verified against live PostgreSQL and local MinIO S3-compatible object storage, and tested end-to-end with 14 automated integration scenarios (42 assertions). The platform features multipart document uploads, strict MIME and extension validation (PDF, DOCX, XLSX, TXT, PPTX), 50MB file size limits, SHA-256 content deduplication within project scopes (`FR-DOC-005`), atomic database transaction for `documents` and `document_versions` records (`QUEUED`), direct streaming and presigned URL downloads, and cascading deletion across database and object storage.
 
-The immediate next implementation phase is **Phase 9 — Document Upload**.
+The immediate next implementation phase is **Phase 10 — Asynchronous Document Processing (AI Worker)**.
 
 ---
 
@@ -178,32 +178,50 @@ The following have been decided, designed, and documented / implemented:
 
 ---
 
+### Phase 9 — Document Upload
+- [x] Storage service (`StorageService`) using `@aws-sdk/client-s3` compatible with local MinIO and AWS S3
+- [x] Automatic bucket creation and lifecycle verification (`ai-workspace-documents`)
+- [x] Document entity, types, and `DocumentRepository`
+- [x] Document version repository (`DocumentVersionRepository`)
+- [x] File validation middleware (`handleDocumentUpload`) enforcing supported formats (PDF, DOCX, XLSX, TXT, PPTX) and 50MB size limit
+- [x] Content deduplication using SHA-256 hash per project scope (`FR-DOC-005`)
+- [x] Upload document endpoint (`POST /api/v1/projects/:id/documents` with multipart/form-data)
+- [x] List project documents endpoint (`GET /api/v1/projects/:id/documents`)
+- [x] Get document details endpoint (`GET /api/v1/documents/:id`)
+- [x] Download document endpoint (`GET /api/v1/documents/:id/download` supporting both direct streaming and presigned URLs)
+- [x] Update document metadata endpoint (`PATCH /api/v1/documents/:id`)
+- [x] Delete document endpoint (`DELETE /api/v1/documents/:id` with database cascade and object storage cleanup)
+- [x] Queue service abstraction (`QueueService`) publishing `PROCESS_DOCUMENT` job
+
+---
+
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 8 completed. Ready to initiate Phase 9 (Document Upload).
+Nothing currently in active implementation. Phase 9 completed. Ready to initiate Phase 10 (Asynchronous Document Processing / AI Worker).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 9 — Document Upload
+### Phase 10 — Asynchronous Document Processing (AI Worker)
 
 This is the next concrete implementation task.
 
 **Scope:**
-- [ ] File validation (supported MIME types: PDF, DOCX, XLSX, TXT, PPTX; size limit: 50MB)
-- [ ] Duplicate detection (SHA-256 content hash check per project scope)
-- [ ] Object storage integration (MinIO for development / S3 for production)
-- [ ] Document record creation (`documents` table) with default `PROJECT` access mode
-- [ ] Document version record creation (`document_versions` table with status `QUEUED`)
-- [ ] RabbitMQ integration & job publishing (`PROCESS_DOCUMENT` job)
-- [ ] Document listing and retrieval endpoints with project authorization
+- [ ] RabbitMQ setup and queue configuration (`document.process`, `document.retry`, `document.dlq`)
+- [ ] Python / Node AI Worker consumer setup
+- [ ] Document download from object storage (MinIO / S3)
+- [ ] Content extraction (PDF, DOCX, XLSX, TXT, PPTX)
+- [ ] Text normalization and cleaning
+- [ ] Text chunking (token / character boundary with configurable overlap)
+- [ ] Status transitions (`QUEUED` → `PROCESSING` → `READY` / `FAILED`)
+- [ ] Retry policy and Dead Letter Queue handling
 
 **Reference files for this phase:**
-- `docs/functional-requirements.md` — Section 9: Document Requirements (`FR-DOC-001` through `FR-DOC-011`)
-- `docs/architecture/system-architecture.md` — Section 4: Document Ingestion Pipeline
-- `docs/architecture/database.md` — Section 5: Documents & Document Versions
-- `docs/architecture/message-broker.md` — RabbitMQ job queues and schemas
+- `docs/functional-requirements.md` — Section 10: Document Processing Requirements
+- `docs/architecture/system-architecture.md` — Section 4 & 5: Worker Processing Flow
+- `docs/architecture/database.md` — Section 5: `document_chunks` table
+- `docs/architecture/rag.md` — Chunking strategy and schema
 
 ---
 

@@ -28,6 +28,19 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32, { message: 'JWT_REFRESH_SECRET must be at least 32 characters long' }),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
   BCRYPT_SALT_ROUNDS: z.coerce.number().default(12),
+
+  // Object Storage (MinIO for development / AWS S3 for production)
+  S3_ENDPOINT: z.string().default('http://localhost:9000'),
+  S3_REGION: z.string().default('us-east-1'),
+  S3_ACCESS_KEY_ID: z.string().default('minioadmin'),
+  S3_SECRET_ACCESS_KEY: z.string().default('minioadmin'),
+  S3_BUCKET_NAME: z.string().default('ai-workspace-documents'),
+  S3_FORCE_PATH_STYLE: z
+    .string()
+    .transform((val) => val === 'true')
+    .or(z.boolean())
+    .default(true),
+  MAX_FILE_SIZE_BYTES: z.coerce.number().default(52428800), // 50MB
 });
 
 const parseEnv = () => {
