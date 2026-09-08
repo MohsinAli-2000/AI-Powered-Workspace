@@ -13,6 +13,10 @@ import {
   invitationOrgRouter,
   invitationPublicRouter,
 } from './modules/invitations/invitation.router.js';
+import {
+  organizationProjectsRouter,
+  projectRouter,
+} from './modules/projects/project.router.js';
 
 const app: Application = express();
 
@@ -30,7 +34,9 @@ app.use(`${env.API_PREFIX}/health`, healthRouter);
 app.use(`${env.API_PREFIX}/auth`, authRouter);
 app.use(`${env.API_PREFIX}/organizations`, organizationRouter);
 app.use(`${env.API_PREFIX}/organizations`, invitationOrgRouter);
+app.use(`${env.API_PREFIX}/organizations`, organizationProjectsRouter);
 app.use(`${env.API_PREFIX}/invitations`, invitationPublicRouter);
+app.use(`${env.API_PREFIX}/projects`, projectRouter);
 
 // Not found route handler
 app.use(notFoundHandler);

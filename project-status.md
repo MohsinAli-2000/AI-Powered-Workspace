@@ -7,11 +7,11 @@
 
 ## Current Phase
 
-**Phase: Phase 6 Completed → Ready for Phase 7 (Project Management)**
+**Phase: Phase 7 Completed → Ready for Phase 8 (Group Management)**
 
-Phase 6 (Member and Invitation Management) has been fully implemented in `apps/api/`, verified against live PostgreSQL, and type-checked with zero compilation errors. The platform features the complete invitation lifecycle (create, list, revoke, accept, reject), secure SHA-256 token hashing, invitation email dispatch with expiration, duplicate active invitation prevention (FR-MEMBER-004), member role update with single-owner protection, and member removal with ADMIN minimum count (DEC-017) enforcement.
+Phase 7 (Project Management) has been fully implemented in `apps/api/`, verified against live PostgreSQL, and tested end-to-end with 20 automated integration scenarios (43 assertions). The platform features project creation with atomic creator `PROJECT_MANAGER` assignment, authorized project listing with strict tenant isolation, project details, settings updates, cascading deletion, member invitation & role mutations, self-removal, and strict enforcement of the `PROJECT_MANAGER` minimum count invariant (`FR-PROJ-009`).
 
-The immediate next implementation phase is **Phase 7 — Project Management**.
+The immediate next implementation phase is **Phase 8 — Group Management**.
 
 ---
 
@@ -151,44 +151,56 @@ The following have been decided, designed, and documented / implemented:
 - [x] Invitation transactional email dispatch via `EmailService`
 - [x] Database migration applied for `status` column and lookup indexes
 
+### Phase 7 — Project Management
+- [x] Project entity, types, and `ProjectRepository`
+- [x] Project membership repository (`ProjectMembershipRepository`)
+- [x] Create project endpoint (`POST /api/v1/organizations/:id/projects` with atomic initial `PROJECT_MANAGER` assignment)
+- [x] List authorized projects (`GET /api/v1/organizations/:id/projects`) with strict member-level isolation
+- [x] Get project details with access control (`GET /api/v1/projects/:id`)
+- [x] Update project settings (`PATCH /api/v1/projects/:id`)
+- [x] Delete project endpoint (`DELETE /api/v1/projects/:id`) with cascade
+- [x] Add member to project (`POST /api/v1/projects/:id/members`) with cross-tenant membership validation
+- [x] Update project member role (`PATCH /api/v1/projects/:id/members/:userId/role`) with `PROJECT_MANAGER` minimum count enforcement
+- [x] Remove member from project (`DELETE /api/v1/projects/:id/members/:userId`) with `PROJECT_MANAGER` minimum count enforcement and self-removal support
+
 ---
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 6 completed. Ready to initiate Phase 7 (Project Management).
+Nothing currently in active implementation. Phase 7 completed. Ready to initiate Phase 8 (Group Management).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 7 — Project Management
+### Phase 8 — Group Management
 
 This is the next concrete implementation task.
 
 **Scope:**
-- [ ] Project entity, types, and `ProjectRepository`
-- [ ] Project membership repository (`ProjectMembershipRepository`)
-- [ ] Create project endpoint (`POST /api/v1/organizations/:id/projects` with default PROJECT_MANAGER assignment)
-- [ ] List user's authorized projects (`GET /api/v1/organizations/:id/projects`)
-- [ ] Get project details with access control (`GET /api/v1/projects/:id`)
-- [ ] Update project settings (`PATCH /api/v1/projects/:id`)
-- [ ] Delete project endpoint (`DELETE /api/v1/projects/:id`)
-- [ ] Add member to project (`POST /api/v1/projects/:id/members`)
-- [ ] Remove member from project with PROJECT_MANAGER minimum count enforcement (`DELETE /api/v1/projects/:id/members/:userId`)
-- [ ] Update project member role (`PATCH /api/v1/projects/:id/members/:userId/role`)
+- [ ] Group entity, types, and `GroupRepository`
+- [ ] Group membership repository (`GroupMembershipRepository`)
+- [ ] Create group endpoint (`POST /api/v1/organizations/:id/groups`)
+- [ ] List organization groups (`GET /api/v1/organizations/:id/groups`)
+- [ ] Get group details (`GET /api/v1/groups/:id`)
+- [ ] Update group settings (`PATCH /api/v1/groups/:id`)
+- [ ] Delete group endpoint (`DELETE /api/v1/groups/:id`)
+- [ ] Add member to group (`POST /api/v1/groups/:id/members`)
+- [ ] Remove member from group (`DELETE /api/v1/groups/:id/members/:userId`)
+- [ ] List group members (`GET /api/v1/groups/:id/members`)
 
 **Reference files for this phase:**
-- `docs/functional-requirements.md` — Section 7: Project Requirements
-- `docs/architecture/authorization.md` — Section 3: Project Roles & PROJECT_MANAGER Minimum Count Rule
-- `docs/architecture/database.md` — `projects`, `project_memberships` tables
+- `docs/functional-requirements.md` — Section 4: Group Model
+- `docs/architecture/authorization.md` — Section 4: Group Model
+- `docs/architecture/database.md` — `groups`, `group_memberships` tables
 
 ---
 
 ## 🔮 Future Phases (Not Started)
 
-The following phases are planned following project management:
+The following phases are planned following group management:
 
-### Phase 8 — Group Management
+### Phase 9 — Document Upload
 - Create group
 - Add/remove group members
 - View groups
