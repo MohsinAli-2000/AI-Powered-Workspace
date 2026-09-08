@@ -99,12 +99,14 @@ Note:      Production LLM and embedding provider not yet finalized
 ### DEC-006 — Object Storage: MinIO (dev) → AWS S3 (prod)
 
 ```
-Decision:  Use MinIO locally for development, AWS S3 for production
-Why:       MinIO is S3-compatible, enabling development without AWS costs;
-           production uses AWS S3 for reliability and scalability
-Status:    Confirmed
-Phase:     Architecture design
-Affected:  Backend (document upload), AI Worker (file download)
+Decision:  Use MinIO locally for development, AWS S3 for production, unified
+           under the official @aws-sdk/client-s3 driver
+Why:       MinIO is S3-compatible, enabling local development with zero AWS costs;
+           production uses AWS S3 for scalability; switching environments
+           requires only changing environment variables with zero code changes
+Status:    Confirmed & Implemented (Phase 9)
+Phase:     Architecture design & implementation
+Affected:  Backend (document upload, storage.service.ts), AI Worker (file download)
 ```
 
 ---
@@ -114,10 +116,10 @@ Affected:  Backend (document upload), AI Worker (file download)
 ```
 Decision:  Use Resend for transactional email (verification, invitations,
            password reset)
-Why:       Modern, developer-friendly email API
-Status:    Confirmed (see CONFLICT-001 — architecture diagram shows alternatives)
-Phase:     Architecture design
-Affected:  Backend Email Module
+Why:       Modern, developer-friendly email API; clean abstraction in EmailService
+Status:    Confirmed & Implemented (Phase 4, Phase 6; CONFLICT-001 resolved)
+Phase:     Architecture design & implementation
+Affected:  Backend Email Module (email.service.ts)
 ```
 
 ---
@@ -201,16 +203,19 @@ Affected:  conversations table, Conversation Module, RAG retrieval
 ---
 
 ### DEC-013 — Document Versioning
-
+ 
 ```
 Decision:  Documents support multiple versions; historical versions are
            preserved; RAG provenance should identify which version
            supported an answer
 Why:       Organizations may update documents over time; the ability to
            trace "previously X, now Y" requires version history
-Status:    Confirmed (design complete; implementation deferred)
-Phase:     Architecture design
-Affected:  document_versions, document_chunks tables; RAG provenance
+Status:    Confirmed & Implemented (Phase 9 Baseline)
+Phase:     Architecture design & implementation
+Affected:  document_versions, document_chunks tables; Document upload service
+Note:      Initial uploads populate document_versions (version_number: 1,
+           is_current: true, status: QUEUED). Modified files with identical
+           names create new document records per FR-DOC-006.
 ```
 
 ---
@@ -315,3 +320,74 @@ Status:    Confirmed
 Phase:     Authorization + RAG design
 Affected:  Conversation model, RAG retrieval filters
 ```
+
+---
+
+### DEC-021 — Dual-Token Authentication Strategy
+
+```
+Decision:  Use dual-token architecture: short-lived (15 min) JWT Access Tokens
+           paired with long-lived (7 day) Refresh Tokens subject to single-use rotation
+Why:       Minimizes exposure window if access token is intercepted; prevents
+           replay attacks via cryptographic refresh token rotation
+Status:    Confirmed & Implemented (Phase 4)
+Phase:     Backend implementation
+Affected:  Auth Module (auth.service.ts, auth.middleware.ts)
+```
+
+---
+
+### DEC-022 — Hard Deletion with Database Cascade for Projects and Documents
+
+```
+Decision:  Apply hard deletion with foreign key cascading deletion (ON DELETE CASCADE)
+           for projects and documents, coupled with storage object purging
+Why:       Guarantees orphaned records, chunks, and sensitive files are completely
+           purged from both PostgreSQL and MinIO / AWS S3
+Status:    Confirmed & Implemented (Phase 7, Phase 9)
+Phase:     Backend implementation
+Affected:  project.service.ts, document.service.ts, storage.service.ts
+```
+
+---
+
+### DEC-023 — Project-Scoped SHA-256 Document Content Deduplication
+
+```
+Decision:  Compute SHA-256 hash from file buffer on upload and enforce uniqueness
+           per project scope (FR-DOC-005)
+Why:       Prevents duplicate uploads and redundant AI embedding costs within
+           a project while allowing identical files across different projects
+Status:    Confirmed & Implemented (Phase 9)
+Phase:     Backend implementation
+Affected:  document.service.ts, document-version.repository.ts
+```
+
+---
+
+### DEC-024 — 50MB File Upload Limit & Strict Document Format Whitelist
+
+```
+Decision:  Enforce a strict 50MB file size limit and restrict uploads to supported
+           document formats (PDF, DOCX, XLSX, TXT, PPTX)
+Why:       Prevents resource exhaustion, protects embedding pipeline from unsupported
+           binaries and images, and aligns with FR-DOC-002 / FR-DOC-003
+Status:    Confirmed & Implemented (Phase 9)
+Phase:     Backend implementation
+Affected:  upload.middleware.ts, document.schema.ts
+```
+
+---
+
+### DEC-025 — Unified S3 Driver with MinIO (Dev) and AWS S3 (Prod) Parity
+
+```
+Decision:  Use @aws-sdk/client-s3 with S3_FORCE_PATH_STYLE and configurable S3_ENDPOINT
+           to support local MinIO in development and AWS S3 in production
+Why:       Zero cloud infrastructure costs during local development while guaranteeing
+           zero code changes when deploying to AWS S3 in production
+Status:    Confirmed & Implemented (Phase 9)
+Phase:     Backend implementation
+Affected:  storage.service.ts, env.ts
+```
+

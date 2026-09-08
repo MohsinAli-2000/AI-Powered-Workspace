@@ -218,13 +218,13 @@ documents-bucket/
 ## 11. Email
 
 **Technology:** Resend (transactional email)  
+**Status:** Confirmed & Implemented (`apps/api/src/modules/email/email.service.ts`)  
 **Use cases:**
 - Email verification
 - Organization invitations
 - Password reset
 
-> **Note:** Architecture diagram also shows Sendgrid / Mailgun as alternative email services.  
-> **TODO — CONFLICT — See conflicts section in project-status.md**
+> **Resolution:** Resend is the confirmed transactional email provider (resolving CONFLICT-001). Alternative providers (Sendgrid / Mailgun) were evaluated but Resend was selected for its modern API and Node.js SDK integration.
 
 ---
 

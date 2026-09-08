@@ -321,115 +321,65 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 
 ## ❓ Missing Information / TODOs
 
-| # | Item | Impact |
-|---|------|--------|
-| 1 | Exact embedding model name/version | AI Worker, AI Service |
-| 2 | Exact LLM model name/version | AI Service |
-| 3 | Production LLM provider (Ollama vs OpenAI vs Anthropic) | Architecture, cost |
-| 4 | Exact email provider (Resend confirmed; see CONFLICT-001) | Email Module |
-| 5 | Maximum allowed file size | Document upload validation |
-| 6 | Exact JWT / session authentication strategy | Auth Module |
-| 7 | Exact invitation expiration period | Invitation flow |
-| 8 | Exact ADMIN permission matrix (what ADMIN can/cannot do per resource) | Authorization |
-| 9 | Whether users can create unlimited organizations | Org creation endpoint |
-| 10 | Exact project deletion strategy (hard delete / soft delete / archive) | Project management |
-| 11 | Exact document deletion and retention strategy | Document management |
-| 12 | Exact duplicate detection scope (org-wide vs. project-wide) | Document upload |
-| 13 | Rate limiting rules | Security, infrastructure |
-| 14 | AI answer evaluation metrics | RAG quality |
-| 15 | Whether OAuth social login is in scope for MVP | Frontend, Auth |
-| 16 | Log aggregation platform (Sentry only / Logtail / ELK) | Monitoring |
-| 17 | Exact production deployment provider (EC2, ECS, or Render) | Deployment |
-| 18 | Migration tooling choice (Flyway, Liquibase, raw SQL) | Database |
-| 19 | Exact CI/CD provider | DevOps |
-| 20 | Chunking strategy (chunk size, overlap) | AI Worker, RAG quality |
-| 21 | Similarity threshold for "insufficient information" response | RAG orchestration |
-| 22 | Whether historical document versions are searchable by default | RAG retrieval |
-| 23 | Streaming vs. non-streaming LLM responses | AI Service, Frontend |
-| 24 | Whether conversation history is included as LLM context | RAG orchestration |
-| 25 | AWS S3 development configuration / bucket naming | Object storage |
+| # | Item | Status | Impact / Implementation Resolution |
+|---|------|--------|-----------------------------------|
+| 1 | Exact embedding model name/version | ⏳ Pending | AI Worker, AI Service (Phase 11) |
+| 2 | Exact LLM model name/version | ⏳ Pending | AI Service (Phase 12) |
+| 3 | Production LLM provider (Ollama vs OpenAI vs Anthropic) | ⏳ Pending | Architecture, cost (Phase 14) |
+| 4 | Exact email provider | ✅ **Resolved** | **Resend** confirmed & implemented (`apps/api/src/modules/email/email.service.ts`) |
+| 5 | Maximum allowed file size | ✅ **Resolved** | **50MB** (`52,428,800` bytes) enforced in `env.ts` and `upload.middleware.ts` |
+| 6 | Exact JWT / session authentication strategy | ✅ **Resolved** | **Dual-token**: 15m Access Token + 7d Refresh Token with rotation in `auth.service.ts` |
+| 7 | Exact invitation expiration period | ✅ **Resolved** | **7 days** cryptographically signed invitation tokens in `invitation.service.ts` |
+| 8 | Exact ADMIN permission matrix | ✅ **Resolved** | ADMIN manages memberships, invitations, and groups; cannot delete org or transfer ownership (OWNER only) |
+| 9 | Whether users can create unlimited organizations | ✅ **Resolved** | **Unlimited**: any authenticated user can create an organization; creator becomes initial OWNER |
+| 10 | Exact project deletion strategy | ✅ **Resolved** | **Hard delete with cascade**: PostgreSQL `ON DELETE CASCADE` purges project memberships, documents, chunks |
+| 11 | Exact document deletion and retention strategy | ✅ **Resolved** | **Hard delete + Storage purge**: DB cascade deletes versions; MinIO/S3 objects are deleted via `StorageService` |
+| 12 | Exact duplicate detection scope | ✅ **Resolved** | **Project-scoped SHA-256**: duplicate content in same project rejected (`409 Conflict`, `FR-DOC-005`) |
+| 13 | Rate limiting rules | ⏳ Pending | Security, infrastructure (pre-production hardening) |
+| 14 | AI answer evaluation metrics | ⏳ Pending | RAG quality (Phase 12) |
+| 15 | Whether OAuth social login is in scope for MVP | ⏳ Pending | Frontend, Auth (post-MVP extension) |
+| 16 | Log aggregation platform (Sentry only / Logtail / ELK) | ⏳ Pending | Monitoring (Pino HTTP + Sentry active; external aggregator deferred) |
+| 17 | Exact production deployment provider (EC2, ECS, or Render) | ⏳ Pending | Deployment (DevOps phase) |
+| 18 | Migration tooling choice (Flyway, Liquibase, raw SQL) | ⏳ Pending | Database (raw PostgreSQL baseline currently verified) |
+| 19 | Exact CI/CD provider | ⏳ Pending | DevOps (GitHub Actions / GitLab CI) |
+| 20 | Chunking strategy (chunk size, overlap) | ⏳ Pending | AI Worker, RAG quality (Phase 10) |
+| 21 | Similarity threshold for "insufficient information" response | ⏳ Pending | RAG orchestration (Phase 12) |
+| 22 | Whether historical document versions are searchable by default | ⏳ Pending | RAG retrieval (Phase 12) |
+| 23 | Streaming vs. non-streaming LLM responses | ⏳ Pending | AI Service, Frontend (Phase 12) |
+| 24 | Whether conversation history is included as LLM context | ⏳ Pending | RAG orchestration (Phase 12) |
+| 25 | AWS S3 development configuration / bucket naming | ✅ **Resolved** | Local MinIO (`http://localhost:9000`), bucket `ai-workspace-documents`, `@aws-sdk/client-s3` |
 
 ---
 
 ## Conflicts / Decisions Required (Detail)
 
-### CONFLICT-001 — Email Provider
+### CONFLICT-001 — Email Provider (RESOLVED)
 
-**Location A:** `docs/system-architecture.md` (line 124)
-```
-Resend — Transactional Email
-```
-
-**Location B:** `AI Powered Workspace Architecture Diagram.png` (External Services section)
-```
-SendGrid / Mailgun
-```
-
-**Analysis:**
-- The `system-architecture.md` text clearly names **Resend** as the email provider.
-- The architecture PNG diagram shows **SendGrid / Mailgun** as alternatives.
-- The diagram also shows a `Decision Log` entry (DEC-007) in this file where Resend is marked as "Confirmed" with a note about this conflict.
-- The PNG may reflect an earlier or alternate design discussion, or it may have been created to show options rather than a confirmed choice.
-
-**Current best guess:** Resend is the confirmed provider based on the text document.
-
-**Decision required:** Confirm Resend as the email provider, or select SendGrid / Mailgun, or document a fallback strategy.
+- **Status:** **Resolved — Resend Confirmed & Implemented**
+- **Location A:** `docs/system-architecture.md` (line 124) → Resend
+- **Location B:** `AI Powered Workspace Architecture Diagram.png` → SendGrid / Mailgun alternatives
+- **Resolution:**
+  Resend is the confirmed transactional email provider for all authentication, invitation, and notification flows. The email module is implemented in `apps/api/src/modules/email/email.service.ts` using the Resend SDK, supporting verification emails, password resets, and organization invites.
 
 ---
 
-### CONFLICT-002 — Tailwind CSS vs. Vanilla CSS
+### CONFLICT-002 — Tailwind CSS vs. Vanilla CSS (PENDING - FRONTEND)
 
-**Location A:** `AI Powered Workspace Architecture Diagram.png` (Frontend section)
-```
-Tailwind CSS + Shadcn/ui
-```
-
-**Location B:** `docs/system-architecture.md` (Component Responsibility Matrix)
-```
-Frontend: Next.js + TypeScript (no CSS framework specified)
-```
-
-**Analysis:**
-- The architecture diagram explicitly shows Tailwind CSS + Shadcn/ui.
-- The system-architecture.md does not contradict this but does not mention it.
-- This is not a conflict in the traditional sense — the diagram likely has more frontend detail.
-
-**Current best guess:** Tailwind CSS + Shadcn/ui is the agreed frontend styling approach.
-
-**Decision required:** Confirm Tailwind CSS + Shadcn/ui as the frontend styling stack.
+- **Status:** **Pending (Deferred to Frontend Implementation)**
+- **Location A:** `AI Powered Workspace Architecture Diagram.png` → Tailwind CSS + Shadcn/ui
+- **Location B:** `docs/system-architecture.md` → Next.js + TypeScript
+- **Analysis:** This is a frontend presentation concern and will be finalized when initiating the Next.js frontend application.
 
 ---
 
-### CONFLICT-003 — Document Versioning in MVP
+### CONFLICT-003 — Document Versioning in MVP (RESOLVED)
 
-**Location A:** `docs/functional-requirements.md` (FR-DOC-006, line 457)
-```
-Document versioning is outside the initial MVP scope.
-```
+- **Status:** **Resolved — Versioning Baseline Implemented**
+- **Location A:** `docs/functional-requirements.md` (FR-DOC-006) → "Document versioning is outside initial MVP scope"
+- **Location B:** `docs/architecture/database.md` & ERD → `document_versions` table exists with status and content hash
+- **Resolution:**
+  The schema and backend implementation in Phase 9 reconcile this distinction:
+  1. Every document upload creates a `document_versions` row with `version_number: 1`, `is_current: true`, status `QUEUED`, and SHA-256 hash.
+  2. Modified content with an existing filename is accepted as a new document record per `FR-DOC-006`.
+  3. The underlying database schema and `document_versions` structure preserve the capability for multi-version document histories and RAG version provenance.
 
-**Location B:** `docs/functional-requirements.md` (FR-DOC-006, line 455-456)
-```
-For the MVP, modified documents may be treated as new documents.
-```
-
-**Location C:** Parts 11-13 of this task briefing (confirmed design decisions)
-```
-Documents support versions. Historical versions should be preserved.
-RAG/source provenance should allow identifying which version supported an answer.
-```
-
-**Location D:** `docs/architecture/database.md` (this document) and ERD
-```
-document_versions table exists with version_number, is_current, etc.
-document_chunks linked to document_version_id
-```
-
-**Analysis:**
-- The functional requirements document explicitly says "Document versioning is outside the initial MVP scope."
-- However, the ERD (which is the confirmed database design baseline) includes a full `document_versions` table.
-- The confirmed design decisions (Parts 11-13) treat document versioning as a designed and confirmed feature.
-- This appears to be a scope evolution: versioning was out of MVP scope in the functional requirements phase, but was later incorporated into the database design.
-
-**Current interpretation:** The database design (ERD) is the more recent artifact, and document versioning is designed into the schema. Whether the versioning **feature** (user-facing upload of new versions) is MVP or not is unclear.
-
-**Decision required:** Clarify whether document versioning (user-facing new version upload) is in or out of MVP, while noting that the database schema already supports it.
