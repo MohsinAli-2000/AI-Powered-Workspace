@@ -41,6 +41,14 @@ const envSchema = z.object({
     .or(z.boolean())
     .default(true),
   MAX_FILE_SIZE_BYTES: z.coerce.number().default(52428800), // 50MB
+
+  // AI & RAG Configuration (Phase 12)
+  OLLAMA_BASE_URL: z.string().default('http://localhost:11434'),
+  EMBEDDING_MODEL: z.string().default('nomic-embed-text'),
+  LLM_MODEL: z.string().default('qwen2.5'),
+  RAG_SIMILARITY_THRESHOLD: z.coerce.number().default(0.35),
+  RAG_TOP_K: z.coerce.number().default(5),
+  AI_PROVIDER: z.enum(['ollama', 'mock']).default('ollama'),
 });
 
 const parseEnv = () => {

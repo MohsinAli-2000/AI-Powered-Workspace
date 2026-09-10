@@ -7,11 +7,11 @@
 
 ## Current Phase
 
-**Phase: Phase 11 Completed → Ready for Phase 12 (RAG and Conversations / AI Service)**
+**Phase: Phase 12 Completed → Ready for Phase 13 (Document Access Control)**
 
-Phase 11 (Embedding Pipeline / Ollama / pgvector) has been fully implemented in `apps/worker/`, hardened with comprehensive edge-case handling, and verified with 12 automated unit and integration tests. The pipeline features pluggable embedding client architecture (`OllamaEmbeddingClient` targeting `nomic-embed-text` with batch `/api/embed` and legacy fallback, exponential backoff retries, and `MockEmbeddingClient` for deterministic testing), automatic database migration to typed `vector(768)` with HNSW cosine distance indexing (`vector_cosine_ops`), batch chunk embedding integrated into `DocumentProcessor`, and a standalone CLI backfill utility (`batch_embedder.py`).
+Phase 12 (RAG and Conversations) has been fully implemented in `apps/api/`, hardened with multi-tenant isolation and strict project authorization scoping, and verified end-to-end. The system provides REST endpoints for conversation management, project scoping (`conversation_projects`), question embedding generation, authorization-aware pgvector similarity retrieval (`1 - (embedding <=> query_vector)` with configurable threshold), LLM grounded context assembly, fallback for insufficient knowledge (`FR-AI-005`), and atomic persistence of messages and citation provenance (`message_sources`).
 
-The immediate next implementation phase is **Phase 12 — RAG and Conversations**.
+The immediate next implementation phase is **Phase 13 — Document Access Control**.
 
 
 ---
@@ -219,36 +219,40 @@ The following have been decided, designed, and documented / implemented:
 - [x] Standalone batch backfill CLI tool (`batch_embedder.py`) with concurrency-safe row locking (`FOR UPDATE SKIP LOCKED`).
 - [x] 12 automated unit and integration tests passing with 100% success rate across client, pgvector, and processor pipelines.
 
+### Phase 12 — RAG and Conversations ✅ COMPLETE (2026-09-11)
+- [x] Conversation and message domain model, TypeScript entities, and Zod validation schemas (`apps/api/src/modules/conversations/`).
+- [x] Conversation repository with atomic `conversation_projects` project scope association and lifecycle tracking.
+- [x] Message repository with chronological thread retrieval and enriched citation lookup.
+- [x] Authorization-aware RAG vector search (`RagRepository`) with multi-tenant isolation, project boundaries, and document readiness filtering (`v.status = 'READY' AND v.is_current = true`).
+- [x] Pluggable `AiClient` interface with `OllamaAiClient` (`nomic-embed-text` + `qwen2.5`) and deterministic `MockAiClient` for test suites.
+- [x] Grounded prompt assembly with XML document isolation and prompt injection defense.
+- [x] `FR-AI-005` insufficient information fallback when no chunks match or similarity falls below threshold.
+- [x] Atomic persistence of assistant responses and citation provenance (`message_sources` with rank and similarity scores) inside single database transactions.
+- [x] REST controllers, conversation middleware (`requireConversationAccess`), and routes mounted in Express application.
+- [x] 100% test pass rate across conversation CRUD, cross-tenant isolation, project scope filtering, grounded RAG answering, and insufficient information fallback.
+
 ---
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 11 completed. Ready to initiate Phase 12 (RAG and Conversations / AI Service).
+Nothing currently in active implementation. Phase 12 completed. Ready to initiate Phase 13 (Document Access Control).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 12 — RAG and Conversations
+### Phase 13 — Document Access Control
 
 This is the next concrete implementation task.
 
 **Scope:**
-- [ ] Conversation entity and database repository in backend API
-- [ ] Conversation project scope selection (`conversation_projects`)
-- [ ] Question embedding generation
-- [ ] Authorization-aware vector similarity search (tenant & project scoped)
-- [ ] LLM integration (Ollama / Qwen)
-- [ ] Grounded answer generation with source/citation tracking
-- [ ] Message + `message_sources` provenance persistence
-
----
-
-## 🔮 Future Phases (Not Started)
-
-The following phases are planned following RAG and Conversations:
-
-### Phase 13 — Document Access Control
+- [ ] Document access mode management (`PROJECT` vs. `RESTRICTED`)
+- [ ] Individual user access rules (`document_user_access` with `ALLOW` / `DENY`)
+- [ ] Group access rules (`document_group_access` with `ALLOW` / `DENY`)
+- [ ] Organization role access rules (`document_org_role_access`)
+- [ ] Project role access rules (`document_project_role_access`)
+- [ ] Authorization evaluation pipeline (6-step precedence with `DENY` precedence)
+- [ ] Integration into document access verification and RAG retrieval queries
 - Document access mode management (PROJECT / RESTRICTED)
 - Individual user access rules
 - Group access rules
