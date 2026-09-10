@@ -10,7 +10,7 @@ function ChatPageContent() {
 
   return (
     <div className="h-full">
-      <ChatView />
+      <ChatView defaultProjectId={projectId || undefined} />
     </div>
   );
 }

@@ -29,9 +29,10 @@ import {
 
 interface ChatViewProps {
   initialConversationId?: string;
+  defaultProjectId?: string;
 }
 
-export const ChatView: React.FC<ChatViewProps> = ({ initialConversationId }) => {
+export const ChatView: React.FC<ChatViewProps> = ({ initialConversationId, defaultProjectId }) => {
   const router = useRouter();
   const { showToast } = useToast();
   const { activeOrg, projects } = useOrgStore();
@@ -47,7 +48,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ initialConversationId }) => 
   const [activeCitation, setActiveCitation] = useState<MessageSource | null>(null);
 
   // Project scope state for new/current conversation
-  const [selectedProjectScope, setSelectedProjectScope] = useState<string>('all');
+  const [selectedProjectScope, setSelectedProjectScope] = useState<string>(defaultProjectId || 'all');
 
   // Renaming state
   const [isRenaming, setIsRenaming] = useState(false);

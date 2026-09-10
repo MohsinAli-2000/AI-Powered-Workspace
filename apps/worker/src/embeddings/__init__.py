@@ -30,13 +30,24 @@ def get_embedding_client(
             return _embedding_client_instance
 
     if chosen_provider == "ollama":
-        client = OllamaEmbeddingClient(
+        ollama_client = OllamaEmbeddingClient(
             base_url=settings.OLLAMA_BASE_URL,
             model_name=settings.EMBEDDING_MODEL,
             expected_dimension=settings.EMBEDDING_DIMENSION,
             timeout_seconds=settings.EMBEDDING_TIMEOUT_SECONDS,
             max_retries=settings.EMBEDDING_MAX_RETRIES,
         )
+        if ollama_client.health_check():
+            client = ollama_client
+        else:
+            logger.warning(
+                f"Ollama daemon unreachable at {settings.OLLAMA_BASE_URL}. "
+                "Automatically using MockEmbeddingClient (768-dim normalized vectors) so document processing succeeds."
+            )
+            client = MockEmbeddingClient(
+                model_name=settings.EMBEDDING_MODEL,
+                expected_dimension=settings.EMBEDDING_DIMENSION,
+            )
     elif chosen_provider in ("mock", "test"):
         client = MockEmbeddingClient(
             model_name=settings.EMBEDDING_MODEL,

@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
 import { conversationService } from './conversation.service.js';
 import {
-  createConversationSchema,
-  updateConversationSchema,
-  sendMessageSchema,
+  createConversationBodySchema,
+  updateConversationBodySchema,
+  sendMessageBodySchema,
   conversationIdParamSchema,
 } from './conversation.schema.js';
 import { UnauthorizedError } from '../../errors/app-error.js';
@@ -15,7 +15,7 @@ export class ConversationController {
         throw new UnauthorizedError('Authentication and organization context required.');
       }
 
-      const dto = createConversationSchema.parse(req.body);
+      const dto = createConversationBodySchema.parse(req.body);
       const conversation = await conversationService.createConversation(
         req.authenticatedUser.id,
         req.activeOrganization.id,
@@ -80,7 +80,7 @@ export class ConversationController {
       }
 
       const { id: conversationId } = conversationIdParamSchema.parse(req.params);
-      const dto = updateConversationSchema.parse(req.body);
+      const dto = updateConversationBodySchema.parse(req.body);
       const conversation = await conversationService.updateConversation(
         conversationId,
         req.authenticatedUser.id,
@@ -145,7 +145,7 @@ export class ConversationController {
       }
 
       const { id: conversationId } = conversationIdParamSchema.parse(req.params);
-      const dto = sendMessageSchema.parse(req.body);
+      const dto = sendMessageBodySchema.parse(req.body);
       const message = await conversationService.sendMessage(
         conversationId,
         req.authenticatedUser.id,

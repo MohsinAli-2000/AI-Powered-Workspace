@@ -1,3 +1,6 @@
+import { spawn } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { logger } from '../../utils/logger.js';
 
 export interface ProcessDocumentJobPayload {
@@ -12,8 +15,7 @@ export interface ProcessDocumentJobPayload {
 
 export class QueueService {
   /**
-   * Publishes a PROCESS_DOCUMENT job to the message broker.
-   * In Phase 9, this formats and logs the queue job; Phase 10 will connect the active RabbitMQ consumer.
+   * Publishes a PROCESS_DOCUMENT job to the message broker / background worker.
    */
   public async publishDocumentProcessingJob(
     payload: ProcessDocumentJobPayload
@@ -33,6 +35,37 @@ export class QueueService {
       },
       '📢 [QUEUE] Dispatched PROCESS_DOCUMENT job'
     );
+
+    // Asynchronously spawn Python worker to process the version immediately
+    this.triggerPythonProcessor(payload.version_id);
+  }
+
+  private triggerPythonProcessor(versionId: string): void {
+    try {
+      const currentDir = path.dirname(fileURLToPath(import.meta.url));
+      // apps/api/src/modules/queue -> apps/worker
+      const workerDir = path.resolve(currentDir, '../../../../worker');
+      const pythonBin = path.join(workerDir, '.venv/bin/python');
+
+      const child = spawn(
+        pythonBin,
+        ['-m', 'src.process_job', versionId],
+        {
+          cwd: workerDir,
+          env: {
+            ...process.env,
+            PYTHONPATH: '.',
+          },
+          detached: true,
+          stdio: 'ignore',
+        }
+      );
+
+      child.unref();
+      logger.info({ versionId }, '🚀 Spawned background Python document processor');
+    } catch (err) {
+      logger.error({ versionId, err }, 'Failed to trigger background Python processor');
+    }
   }
 }
 
