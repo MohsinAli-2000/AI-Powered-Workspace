@@ -82,7 +82,7 @@ export class OllamaAiClient implements AiClient {
     history: Array<{ role: string; content: string }> = []
   ): Promise<string> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45000);
+    const timeout = setTimeout(() => controller.abort(), 90000);
 
     try {
       const messages = [
@@ -103,6 +103,7 @@ export class OllamaAiClient implements AiClient {
           stream: false,
           options: {
             temperature: 0.1, // low temperature for factual grounding
+            num_predict: 512, // limit token generation for fast local CPU inference
           },
         }),
         signal: controller.signal,

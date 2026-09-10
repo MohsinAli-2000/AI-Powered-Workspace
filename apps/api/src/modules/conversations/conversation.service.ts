@@ -262,11 +262,16 @@ export class ConversationService {
     const queryVector = await aiClient.embedQuestion(dto.content);
 
     // 5. Perform authorization-aware vector similarity search
+    // In mock mode, pseudo-random vectors have near-zero dot products (~0.0), so we use 0.0
+    // so offline mock retrieval succeeds; in production (Ollama/real model) we enforce the strict configured threshold.
+    const effectiveThreshold =
+      env.AI_PROVIDER === 'mock' ? 0.0 : env.RAG_SIMILARITY_THRESHOLD;
+
     const retrievedChunks = await ragRepository.searchAuthorizedChunks({
       queryVector,
       organizationId,
       authorizedProjectIds: candidateProjectIds,
-      threshold: env.RAG_SIMILARITY_THRESHOLD,
+      threshold: effectiveThreshold,
       topK: env.RAG_TOP_K,
       userId,
       isOrgOwner: userMembership?.role === 'OWNER',
@@ -303,8 +308,17 @@ ${contextExcerpts}`;
     // 8. Fetch recent dialogue history
     const history = await messageRepository.getRecentHistory(conversationId, 4);
 
-    // 9. Generate Answer from LLM
-    const answerText = await aiClient.generateAnswer(systemPrompt, dto.content, history);
+    // 9. Generate Answer from LLM with graceful fallback
+    let answerText: string;
+    try {
+      answerText = await aiClient.generateAnswer(systemPrompt, dto.content, history);
+    } catch (llmError: any) {
+      logger.error({ err: llmError }, 'LLM generation failed or timed out, providing excerpts directly');
+      const topChunks = retrievedChunks.slice(0, 2);
+      answerText =
+        `Based on your organization's documents (${topChunks.map((c) => c.document_name).join(', ')}):\n\n` +
+        topChunks.map((c) => c.content.trim()).join('\n\n---\n\n');
+    }
 
     // 10. Persist Assistant Answer & Source Citations atomically
     const citations: SourceCitation[] = retrievedChunks.map((c) => ({
