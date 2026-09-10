@@ -7,11 +7,11 @@
 
 ## Current Phase
 
-**Phase: Phase 13 Completed → Ready for Phase 14 (Python AI Service / FastAPI)**
+**Phase: Phase 14 Completed → Ready for Phase 15 (Next.js Frontend)**
 
-Phase 13 (Document Access Control) has been fully implemented in `apps/api/`, hardened with granular per-document access rules (`document_user_access`, `document_group_access`, `document_org_role_access`, `document_project_role_access`), the strict 6-step evaluation pipeline with **`DENY` precedence**, full REST endpoints for access mode and rule configuration, middleware enforcement on direct document access and downloads, and native SQL subquery filtering within `ragRepository.searchAuthorizedChunks` so unauthorized document chunks are never retrieved or supplied to the LLM (`FR-AI-002`, `FR-AI-007`).
+Phase 14 (Python AI Service / FastAPI) has been fully implemented in `apps/ai-service`, providing an internal microservice for vector embeddings (single and batch), authorization-aware pgvector RAG orchestration (both synchronous JSON and real-time SSE streaming with `text/event-stream`), direct LLM completions, and semantic sliding-window text chunking. The service incorporates the complete Phase 13 6-step access control evaluation with **`DENY` precedence** at the database engine level, pluggable AI providers (Ollama `nomic-embed-text` + `qwen2.5` and deterministic `MockProvider`), and Sentry monitoring.
 
-The immediate next implementation phase is **Phase 14 — Python AI Service (FastAPI)**.
+The immediate next implementation phase is **Phase 15 — Next.js Frontend**.
 
 
 ---
@@ -249,35 +249,43 @@ The following have been decided, designed, and documented / implemented:
 
 ---
 
+### Phase 14 — Python AI Service (FastAPI) ✅ COMPLETE (2026-09-11)
+- [x] FastAPI project setup (`apps/ai-service`) with virtual environment and production dependencies.
+- [x] Pydantic Settings configuration (`src/config.py`) and structured logging (`src/logger.py`).
+- [x] Async PostgreSQL connection pooling (`asyncpg`) with vector registration (`pgvector.asyncpg.register_vector`).
+- [x] Embedding service with single (`POST /api/v1/embeddings`) and batch (`POST /api/v1/embeddings/batch`) 768-dim normalized vectors.
+- [x] Synchronous RAG endpoint (`POST /api/v1/rag/query`) with pgvector search, XML prompt isolation, grounded answer generation, and structured source citations.
+- [x] Streaming RAG endpoint (`POST /api/v1/rag/stream`) with Server-Sent Events (`text/event-stream`), real-time token streaming, and final citation payload.
+- [x] `FR-AI-005` insufficient information fallback handling when similarity is below threshold or zero chunks match.
+- [x] Full database-level Phase 13 document access control enforcement with 6-step evaluation and `DENY` precedence.
+- [x] LLM completion endpoint (`POST /api/v1/llm/chat`) and semantic chunking endpoint (`POST /api/v1/utils/chunk`).
+- [x] Pluggable AI provider architecture (Ollama `nomic-embed-text` + `qwen2.5` and deterministic `MockProvider`).
+- [x] Node.js backend client (`FastApiAiServiceClient`) integrated into `apps/api`.
+- [x] 100% automated test verification across all 6 core functionality areas.
+
+---
+
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 13 completed. Ready to initiate Phase 14 (Python AI Service / FastAPI).
+Nothing currently in active implementation. Phase 14 completed. Ready to initiate Phase 15 (Next.js Frontend).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 14 — Python AI Service (FastAPI)
+### Phase 15 — Next.js Frontend
 
 This is the next concrete implementation task.
 
 **Scope:**
-- [ ] FastAPI project setup (`apps/ai-service`) with poetry / pip requirements
-- [ ] Embedding service with unified `/embeddings` endpoint
-- [ ] RAG service with similarity search, context building, and XML prompt assembly
-- [ ] LLM chat service with streaming and non-streaming response generation
-- [ ] Text extraction and semantic chunking utility endpoints
-- [ ] Sentry error monitoring and structured logging integration
-
-### Phase 14 — Python AI Service (FastAPI)
-- FastAPI project setup
-- Embedding service
-- RAG service (similarity search + context building)
-- LLM service
-- Utility service (text extraction, chunking)
-- Sentry integration
-
-### Phase 15 — Next.js Frontend
+- [ ] Project setup (Next.js + TypeScript)
+- [ ] Tailwind CSS + modern curated design system
+- [ ] Zustand + React Query state management
+- [ ] Authentication pages (Login, Register, Password Reset, Email Verification)
+- [ ] Dashboard & Organization switcher
+- [ ] Project & Document management UI
+- [ ] AI Assistant conversational chat interface with real-time streaming
+- [ ] Traceable source citation inspection drawer
 - Project setup (Next.js + TypeScript)
 - Tailwind CSS + Shadcn/ui
 - Zustand + React Query state management

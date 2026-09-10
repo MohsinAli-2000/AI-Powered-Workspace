@@ -1,0 +1,12 @@
+python-interpreter = ".venv/bin/python"
+search-path = [
+    ".",
+    "src",
+]
+
+[errors]
+missing-import = "ignore"
+missing-attribute = "ignore"
+missing-module-attribute = "ignore"
+unsupported-operation = "ignore"
+untyped-import = "ignore"

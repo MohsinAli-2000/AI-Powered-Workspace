@@ -156,20 +156,31 @@ export class MockAiClient implements AiClient {
   }
 }
 
+import { fastApiAiServiceClient } from './ai-service.client.js';
+
 let aiClientInstance: AiClient | null = null;
 
-export const getAiClient = (providerOverride?: 'ollama' | 'mock'): AiClient => {
+export const getAiClient = (providerOverride?: 'ollama' | 'mock' | 'ai-service'): AiClient => {
   if (providerOverride === 'mock') {
     return new MockAiClient();
   }
   if (providerOverride === 'ollama') {
     return new OllamaAiClient();
   }
+  if (providerOverride === 'ai-service') {
+    return fastApiAiServiceClient;
+  }
 
   if (!aiClientInstance) {
     if (env.AI_PROVIDER === 'mock') {
       logger.info('Using MockAiClient for RAG operations');
       aiClientInstance = new MockAiClient();
+    } else if (env.AI_PROVIDER === 'ai-service') {
+      logger.info(
+        { baseUrl: env.AI_SERVICE_URL },
+        'Using FastApiAiServiceClient for RAG operations'
+      );
+      aiClientInstance = fastApiAiServiceClient;
     } else {
       logger.info(
         { baseUrl: env.OLLAMA_BASE_URL, model: env.LLM_MODEL },
