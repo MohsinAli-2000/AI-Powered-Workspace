@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { documentRepository } from '../modules/documents/document.repository.js';
+import { documentAccessRepository } from '../modules/documents/document-access.repository.js';
 import { organizationMembershipRepository } from '../modules/organizations/organization-membership.repository.js';
 import { projectMembershipRepository } from '../modules/projects/project-membership.repository.js';
 import { projectRepository } from '../modules/projects/project.repository.js';
@@ -85,6 +86,22 @@ export const requireDocumentAccess = (paramKey = 'id') => {
       incomingRequest.isProjectManager =
         isOrgOwner || userProjectMembership?.role === 'PROJECT_MANAGER';
 
+      // 4. 6-Step Authorization Evaluation for RESTRICTED documents
+      if (!isOrgOwner && targetDocument.access_mode === 'RESTRICTED') {
+        const evaluation = await documentAccessRepository.evaluateUserAccess(
+          targetDocument.id,
+          incomingRequest.authenticatedUser.id,
+          targetDocument.organization_id,
+          targetDocument.project_id,
+          isOrgOwner,
+          targetDocument.access_mode
+        );
+
+        if (!evaluation.allowed) {
+          throw new ForbiddenError(evaluation.reason);
+        }
+      }
+
       // Attach project and org objects if needed
       if (!incomingRequest.activeProject) {
         const project = await projectRepository.findById(targetDocument.project_id);
@@ -126,3 +143,71 @@ export const requireDocumentManager = (
 
   nextMiddleware();
 };
+
+/**
+ * Middleware factory for operations that manage a document (updating metadata, deleting, managing access rules).
+ * Verifies that the document exists and that caller is PROJECT_MANAGER or org OWNER,
+ * without evaluating read permissions (preventing deadlocks when document is RESTRICTED).
+ */
+export const requireDocumentManageAccess = (paramKey = 'id') => {
+  return async (
+    incomingRequest: Request,
+    _outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      if (!incomingRequest.authenticatedUser) {
+        throw new UnauthorizedError('Authentication required to access document resources.');
+      }
+
+      const rawDocId = incomingRequest.params[paramKey];
+      const documentId = Array.isArray(rawDocId) ? rawDocId[0] : rawDocId;
+
+      if (!documentId || typeof documentId !== 'string') {
+        throw new NotFoundError('Document identifier is required.');
+      }
+
+      const targetDocument = await documentRepository.findById(documentId);
+      if (!targetDocument) {
+        throw new NotFoundError('Document not found.');
+      }
+
+      const orgMembership = await organizationMembershipRepository.findByUserAndOrg(
+        incomingRequest.authenticatedUser.id,
+        targetDocument.organization_id
+      );
+
+      if (!orgMembership) {
+        throw new ForbiddenError(
+          'You do not have access to the organization that owns this document.'
+        );
+      }
+
+      const isOrgOwner = orgMembership.role === 'OWNER';
+      const userProjectMembership = await projectMembershipRepository.findByUserAndProject(
+        incomingRequest.authenticatedUser.id,
+        targetDocument.project_id
+      );
+
+      const isProjectManager = isOrgOwner || userProjectMembership?.role === 'PROJECT_MANAGER';
+
+      if (!isProjectManager) {
+        throw new ForbiddenError(
+          'Insufficient permissions. Only a PROJECT_MANAGER or organization OWNER can perform this action.'
+        );
+      }
+
+      incomingRequest.activeDocument = targetDocument;
+      incomingRequest.organizationMembership = orgMembership;
+      incomingRequest.projectMembership = userProjectMembership ?? undefined;
+      incomingRequest.isProjectManager = true;
+
+      nextMiddleware();
+    } catch (err) {
+      nextMiddleware(err);
+    }
+  };
+};
+
+export const requireDocumentAccessManager = requireDocumentManager;
+

@@ -85,12 +85,58 @@ export class DocumentRepository extends BaseRepository<Document> {
   }
 
   /**
+   * Updates the access mode of a document (PROJECT vs RESTRICTED).
+   */
+  public async updateAccessMode(
+    documentId: string,
+    accessMode: DocumentAccessMode,
+    databaseClient?: PoolClient
+  ): Promise<Document | null> {
+    const sqlQuery = `
+      UPDATE ${this.tableName}
+      SET access_mode = $2, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *;
+    `;
+    return this.queryOne<Document>(sqlQuery, [documentId, accessMode], databaseClient);
+  }
+
+  /**
    * Retrieves all documents belonging to a project, enriched with current version details.
+   * If userFilter is provided, filters out RESTRICTED documents that the user cannot access.
    */
   public async listByProject(
     projectId: string,
-    databaseClient?: PoolClient
+    databaseClient?: PoolClient,
+    userFilter?: {
+      userId: string;
+      organizationId: string;
+      isOrgOwner: boolean;
+    }
   ): Promise<DocumentWithCurrentVersion[]> {
+    if (!userFilter || userFilter.isOrgOwner) {
+      const sqlQuery = `
+        SELECT
+          d.*,
+          dv.id AS current_version_id,
+          dv.version_number,
+          dv.status,
+          dv.mime_type,
+          dv.file_size::bigint AS file_size,
+          dv.original_filename,
+          u.name AS creator_name
+        FROM ${this.tableName} d
+        INNER JOIN document_versions dv
+          ON dv.document_id = d.id AND dv.is_current = true
+        LEFT JOIN users u
+          ON u.id = d.created_by
+        WHERE d.project_id = $1
+        ORDER BY d.created_at DESC;
+      `;
+      return this.query<DocumentWithCurrentVersion>(sqlQuery, [projectId], databaseClient);
+    }
+
+    // Access-filtered list: allow PROJECT mode or RESTRICTED where user passes 6-step evaluation
     const sqlQuery = `
       SELECT
         d.*,
@@ -107,9 +153,53 @@ export class DocumentRepository extends BaseRepository<Document> {
       LEFT JOIN users u
         ON u.id = d.created_by
       WHERE d.project_id = $1
+        AND (
+          d.access_mode = 'PROJECT'
+          OR (
+            d.access_mode = 'RESTRICTED'
+            AND NOT EXISTS (
+              SELECT 1 FROM (
+                SELECT effect FROM document_user_access WHERE document_id = d.id AND user_id = $2
+                UNION ALL
+                SELECT dga.effect FROM document_group_access dga
+                JOIN group_memberships gm ON dga.group_id = gm.group_id
+                WHERE dga.document_id = d.id AND gm.user_id = $2
+                UNION ALL
+                SELECT dora.effect FROM document_org_role_access dora
+                JOIN organization_memberships om ON dora.role = om.role
+                WHERE dora.document_id = d.id AND om.user_id = $2 AND om.organization_id = $3
+                UNION ALL
+                SELECT dpra.effect FROM document_project_role_access dpra
+                JOIN project_memberships pm ON dpra.role = pm.role
+                WHERE dpra.document_id = d.id AND pm.user_id = $2 AND pm.project_id = d.project_id
+              ) r_deny WHERE effect = 'DENY'
+            )
+            AND EXISTS (
+              SELECT 1 FROM (
+                SELECT effect FROM document_user_access WHERE document_id = d.id AND user_id = $2
+                UNION ALL
+                SELECT dga.effect FROM document_group_access dga
+                JOIN group_memberships gm ON dga.group_id = gm.group_id
+                WHERE dga.document_id = d.id AND gm.user_id = $2
+                UNION ALL
+                SELECT dora.effect FROM document_org_role_access dora
+                JOIN organization_memberships om ON dora.role = om.role
+                WHERE dora.document_id = d.id AND om.user_id = $2 AND om.organization_id = $3
+                UNION ALL
+                SELECT dpra.effect FROM document_project_role_access dpra
+                JOIN project_memberships pm ON dpra.role = pm.role
+                WHERE dpra.document_id = d.id AND pm.user_id = $2 AND pm.project_id = d.project_id
+              ) r_allow WHERE effect = 'ALLOW'
+            )
+          )
+        )
       ORDER BY d.created_at DESC;
     `;
-    return this.query<DocumentWithCurrentVersion>(sqlQuery, [projectId], databaseClient);
+    return this.query<DocumentWithCurrentVersion>(
+      sqlQuery,
+      [projectId, userFilter.userId, userFilter.organizationId],
+      databaseClient
+    );
   }
 
   /**

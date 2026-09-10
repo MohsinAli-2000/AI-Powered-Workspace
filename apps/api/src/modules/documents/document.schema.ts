@@ -103,11 +103,19 @@ export const updateDocumentSchema = z.object({
         .max(1000, { message: 'Description cannot exceed 1000 characters' })
         .optional()
         .nullable(),
+      access_mode: z
+        .enum(['PROJECT', 'RESTRICTED'], {
+          error: 'Access mode must be either PROJECT or RESTRICTED',
+        })
+        .optional(),
     })
     .refine(
-      (data) => data.name !== undefined || data.description !== undefined,
+      (data) =>
+        data.name !== undefined ||
+        data.description !== undefined ||
+        data.access_mode !== undefined,
       {
-        message: 'At least one field (name or description) must be provided to update',
+        message: 'At least one field (name, description, or access_mode) must be provided to update',
       }
     ),
 });

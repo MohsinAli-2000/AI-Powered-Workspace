@@ -55,8 +55,18 @@ export class DocumentController {
   ): Promise<void> => {
     try {
       const projectId = incomingRequest.params.id;
+      const callerUserId = incomingRequest.authenticatedUser!.id;
+      const organizationId =
+        incomingRequest.activeProject?.organization_id ||
+        incomingRequest.organizationMembership?.organization_id;
+      const isOrgOwner = incomingRequest.organizationMembership?.role === 'OWNER';
 
-      const documents = await this.docService.listProjectDocuments(projectId);
+      const documents = await this.docService.listProjectDocuments(
+        projectId,
+        organizationId
+          ? { userId: callerUserId, organizationId, isOrgOwner }
+          : undefined
+      );
 
       outgoingResponse.status(200).json({
         success: true,

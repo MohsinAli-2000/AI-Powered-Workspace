@@ -61,6 +61,19 @@ export abstract class BaseRepository<TEntity extends QueryResultRow> {
   }
 
   /**
+   * Executes a parameterized query (such as DELETE or UPDATE) and returns rowCount.
+   */
+  public async execute(
+    sqlQuery: string,
+    queryParameters: unknown[] = [],
+    databaseClient?: PoolClient
+  ): Promise<{ rowCount: number }> {
+    const queryExecutor = databaseClient ?? pool;
+    const result = await queryExecutor.query(sqlQuery, queryParameters);
+    return { rowCount: result.rowCount ?? 0 };
+  }
+
+  /**
    * Deletes a single record by its UUID primary key.
    */
   public async deleteById(recordId: string, databaseClient?: PoolClient): Promise<boolean> {

@@ -159,11 +159,17 @@ export class DocumentService {
 
   /**
    * Lists all documents within a project.
+   * If userFilter is provided, filters out RESTRICTED documents that the user cannot access.
    */
   public async listProjectDocuments(
-    projectId: string
+    projectId: string,
+    userFilter?: {
+      userId: string;
+      organizationId: string;
+      isOrgOwner: boolean;
+    }
   ): Promise<DocumentWithCurrentVersion[]> {
-    return this.documentRepo.listByProject(projectId);
+    return this.documentRepo.listByProject(projectId, undefined, userFilter);
   }
 
   /**
@@ -252,6 +258,11 @@ export class DocumentService {
     if (input.description !== undefined) {
       queryParams.push(input.description ? input.description.trim() : null);
       setClauses.push(`description = $${queryParams.length}`);
+    }
+
+    if (input.access_mode !== undefined) {
+      queryParams.push(input.access_mode);
+      setClauses.push(`access_mode = $${queryParams.length}`);
     }
 
     const sqlQuery = `

@@ -21,6 +21,8 @@ export class RagRepository extends BaseRepository<RetrievedChunk> {
       authorizedProjectIds: string[];
       threshold: number;
       topK: number;
+      userId?: string;
+      isOrgOwner?: boolean;
     },
     client?: PoolClient
   ): Promise<RetrievedChunk[]> {
@@ -31,6 +33,8 @@ export class RagRepository extends BaseRepository<RetrievedChunk> {
 
     // Format vector as string '[v1,v2,...]' for pgvector
     const vectorString = `[${params.queryVector.join(',')}]`;
+    const isOwner = params.isOrgOwner === true;
+    const userId = params.userId || null;
 
     const sql = `
       SELECT
@@ -53,6 +57,48 @@ export class RagRepository extends BaseRepository<RetrievedChunk> {
         AND c.embedding IS NOT NULL
         AND p.id = ANY($3::uuid[])
         AND (1 - (c.embedding <=> $1::vector)) >= $4
+        AND (
+          d.access_mode = 'PROJECT'
+          OR $6::boolean = true
+          OR (
+            d.access_mode = 'RESTRICTED'
+            AND $7::uuid IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM (
+                SELECT effect FROM document_user_access WHERE document_id = d.id AND user_id = $7
+                UNION ALL
+                SELECT dga.effect FROM document_group_access dga
+                JOIN group_memberships gm ON dga.group_id = gm.group_id
+                WHERE dga.document_id = d.id AND gm.user_id = $7
+                UNION ALL
+                SELECT dora.effect FROM document_org_role_access dora
+                JOIN organization_memberships om ON dora.role = om.role
+                WHERE dora.document_id = d.id AND om.user_id = $7 AND om.organization_id = $2
+                UNION ALL
+                SELECT dpra.effect FROM document_project_role_access dpra
+                JOIN project_memberships pm ON dpra.role = pm.role
+                WHERE dpra.document_id = d.id AND pm.user_id = $7 AND pm.project_id = d.project_id
+              ) r_deny WHERE effect = 'DENY'
+            )
+            AND EXISTS (
+              SELECT 1 FROM (
+                SELECT effect FROM document_user_access WHERE document_id = d.id AND user_id = $7
+                UNION ALL
+                SELECT dga.effect FROM document_group_access dga
+                JOIN group_memberships gm ON dga.group_id = gm.group_id
+                WHERE dga.document_id = d.id AND gm.user_id = $7
+                UNION ALL
+                SELECT dora.effect FROM document_org_role_access dora
+                JOIN organization_memberships om ON dora.role = om.role
+                WHERE dora.document_id = d.id AND om.user_id = $7 AND om.organization_id = $2
+                UNION ALL
+                SELECT dpra.effect FROM document_project_role_access dpra
+                JOIN project_memberships pm ON dpra.role = pm.role
+                WHERE dpra.document_id = d.id AND pm.user_id = $7 AND pm.project_id = d.project_id
+              ) r_allow WHERE effect = 'ALLOW'
+            )
+          )
+        )
       ORDER BY c.embedding <=> $1::vector ASC
       LIMIT $5;
     `;
@@ -65,6 +111,8 @@ export class RagRepository extends BaseRepository<RetrievedChunk> {
         params.authorizedProjectIds,
         params.threshold,
         params.topK,
+        isOwner,
+        userId,
       ],
       client
     );

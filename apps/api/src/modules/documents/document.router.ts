@@ -5,15 +5,28 @@ import { requireProjectAccess } from '../../middlewares/project.middleware.js';
 import {
   requireDocumentAccess,
   requireDocumentManager,
+  requireDocumentManageAccess,
 } from '../../middlewares/document.middleware.js';
 import { handleDocumentUpload } from '../../middlewares/upload.middleware.js';
 import { documentController } from './document.controller.js';
+import { documentAccessController } from './document-access.controller.js';
 import {
   uploadDocumentSchema,
   listProjectDocumentsSchema,
   documentIdParamSchema,
   updateDocumentSchema,
 } from './document.schema.js';
+import {
+  updateDocumentAccessModeSchema,
+  setUserAccessRuleSchema,
+  setGroupAccessRuleSchema,
+  setOrgRoleAccessRuleSchema,
+  setProjectRoleAccessRuleSchema,
+  targetUserIdParamSchema,
+  targetGroupIdParamSchema,
+  targetOrgRoleParamSchema,
+  targetProjectRoleParamSchema,
+} from './document-access.schema.js';
 
 // ---------------------------------------------------------------------------
 // 1. Project-Scoped Document Router
@@ -59,7 +72,7 @@ documentRouter.use(authenticateUser);
 /**
  * Route: GET /api/v1/documents/:id
  * Description: Get document details and current version processing status
- * Access: Authorized project member or organization OWNER
+ * Access: Authorized project member (evaluates 6-step pipeline if RESTRICTED)
  */
 documentRouter.get(
   '/:id',
@@ -71,7 +84,7 @@ documentRouter.get(
 /**
  * Route: GET /api/v1/documents/:id/download
  * Description: Download original document file (streaming or presigned URL)
- * Access: Authorized project member or organization OWNER
+ * Access: Authorized project member (evaluates 6-step pipeline if RESTRICTED)
  */
 documentRouter.get(
   '/:id/download',
@@ -82,14 +95,13 @@ documentRouter.get(
 
 /**
  * Route: PATCH /api/v1/documents/:id
- * Description: Update document metadata (name, description)
+ * Description: Update document metadata (name, description, access_mode)
  * Access: PROJECT_MANAGER or organization OWNER
  */
 documentRouter.patch(
   '/:id',
   validateRequest(updateDocumentSchema),
-  requireDocumentAccess('id'),
-  requireDocumentManager,
+  requireDocumentManageAccess('id'),
   documentController.updateDocumentHandler
 );
 
@@ -101,7 +113,132 @@ documentRouter.patch(
 documentRouter.delete(
   '/:id',
   validateRequest(documentIdParamSchema),
-  requireDocumentAccess('id'),
-  requireDocumentManager,
+  requireDocumentManageAccess('id'),
   documentController.deleteDocumentHandler
 );
+
+// ---------------------------------------------------------------------------
+// 3. Document Access Control Routes
+// Mounted at: /api/v1/documents/:id
+// ---------------------------------------------------------------------------
+
+/**
+ * Route: PATCH /api/v1/documents/:id/access-mode
+ * Description: Update document access mode (PROJECT vs RESTRICTED)
+ * Access: PROJECT_MANAGER or organization OWNER
+ */
+documentRouter.patch(
+  '/:id/access-mode',
+  requireDocumentManageAccess('id'),
+  validateRequest(updateDocumentAccessModeSchema),
+  documentAccessController.setAccessModeHandler
+);
+
+/**
+ * Route: GET /api/v1/documents/:id/access-rules
+ * Description: Get all access rules configured on a document
+ * Access: PROJECT_MANAGER or organization OWNER
+ */
+documentRouter.get(
+  '/:id/access-rules',
+  requireDocumentManageAccess('id'),
+  validateRequest(documentIdParamSchema),
+  documentAccessController.getDocumentRulesHandler
+);
+
+/**
+ * Route: POST /api/v1/documents/:id/access-rules/users
+ * Description: Add or update an individual user access rule
+ * Access: PROJECT_MANAGER or organization OWNER
+ */
+documentRouter.post(
+  '/:id/access-rules/users',
+  requireDocumentManageAccess('id'),
+  validateRequest(setUserAccessRuleSchema),
+  documentAccessController.setUserRuleHandler
+);
+
+/**
+ * Route: DELETE /api/v1/documents/:id/access-rules/users/:userId
+ * Description: Remove an individual user access rule
+ * Access: PROJECT_MANAGER or organization OWNER
+ */
+documentRouter.delete(
+  '/:id/access-rules/users/:userId',
+  requireDocumentManageAccess('id'),
+  validateRequest(targetUserIdParamSchema),
+  documentAccessController.deleteUserRuleHandler
+);
+
+/**
+ * Route: POST /api/v1/documents/:id/access-rules/groups
+ * Description: Add or update a group access rule
+ * Access: PROJECT_MANAGER or organization OWNER
+ */
+documentRouter.post(
+  '/:id/access-rules/groups',
+  requireDocumentManageAccess('id'),
+  validateRequest(setGroupAccessRuleSchema),
+  documentAccessController.setGroupRuleHandler
+);
+
+/**
+ * Route: DELETE /api/v1/documents/:id/access-rules/groups/:groupId
+ * Description: Remove a group access rule
+ * Access: PROJECT_MANAGER or organization OWNER
+ */
+documentRouter.delete(
+  '/:id/access-rules/groups/:groupId',
+  requireDocumentManageAccess('id'),
+  validateRequest(targetGroupIdParamSchema),
+  documentAccessController.deleteGroupRuleHandler
+);
+
+/**
+ * Route: POST /api/v1/documents/:id/access-rules/org-roles
+ * Description: Add or update an organization role access rule
+ * Access: PROJECT_MANAGER or organization OWNER
+ */
+documentRouter.post(
+  '/:id/access-rules/org-roles',
+  requireDocumentManageAccess('id'),
+  validateRequest(setOrgRoleAccessRuleSchema),
+  documentAccessController.setOrgRoleRuleHandler
+);
+
+/**
+ * Route: DELETE /api/v1/documents/:id/access-rules/org-roles/:role
+ * Description: Remove an organization role access rule
+ * Access: PROJECT_MANAGER or organization OWNER
+ */
+documentRouter.delete(
+  '/:id/access-rules/org-roles/:role',
+  requireDocumentManageAccess('id'),
+  validateRequest(targetOrgRoleParamSchema),
+  documentAccessController.deleteOrgRoleRuleHandler
+);
+
+/**
+ * Route: POST /api/v1/documents/:id/access-rules/project-roles
+ * Description: Add or update a project role access rule
+ * Access: PROJECT_MANAGER or organization OWNER
+ */
+documentRouter.post(
+  '/:id/access-rules/project-roles',
+  requireDocumentManageAccess('id'),
+  validateRequest(setProjectRoleAccessRuleSchema),
+  documentAccessController.setProjectRoleRuleHandler
+);
+
+/**
+ * Route: DELETE /api/v1/documents/:id/access-rules/project-roles/:role
+ * Description: Remove a project role access rule
+ * Access: PROJECT_MANAGER or organization OWNER
+ */
+documentRouter.delete(
+  '/:id/access-rules/project-roles/:role',
+  requireDocumentManageAccess('id'),
+  validateRequest(targetProjectRoleParamSchema),
+  documentAccessController.deleteProjectRoleRuleHandler
+);
+

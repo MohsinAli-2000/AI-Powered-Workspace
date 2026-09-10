@@ -7,11 +7,11 @@
 
 ## Current Phase
 
-**Phase: Phase 12 Completed → Ready for Phase 13 (Document Access Control)**
+**Phase: Phase 13 Completed → Ready for Phase 14 (Python AI Service / FastAPI)**
 
-Phase 12 (RAG and Conversations) has been fully implemented in `apps/api/`, hardened with multi-tenant isolation and strict project authorization scoping, and verified end-to-end. The system provides REST endpoints for conversation management, project scoping (`conversation_projects`), question embedding generation, authorization-aware pgvector similarity retrieval (`1 - (embedding <=> query_vector)` with configurable threshold), LLM grounded context assembly, fallback for insufficient knowledge (`FR-AI-005`), and atomic persistence of messages and citation provenance (`message_sources`).
+Phase 13 (Document Access Control) has been fully implemented in `apps/api/`, hardened with granular per-document access rules (`document_user_access`, `document_group_access`, `document_org_role_access`, `document_project_role_access`), the strict 6-step evaluation pipeline with **`DENY` precedence**, full REST endpoints for access mode and rule configuration, middleware enforcement on direct document access and downloads, and native SQL subquery filtering within `ragRepository.searchAuthorizedChunks` so unauthorized document chunks are never retrieved or supplied to the LLM (`FR-AI-002`, `FR-AI-007`).
 
-The immediate next implementation phase is **Phase 13 — Document Access Control**.
+The immediate next implementation phase is **Phase 14 — Python AI Service (FastAPI)**.
 
 
 ---
@@ -233,32 +233,41 @@ The following have been decided, designed, and documented / implemented:
 
 ---
 
+### Phase 13 — Document Access Control ✅ COMPLETE (2026-09-11)
+- [x] Document access mode management (`PROJECT` vs. `RESTRICTED`) via `PATCH /api/v1/documents/:id/access-mode`.
+- [x] Individual user access rules (`document_user_access` with `ALLOW` / `DENY`) via `POST` & `DELETE /api/v1/documents/:id/access-rules/users`.
+- [x] Group access rules (`document_group_access` with `ALLOW` / `DENY`) via `POST` & `DELETE /api/v1/documents/:id/access-rules/groups`.
+- [x] Organization role access rules (`document_org_role_access`) via `POST` & `DELETE /api/v1/documents/:id/access-rules/org-roles`.
+- [x] Project role access rules (`document_project_role_access`) via `POST` & `DELETE /api/v1/documents/:id/access-rules/project-roles`.
+- [x] Aggregated document access summary endpoint (`GET /api/v1/documents/:id/access-rules`).
+- [x] Strict 6-step evaluation pipeline with `DENY` precedence (`DocumentAccessRepository.evaluateUserAccess` & `DocumentAccessService.evaluateAccess`).
+- [x] Middleware enforcement: `requireDocumentAccess` executes 6-step evaluation pipeline for `RESTRICTED` documents; `requireDocumentManageAccess` prevents management deadlocks.
+- [x] Cross-tenant validation: Prevents assigning access rules for users or groups belonging to a different organization.
+- [x] Project document listing filtering: `listByProject` filters out unauthorized restricted documents for regular members.
+- [x] Database-level RAG vector search filtering: Subquery in `ragRepository.searchAuthorizedChunks` enforces access mode, user rules, group memberships, and role assignments with `DENY` precedence directly during vector similarity searches (`FR-AI-002`, `FR-AI-007`).
+- [x] 100% test pass rate across 9 automated integration test scenarios with clean teardown.
+
+---
+
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 12 completed. Ready to initiate Phase 13 (Document Access Control).
+Nothing currently in active implementation. Phase 13 completed. Ready to initiate Phase 14 (Python AI Service / FastAPI).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 13 — Document Access Control
+### Phase 14 — Python AI Service (FastAPI)
 
 This is the next concrete implementation task.
 
 **Scope:**
-- [ ] Document access mode management (`PROJECT` vs. `RESTRICTED`)
-- [ ] Individual user access rules (`document_user_access` with `ALLOW` / `DENY`)
-- [ ] Group access rules (`document_group_access` with `ALLOW` / `DENY`)
-- [ ] Organization role access rules (`document_org_role_access`)
-- [ ] Project role access rules (`document_project_role_access`)
-- [ ] Authorization evaluation pipeline (6-step precedence with `DENY` precedence)
-- [ ] Integration into document access verification and RAG retrieval queries
-- Document access mode management (PROJECT / RESTRICTED)
-- Individual user access rules
-- Group access rules
-- Organization role access rules
-- Project role access rules
-- Authorization evaluation pipeline implementation
+- [ ] FastAPI project setup (`apps/ai-service`) with poetry / pip requirements
+- [ ] Embedding service with unified `/embeddings` endpoint
+- [ ] RAG service with similarity search, context building, and XML prompt assembly
+- [ ] LLM chat service with streaming and non-streaming response generation
+- [ ] Text extraction and semantic chunking utility endpoints
+- [ ] Sentry error monitoring and structured logging integration
 
 ### Phase 14 — Python AI Service (FastAPI)
 - FastAPI project setup

@@ -268,6 +268,8 @@ export class ConversationService {
       authorizedProjectIds: candidateProjectIds,
       threshold: env.RAG_SIMILARITY_THRESHOLD,
       topK: env.RAG_TOP_K,
+      userId,
+      isOrgOwner: userMembership?.role === 'OWNER',
     });
 
     // 6. Handle Insufficient Information (FR-AI-005)
