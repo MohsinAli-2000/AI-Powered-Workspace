@@ -35,6 +35,7 @@ export interface Organization {
   created_at: string;
   updated_at: string;
   role?: OrganizationRole;
+  user_role?: OrganizationRole;
 }
 
 export interface OrganizationMember {
@@ -77,6 +78,7 @@ export interface Project {
   created_at: string;
   updated_at: string;
   role?: ProjectRole;
+  user_role?: ProjectRole;
   document_count?: number;
   member_count?: number;
 }

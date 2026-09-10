@@ -110,7 +110,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
   };
 
   return (
-    <div className="space-y-3">
+    <div id="project-upload-zone" className="space-y-3">
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}

@@ -124,10 +124,12 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map((project) => {
+            const orgRole = activeOrg?.role || activeOrg?.user_role;
+            const projectRole = project.role || project.user_role;
             const isManager =
-              project.role === 'PROJECT_MANAGER' ||
-              activeOrg?.role === 'OWNER' ||
-              activeOrg?.role === 'ADMIN';
+              projectRole === 'PROJECT_MANAGER' ||
+              orgRole === 'OWNER' ||
+              orgRole === 'ADMIN';
 
             return (
               <Link key={project.id} href={`/projects/${project.id}`}>
@@ -137,12 +139,12 @@ export default function ProjectsPage() {
                       <CardTitle className="text-sm font-semibold text-slate-100 truncate">
                         {project.name}
                       </CardTitle>
-                      {project.role && (
+                      {projectRole && (
                         <Badge
-                          variant={project.role === 'PROJECT_MANAGER' ? 'brand' : 'default'}
+                          variant={projectRole === 'PROJECT_MANAGER' ? 'brand' : 'default'}
                           size="sm"
                         >
-                          {project.role === 'PROJECT_MANAGER' ? 'Manager' : 'Member'}
+                          {projectRole === 'PROJECT_MANAGER' ? 'Manager' : 'Member'}
                         </Badge>
                       )}
                     </div>
@@ -152,7 +154,7 @@ export default function ProjectsPage() {
                   </CardHeader>
                   <CardContent className="pt-0 flex items-center justify-between text-xs text-slate-400">
                     <span className="flex items-center gap-1 text-[11px] text-indigo-400 font-medium">
-                      Open Documents <ArrowRight className="w-3.5 h-3.5" />
+                      Upload & View Documents <ArrowRight className="w-3.5 h-3.5" />
                     </span>
 
                     {isManager && (

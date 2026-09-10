@@ -22,6 +22,7 @@ import {
   UserPlus,
   Trash2,
   Settings,
+  UploadCloud,
 } from 'lucide-react';
 
 export default function ProjectDetailsPage({
@@ -47,10 +48,15 @@ export default function ProjectDetailsPage({
   const [newMemberRole, setNewMemberRole] = useState<ProjectRole>('PROJECT_MEMBER');
   const [isAddingMember, setIsAddingMember] = useState(false);
 
+  const orgRole = activeOrg?.role || activeOrg?.user_role;
+  const projectRole = project?.role || project?.user_role;
+
   const canManage =
-    project?.role === 'PROJECT_MANAGER' ||
-    activeOrg?.role === 'OWNER' ||
-    activeOrg?.role === 'ADMIN';
+    projectRole === 'PROJECT_MANAGER' ||
+    orgRole === 'OWNER' ||
+    orgRole === 'ADMIN';
+
+  const canUpload = Boolean(projectRole || orgRole === 'OWNER' || orgRole === 'ADMIN');
 
   const loadProjectData = useCallback(async () => {
     try {
@@ -176,6 +182,22 @@ export default function ProjectDetailsPage({
         </div>
 
         <div className="flex items-center gap-3">
+          {canUpload && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                setActiveTab('documents');
+                setTimeout(() => {
+                  const uploadEl = document.getElementById('project-upload-zone');
+                  uploadEl?.scrollIntoView({ behavior: 'smooth' });
+                }, 50);
+              }}
+            >
+              <UploadCloud className="w-4 h-4 mr-1.5" />
+              Upload Document
+            </Button>
+          )}
           <Link href={`/chat?project=${project.id}`}>
             <Button size="sm">
               <Bot className="w-4 h-4 mr-1.5" />
@@ -216,7 +238,7 @@ export default function ProjectDetailsPage({
       {activeTab === 'documents' && (
         <div className="space-y-6">
           {/* Upload Zone */}
-          {canManage && (
+          {canUpload && (
             <DocumentUploadZone
               projectId={project.id}
               onUploadSuccess={loadProjectData}
