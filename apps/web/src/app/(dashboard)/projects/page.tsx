@@ -31,8 +31,9 @@ export default function ProjectsPage() {
     setIsLoading(true);
     try {
       const data = await apiClient<Project[]>(`/organizations/${activeOrg.id}/projects`);
-      setLocalProjects(data);
-      setProjects(data);
+      const projs = Array.isArray(data) ? data : [];
+      setLocalProjects(projs);
+      setProjects(projs);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to load projects', 'error');
     } finally {

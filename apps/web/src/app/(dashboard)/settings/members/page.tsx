@@ -39,7 +39,7 @@ export default function MembersPage() {
     setIsLoading(true);
     try {
       const data = await apiClient<OrganizationMember[]>(`/organizations/${activeOrg.id}/members`);
-      setMembers(data);
+      setMembers(Array.isArray(data) ? data : []);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to load members', 'error');
     } finally {

@@ -24,13 +24,16 @@ export const useOrgStore = create<OrgState>((set, get) => ({
   isLoadingProjects: false,
 
   setOrganizations: (organizations: Organization[]) => {
-    set({ organizations });
+    const list = Array.isArray(organizations)
+      ? organizations
+      : (organizations as any)?.organizations || [];
+    set({ organizations: list });
     const currentActive = get().activeOrg;
-    if (!currentActive && organizations.length > 0) {
-      set({ activeOrg: organizations[0] });
+    if (!currentActive && list.length > 0) {
+      set({ activeOrg: list[0] });
     } else if (currentActive) {
-      const refreshed = organizations.find((o) => o.id === currentActive.id);
-      set({ activeOrg: refreshed || organizations[0] || null });
+      const refreshed = list.find((o: Organization) => o.id === currentActive.id);
+      set({ activeOrg: refreshed || list[0] || null });
     }
   },
 
@@ -44,13 +47,16 @@ export const useOrgStore = create<OrgState>((set, get) => ({
   },
 
   setProjects: (projects: Project[]) => {
-    set({ projects });
+    const list = Array.isArray(projects)
+      ? projects
+      : (projects as any)?.projects || [];
+    set({ projects: list });
     const currentActive = get().activeProject;
-    if (!currentActive && projects.length > 0) {
-      set({ activeProject: projects[0] });
+    if (!currentActive && list.length > 0) {
+      set({ activeProject: list[0] });
     } else if (currentActive) {
-      const refreshed = projects.find((p) => p.id === currentActive.id);
-      set({ activeProject: refreshed || projects[0] || null });
+      const refreshed = list.find((p: Project) => p.id === currentActive.id);
+      set({ activeProject: refreshed || list[0] || null });
     }
   },
 

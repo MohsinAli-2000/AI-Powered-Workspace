@@ -39,7 +39,7 @@ export default function GroupsPage() {
     setIsLoading(true);
     try {
       const data = await apiClient<Group[]>(`/organizations/${activeOrg.id}/groups`);
-      setGroups(data);
+      setGroups(Array.isArray(data) ? data : []);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to load groups', 'error');
     } finally {
@@ -98,7 +98,7 @@ export default function GroupsPage() {
     setIsLoadingMembers(true);
     try {
       const members = await apiClient<GroupMember[]>(`/groups/${group.id}/members`);
-      setGroupMembers(members);
+      setGroupMembers(Array.isArray(members) ? members : []);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to load group members', 'error');
     } finally {

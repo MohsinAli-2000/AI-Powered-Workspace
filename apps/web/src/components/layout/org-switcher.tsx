@@ -98,31 +98,37 @@ export const OrgSwitcher: React.FC = () => {
               </div>
 
               <div className="max-h-56 overflow-y-auto space-y-1">
-                {organizations.map((org) => {
-                  const isSelected = activeOrg?.id === org.id;
-                  return (
-                    <button
-                      key={org.id}
-                      onClick={() => handleSelectOrg(org)}
-                      className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
-                        isSelected
-                          ? 'bg-indigo-600/20 text-indigo-300 font-medium'
-                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{org.name}</span>
-                        {org.role && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-slate-400 border border-white/10">
-                            {org.role}
-                          </span>
-                        )}
-                      </div>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
-                    </button>
-                  );
-                })}
+                {(!Array.isArray(organizations) || organizations.length === 0) ? (
+                  <p className="px-2.5 py-3 text-center text-xs text-slate-400">
+                    No organizations found
+                  </p>
+                ) : (
+                  organizations.map((org) => {
+                    const isSelected = activeOrg?.id === org.id;
+                    return (
+                      <button
+                        key={org.id}
+                        onClick={() => handleSelectOrg(org)}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-indigo-600/20 text-indigo-300 font-medium'
+                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{org.name}</span>
+                          {org.role && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-slate-400 border border-white/10">
+                              {org.role}
+                            </span>
+                          )}
+                        </div>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
+                      </button>
+                    );
+                  })
+                )}
               </div>
 
               <div className="pt-1.5 mt-1.5 border-t border-white/5">

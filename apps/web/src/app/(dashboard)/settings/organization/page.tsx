@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOrgStore } from '@/stores/org.store';
 import { apiClient } from '@/lib/api-client';
 import { Organization } from '@/types/api.types';
@@ -101,11 +101,21 @@ export default function OrganizationSettingsPage() {
     }
   };
 
+  useEffect(() => {
+    if (activeOrg) {
+      setOrgName(activeOrg.name);
+    }
+  }, [activeOrg]);
+
   if (!activeOrg) {
     return (
-      <div className="p-8 text-center text-xs text-slate-400">
-        Please select an organization from the top menu.
-      </div>
+      <Card className="max-w-lg mx-auto text-center py-12">
+        <Building2 className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+        <h3 className="text-base font-semibold text-slate-100">No Organization Selected</h3>
+        <p className="text-xs text-slate-400 mt-1 mb-5 max-w-sm mx-auto">
+          You are not currently viewing an active organization. Use the organization switcher in the top navigation bar to create or select one.
+        </p>
+      </Card>
     );
   }
 

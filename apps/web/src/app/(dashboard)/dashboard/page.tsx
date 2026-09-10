@@ -40,19 +40,21 @@ export default function DashboardPage() {
     try {
       // 1. Fetch projects
       const projs = await apiClient<Project[]>(`/organizations/${activeOrg.id}/projects`);
-      setLocalProjects(projs);
-      setProjects(projs);
+      const projsList = Array.isArray(projs) ? projs : [];
+      setLocalProjects(projsList);
+      setProjects(projsList);
 
       // 2. Fetch conversations
       const convs = await apiClient<Conversation[]>(`/organizations/${activeOrg.id}/conversations`);
-      setConversationCount(convs.length);
+      setConversationCount(Array.isArray(convs) ? convs.length : 0);
 
       // 3. Count documents across projects
       let totalDocs = 0;
-      for (const p of projs.slice(0, 5)) {
+      for (const p of projsList.slice(0, 5)) {
         try {
           const docs = await apiClient<DocumentItem[]>(`/projects/${p.id}/documents`);
-          totalDocs += docs.length;
+          const docsList = Array.isArray(docs) ? docs : [];
+          totalDocs += docsList.length;
         } catch {
           // ignore error for single project docs
         }

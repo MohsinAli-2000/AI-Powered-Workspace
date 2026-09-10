@@ -32,7 +32,7 @@ export default function InvitationsPage() {
     setIsLoading(true);
     try {
       const data = await apiClient<Invitation[]>(`/organizations/${activeOrg.id}/invitations`);
-      setInvitations(data);
+      setInvitations(Array.isArray(data) ? data : []);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to load invitations', 'error');
     } finally {

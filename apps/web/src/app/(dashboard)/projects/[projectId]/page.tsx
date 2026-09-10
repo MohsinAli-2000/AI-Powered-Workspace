@@ -61,11 +61,11 @@ export default function ProjectDetailsPage({
 
       // 2. Fetch project documents
       const docs = await apiClient<DocumentItem[]>(`/projects/${projectId}/documents`);
-      setDocuments(docs);
+      setDocuments(Array.isArray(docs) ? docs : []);
 
       // 3. Fetch project members
       const mems = await apiClient<ProjectMember[]>(`/projects/${projectId}/members`);
-      setMembers(mems);
+      setMembers(Array.isArray(mems) ? mems : []);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to load project details', 'error');
     } finally {
@@ -79,7 +79,7 @@ export default function ProjectDetailsPage({
 
   // Poller: Poll document status every 3s if any document is QUEUED or PROCESSING
   useEffect(() => {
-    const hasUnfinished = documents.some(
+    const hasUnfinished = Array.isArray(documents) && documents.some(
       (d) => d.status === 'QUEUED' || d.status === 'PROCESSING'
     );
 
@@ -90,7 +90,9 @@ export default function ProjectDetailsPage({
         const refreshedDocs = await apiClient<DocumentItem[]>(
           `/projects/${projectId}/documents`
         );
-        setDocuments(refreshedDocs);
+        if (Array.isArray(refreshedDocs)) {
+          setDocuments(refreshedDocs);
+        }
       } catch {
         // silent polling error catch
       }

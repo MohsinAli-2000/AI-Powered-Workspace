@@ -67,10 +67,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ initialConversationId }) => 
       const convs = await apiClient<Conversation[]>(
         `/organizations/${activeOrg.id}/conversations`
       );
-      setConversations(convs);
+      const list = Array.isArray(convs) ? convs : [];
+      setConversations(list);
 
       if (initialConversationId) {
-        const found = convs.find((c) => c.id === initialConversationId);
+        const found = list.find((c) => c.id === initialConversationId);
         if (found) {
           setActiveConversation(found);
           return;
@@ -78,8 +79,8 @@ export const ChatView: React.FC<ChatViewProps> = ({ initialConversationId }) => 
       }
 
       // If no initial conversation or not found, select first or prepare new
-      if (convs.length > 0 && !activeConversation) {
-        setActiveConversation(convs[0]);
+      if (list.length > 0 && !activeConversation) {
+        setActiveConversation(list[0]);
       }
     } catch (err) {
       console.error('Failed to load conversations', err);
@@ -95,7 +96,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ initialConversationId }) => 
     setIsLoadingMessages(true);
     try {
       const msgs = await apiClient<Message[]>(`/conversations/${conversationId}/messages`);
-      setMessages(msgs);
+      setMessages(Array.isArray(msgs) ? msgs : []);
       setTimeout(scrollToBottom, 100);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to load messages', 'error');
@@ -107,7 +108,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ initialConversationId }) => 
   useEffect(() => {
     if (activeConversation) {
       loadMessages(activeConversation.id);
-      if (activeConversation.project_ids && activeConversation.project_ids.length > 0) {
+      if (Array.isArray(activeConversation.project_ids) && activeConversation.project_ids.length > 0) {
         setSelectedProjectScope(activeConversation.project_ids[0]);
       } else {
         setSelectedProjectScope('all');
