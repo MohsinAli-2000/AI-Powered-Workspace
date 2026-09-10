@@ -7,11 +7,11 @@
 
 ## Current Phase
 
-**Phase: Phase 14 Completed → Ready for Phase 15 (Next.js Frontend)**
+**Phase: Phase 15 Completed → Ready for Phase 16 (Audit Logging)**
 
-Phase 14 (Python AI Service / FastAPI) has been fully implemented in `apps/ai-service`, providing an internal microservice for vector embeddings (single and batch), authorization-aware pgvector RAG orchestration (both synchronous JSON and real-time SSE streaming with `text/event-stream`), direct LLM completions, and semantic sliding-window text chunking. The service incorporates the complete Phase 13 6-step access control evaluation with **`DENY` precedence** at the database engine level, pluggable AI providers (Ollama `nomic-embed-text` + `qwen2.5` and deterministic `MockProvider`), and Sentry monitoring.
+Phase 15 (Next.js Frontend) has been fully implemented in `apps/web`, providing a production-grade web application featuring modern dark-slate aesthetics, JWT token rotation with an automatic refresh mutex queue, full tenant and project context isolation, document management with real-time status polling, granular 6-step access rule configuration with `DENY` precedence, and a grounded conversational AI assistant with interactive source citation drawers.
 
-The immediate next implementation phase is **Phase 15 — Next.js Frontend**.
+The immediate next implementation phase is **Phase 16 — Audit Logging**.
 
 
 ---
@@ -264,41 +264,56 @@ The following have been decided, designed, and documented / implemented:
 - [x] 100% automated test verification across all 6 core functionality areas.
 
 ---
+ 
+ ### Phase 15 — Next.js Frontend ✅ COMPLETE (2026-09-11)
+ - [x] Modern Next.js 16+ (App Router) project initialized in `apps/web` with TypeScript and Tailwind CSS v4.
+ - [x] Curated dark mode design system with glassmorphism, glowing micro-accents, and custom scrollbars (`src/app/globals.css`).
+ - [x] Complete authentication suite:
+   - Login with session redirection and session expiration handling (`/login`).
+   - Register with password confirmation and verification notification (`/register`).
+   - Email verification with query param auto-trigger and resend capability (`/verify-email`).
+   - Self-service forgot password and reset password flows (`/forgot-password`, `/reset-password`).
+ - [x] Robust HTTP client with automatic 401 refresh token mutex queue (`src/lib/api-client.ts`).
+ - [x] Zustand state management with strict multi-tenant isolation (`auth.store.ts` & `org.store.ts`).
+ - [x] Application Shell & Context Switching:
+   - Sticky navbar with active organization switcher dropdown (`OrgSwitcher`) and new org creation modal.
+   - User profile dropdown with initials avatar and clean sign out (`UserMenu`).
+   - Collapsible sidebar with active tenant indicator and role-based links.
+ - [x] Organization Administration:
+   - Organization settings with rename, ownership transfer dialog, and org deletion modal (`/settings/organization`).
+   - Member management with directory table, role changes (`ADMIN`/`MEMBER`), member removal, and invite dialog (`/settings/members`).
+   - Invitation tracking with live statuses (`PENDING`, `ACCEPTED`, `REVOKED`) and revoke triggers (`/settings/invitations`).
+   - Group management with member counts, creation modal, and group member management dialog (`/settings/groups`).
+ - [x] Project Hub & Document Management:
+   - Project directory with manager badges and project creation modal (`/projects`).
+   - Project details view with document hub and member roster (`/projects/[projectId]`).
+   - Drag-and-drop file upload zone with client-side 50MB and extension validation, plus 409 conflict handling (`DocumentUploadZone`).
+   - Document listing table with real-time status badges (`QUEUED`, `PROCESSING`, `READY`, `FAILED`), download links, and delete modals.
+   - Automatic 3-second status polling while documents are in `QUEUED` or `PROCESSING` state.
+   - Granular Document Access Control Dialog (`AccessRulesDialog`) supporting Phase 13 6-step evaluation with `PROJECT` vs `RESTRICTED` mode, `ALLOW`/`DENY` user rules, group rules, org role rules, and project role rules with explicit `DENY` precedence.
+ - [x] AI Assistant Conversational Interface:
+   - Thread list sidebar with new chat, rename, and delete actions.
+   - Project scope selector ("All Accessible Projects" vs individual project scope).
+   - Chat message bubbles with rich markdown rendering (`react-markdown` + `remark-gfm`).
+   - `FR-AI-005` Insufficient Information warning callout when documents do not contain evidence.
+   - Clickable source citation pills `[1]`, `[2]` with cosine similarity confidence percentages.
+   - Interactive off-canvas Source Citation Drawer (`SourceCitationDrawer`) displaying document title, chunk index, page number, confidence meter, and exact grounded chunk text excerpt (`FR-AI-006`).
+ - [x] Production build validation: `npm run build` generates all 15 static/dynamic routes with zero TypeScript or Turbopack errors.
+
+---
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 14 completed. Ready to initiate Phase 15 (Next.js Frontend).
+Nothing currently in active implementation. Phase 15 completed. Ready to initiate Phase 16 (Audit Logging).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 15 — Next.js Frontend
-
-This is the next concrete implementation task.
-
-**Scope:**
-- [ ] Project setup (Next.js + TypeScript)
-- [ ] Tailwind CSS + modern curated design system
-- [ ] Zustand + React Query state management
-- [ ] Authentication pages (Login, Register, Password Reset, Email Verification)
-- [ ] Dashboard & Organization switcher
-- [ ] Project & Document management UI
-- [ ] AI Assistant conversational chat interface with real-time streaming
-- [ ] Traceable source citation inspection drawer
-- Project setup (Next.js + TypeScript)
-- Tailwind CSS + Shadcn/ui
-- Zustand + React Query state management
-- Authentication pages
-- Dashboard
-- Organization management UI
-- Document management UI
-- AI chat interface
-- Source reference display
-
 ### Phase 16 — Audit Logging
-- Audit log writes for all major operations
-- Audit log read API (for OWNER/ADMIN)
+- Audit log writes for all major operations (auth, org, member, project, document, and access rule mutations)
+- Audit log read API (scoped to OWNER and ADMIN roles)
+- Audit log frontend viewer with search, filtering, and timestamp pagination
 
 ### Phase 17 — Deployment
 - Docker Compose (full local dev stack)
@@ -379,12 +394,13 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 
 ---
 
-### CONFLICT-002 — Tailwind CSS vs. Vanilla CSS (PENDING - FRONTEND)
+### CONFLICT-002 — Tailwind CSS vs. Vanilla CSS (RESOLVED)
 
-- **Status:** **Pending (Deferred to Frontend Implementation)**
+- **Status:** **Resolved — Tailwind CSS v4 Confirmed & Implemented**
 - **Location A:** `AI Powered Workspace Architecture Diagram.png` → Tailwind CSS + Shadcn/ui
 - **Location B:** `docs/system-architecture.md` → Next.js + TypeScript
-- **Analysis:** This is a frontend presentation concern and will be finalized when initiating the Next.js frontend application.
+- **Resolution:**
+  Implemented using Next.js 16 App Router paired with modern Tailwind CSS v4 and curated dark-mode design tokens, custom glassmorphism panels, glowing micro-accents, and custom scrollbars in `apps/web`. Zero runtime CSS overhead with full responsive control.
 
 ---
 
