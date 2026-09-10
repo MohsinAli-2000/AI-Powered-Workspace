@@ -7,11 +7,11 @@
 
 ## Current Phase
 
-**Phase: Phase 10 Completed → Ready for Phase 11 (Embedding Pipeline / Ollama / pgvector)**
+**Phase: Phase 11 Completed → Ready for Phase 12 (RAG and Conversations / AI Service)**
 
-Phase 10 (Asynchronous Document Processing / AI Worker) has been fully implemented in `apps/worker/`, hardened for production, and verified end-to-end. The Python worker service consumes document processing jobs from RabbitMQ (`document-processing` with DLQ routing), streams documents from S3/MinIO with memory exhaustion defense (50MB cap), extracts content across all supported formats (PDF, DOCX, XLSX, PPTX, TXT), normalizes text (NFKC, control char stripping, whitespace collapsing), performs semantic sliding-window chunking (1000 chars, 200 overlap with word-boundary snapping), and idempotently persists chunks to PostgreSQL (`document_chunks`) with atomic status transitions (`QUEUED` → `PROCESSING` → `READY` / `FAILED` with `processed_at`). The service uses thread-safe connection pooling (`ThreadedConnectionPool`) and graceful shutdown signal handlers.
+Phase 11 (Embedding Pipeline / Ollama / pgvector) has been fully implemented in `apps/worker/`, hardened with comprehensive edge-case handling, and verified with 12 automated unit and integration tests. The pipeline features pluggable embedding client architecture (`OllamaEmbeddingClient` targeting `nomic-embed-text` with batch `/api/embed` and legacy fallback, exponential backoff retries, and `MockEmbeddingClient` for deterministic testing), automatic database migration to typed `vector(768)` with HNSW cosine distance indexing (`vector_cosine_ops`), batch chunk embedding integrated into `DocumentProcessor`, and a standalone CLI backfill utility (`batch_embedder.py`).
 
-The immediate next implementation phase is **Phase 11 — Embedding Pipeline (Ollama / pgvector)**.
+The immediate next implementation phase is **Phase 12 — RAG and Conversations**.
 
 
 ---
@@ -209,48 +209,44 @@ The following have been decided, designed, and documented / implemented:
 - [x] Status state machine (`QUEUED` → `PROCESSING` → `READY` / `FAILED` with synchronized `processed_at = NOW()`).
 - [x] Full test verification: 34 unit & integration scenarios verified.
 
+### Phase 11 — Embedding Pipeline (Ollama / pgvector) ✅ COMPLETE (2026-09-11)
+- [x] Official Python pgvector adapter integrated into connection pooling (`apps/worker/src/db.py`).
+- [x] Schema migration to constrained `vector(768)` matching `nomic-embed-text` with HNSW cosine distance index (`document_chunks_embedding_hnsw_idx` with `m=16, ef_construction=64`).
+- [x] Pluggable embedding client architecture (`BaseEmbeddingClient` with L2 unit normalization, text sanitization, null byte removal, and defensive 8,000-char capping).
+- [x] `OllamaEmbeddingClient` with batch `/api/embed` support, legacy `/api/embeddings` fallback, dimension validation, and exponential backoff retry with jitter.
+- [x] `MockEmbeddingClient` producing deterministic, reproducible 768-dim L2-normalized vectors for test suites and offline environments.
+- [x] End-to-end integration into `DocumentProcessor.process_version` generating vector embeddings in configurable batches (`EMBEDDING_BATCH_SIZE=32`) and atomically persisting chunks with embeddings.
+- [x] Standalone batch backfill CLI tool (`batch_embedder.py`) with concurrency-safe row locking (`FOR UPDATE SKIP LOCKED`).
+- [x] 12 automated unit and integration tests passing with 100% success rate across client, pgvector, and processor pipelines.
+
 ---
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 10 completed. Ready to initiate Phase 11 (Embedding Pipeline / Ollama / pgvector).
+Nothing currently in active implementation. Phase 11 completed. Ready to initiate Phase 12 (RAG and Conversations / AI Service).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 11 — Embedding Pipeline
+### Phase 12 — RAG and Conversations
 
 This is the next concrete implementation task.
 
 **Scope:**
-- [ ] Embedding model integration (Ollama / `nomic-embed-text` or similar)
-- [ ] Batch embedding generation for un-embedded chunks in `document_chunks`
-- [ ] Store embeddings in `document_chunks.embedding` (pgvector 768 / 1536 dims)
-- [ ] HNSW / IVFFlat vector index verification and performance testing
+- [ ] Conversation entity and database repository in backend API
+- [ ] Conversation project scope selection (`conversation_projects`)
+- [ ] Question embedding generation
+- [ ] Authorization-aware vector similarity search (tenant & project scoped)
+- [ ] LLM integration (Ollama / Qwen)
+- [ ] Grounded answer generation with source/citation tracking
+- [ ] Message + `message_sources` provenance persistence
 
 ---
 
 ## 🔮 Future Phases (Not Started)
 
-The following phases are planned following document processing:
-
-### Phase 11 — Embedding Pipeline
-- Embedding model integration (Ollama)
-- Batch embedding generation
-- Store embeddings in pgvector
-- Vector index creation
-
-
-### Phase 12 — RAG and Conversations
-- Conversation creation
-- Conversation project scope selection
-- Question embedding
-- Authorization-aware vector similarity search
-- LLM integration (Ollama)
-- Grounded answer generation
-- Source/citation building
-- Message + message_source storage
+The following phases are planned following RAG and Conversations:
 
 ### Phase 13 — Document Access Control
 - Document access mode management (PROJECT / RESTRICTED)

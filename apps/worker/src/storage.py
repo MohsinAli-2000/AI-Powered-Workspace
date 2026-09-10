@@ -59,6 +59,28 @@ class StorageClient:
             logger.error(f"Failed to download object {storage_key}: {e}")
             raise
 
+    def upload_file(
+        self,
+        file_data: BinaryIO,
+        storage_key: str,
+        content_type: str = "application/octet-stream"
+    ) -> None:
+        """Upload a file or stream to S3 / MinIO."""
+        logger.info(f"Uploading {storage_key} to bucket '{self.bucket}'...")
+        self.s3.put_object(
+            Bucket=self.bucket,
+            Key=storage_key,
+            Body=file_data,
+            ContentType=content_type,
+        )
+
+    def delete_file(self, storage_key: str) -> None:
+        """Delete an object from S3 / MinIO."""
+        try:
+            self.s3.delete_object(Bucket=self.bucket, Key=storage_key)
+        except Exception as e:
+            logger.warning(f"Failed to delete {storage_key} from bucket: {e}")
+
 
 storage_client = StorageClient()
 

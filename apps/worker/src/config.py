@@ -44,6 +44,36 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = Field(default=1000)  # characters
     CHUNK_OVERLAP: int = Field(default=200)  # characters
 
+    # Embedding Pipeline (Phase 11)
+    EMBEDDING_PROVIDER: str = Field(
+        default="ollama",
+        description="Embedding provider: ollama, openai, or mock"
+    )
+    EMBEDDING_MODEL: str = Field(
+        default="nomic-embed-text",
+        description="Name of the embedding model"
+    )
+    EMBEDDING_DIMENSION: int = Field(
+        default=768,
+        description="Vector dimension of the embedding model (e.g. 768 for nomic-embed-text)"
+    )
+    EMBEDDING_BATCH_SIZE: int = Field(
+        default=32,
+        description="Number of chunks to embed per request"
+    )
+    OLLAMA_BASE_URL: str = Field(
+        default="http://localhost:11434",
+        description="Ollama API base URL"
+    )
+    EMBEDDING_MAX_RETRIES: int = Field(
+        default=3,
+        description="Max retries for embedding requests"
+    )
+    EMBEDDING_TIMEOUT_SECONDS: float = Field(
+        default=30.0,
+        description="Timeout per embedding API call in seconds"
+    )
+
     @property
     def S3_ENDPOINT_URL(self) -> str:
         """Backward-compatible property for S3 endpoint URL."""

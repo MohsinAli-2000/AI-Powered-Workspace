@@ -3,7 +3,8 @@ import signal
 import sys
 
 from src.config import settings
-from src.db import close_connection_pool
+from src.db import close_connection_pool, ensure_vector_schema
+from src.embeddings import get_embedding_client
 from src.queue_consumer import QueueConsumer
 
 # Configure root logging with level from settings
@@ -19,6 +20,18 @@ logger = logging.getLogger("worker")
 
 def main():
     logger.info("Initializing AI Worker service...")
+
+    # Ensure pgvector schema and HNSW index are active
+    ensure_vector_schema()
+
+    # Verify embedding provider connectivity
+    embed_client = get_embedding_client()
+    if not embed_client.health_check():
+        logger.warning(
+            f"Embedding provider '{embed_client.model_name}' health check failed. "
+            "Verify Ollama/provider daemon availability before processing incoming jobs."
+        )
+
     consumer = QueueConsumer()
 
     # Graceful shutdown handler

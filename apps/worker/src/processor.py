@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from src.config import settings
 from src.db import (
@@ -11,18 +11,27 @@ from src.db import (
 from src.storage import storage_client
 from src.extractors import get_extractor
 from src.chunker import DocumentChunker
+from src.embeddings import get_embedding_client, BaseEmbeddingClient
 
 logger = logging.getLogger(__name__)
 
 
 class DocumentProcessor:
-    def __init__(self, chunk_size: Optional[int] = None, chunk_overlap: Optional[int] = None):
+    def __init__(
+        self,
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
+        embedding_client: Optional[BaseEmbeddingClient] = None,
+        batch_size: Optional[int] = None,
+    ):
         self.chunker = DocumentChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        self.embedding_client = embedding_client or get_embedding_client()
+        self.batch_size = batch_size or settings.EMBEDDING_BATCH_SIZE
 
     def process_version(self, version_id: str) -> Dict[str, Any]:
         """
         Orchestrates full processing for a document version:
-        Fetch -> Transition to PROCESSING -> Download -> Extract -> Chunk -> Persist -> Transition to READY/FAILED.
+        Fetch -> Transition to PROCESSING -> Download -> Extract -> Chunk -> Embed -> Persist -> Transition to READY/FAILED.
         """
         logger.info(f"--- Starting processing for document_version_id={version_id} ---")
         start_time = time.time()
@@ -55,16 +64,34 @@ class DocumentProcessor:
             # 5. Chunk the extracted text
             chunks = self.chunker.chunk_document(extracted_doc)
 
-            # 6. Save chunks idempotently to PostgreSQL
+            # 6. Generate embeddings for chunks in batches
+            if chunks:
+                logger.info(
+                    f"Generating embeddings for {len(chunks)} chunks in batches of {self.batch_size}..."
+                )
+                for i in range(0, len(chunks), self.batch_size):
+                    batch = chunks[i:i + self.batch_size]
+                    batch_texts = [c["content"] for c in batch]
+                    vectors = self.embedding_client.embed_batch(batch_texts)
+
+                    if len(vectors) != len(batch):
+                        raise RuntimeError(
+                            f"Embedding batch size mismatch: expected {len(batch)} vectors, got {len(vectors)}"
+                        )
+
+                    for chunk_dict, vec in zip(batch, vectors):
+                        chunk_dict["embedding"] = vec
+
+            # 7. Save chunks and embeddings idempotently to PostgreSQL
             inserted_count = save_document_chunks(version_id, chunks)
 
-            # 7. Transition status: PROCESSING -> READY
+            # 8. Transition status: PROCESSING -> READY
             update_version_status(version_id, "READY", processed_at=True)
 
             duration = round(time.time() - start_time, 2)
             logger.info(
                 f"Successfully processed {version_id} ({original_filename}): "
-                f"{inserted_count} chunks created in {duration}s."
+                f"{inserted_count} chunks embedded and saved in {duration}s."
             )
 
             return {
