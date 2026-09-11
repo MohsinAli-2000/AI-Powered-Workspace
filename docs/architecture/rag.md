@@ -27,15 +27,13 @@ The RAG system is implemented as a **separate Python AI Service** (FastAPI) and 
 
 ### Embedding Model Selection
 
-> **Current direction:** Local model via Ollama for initial development.  
-> **TODO — DECISION REQUIRED:** Exact embedding model name/version.  
-> **TODO — DECISION REQUIRED:** Production embedding provider (local vs. cloud API).
+> **Confirmed Development Standard:** `nomic-embed-text` via Ollama (768 dimensions, L2 unit-normalized, HNSW index).  
+> **Production Consideration:** Can be swapped transparently for OpenAI `text-embedding-3-small` or cloud endpoints with matching 768 or re-indexed dimensions.
 
 ### LLM Selection
 
-> **Current direction:** Qwen via Ollama for initial development.  
-> **TODO — DECISION REQUIRED:** Exact LLM model name/version.  
-> **TODO — DECISION REQUIRED:** Production LLM provider (Ollama, OpenAI, Anthropic, etc.).
+> **Confirmed Development Standard:** `qwen2.5:1.5b` via Ollama for fast, lightweight local CPU execution (with `qwen2.5:latest` 7.6B supported on GPU/cloud instances).  
+> **Production Consideration:** Ollama self-hosted on GPU EC2 instance or cloud API provider (OpenAI GPT-4o-mini / Anthropic Claude 3.5 Haiku).
 
 ---
 

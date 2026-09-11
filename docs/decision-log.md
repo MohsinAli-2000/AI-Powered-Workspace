@@ -421,4 +421,39 @@ Phase:     Worker implementation
 Affected:  chunker.py, normalizer.py
 ```
 
+---
+
+### DEC-028 — nomic-embed-text (768 Dimensions) as Standard Embedding Model
+
+```
+Decision:  Standardize on `nomic-embed-text` with 768-dimensional L2-normalized vectors and
+           PostgreSQL pgvector HNSW index across worker, API, and AI service
+Why:       Provides strong retrieval accuracy for technical and business documentation, runs
+           efficiently in local Ollama environments with small memory footprint (~274MB),
+           and maintains exact dimensional parity with the pgvector schema
+Status:    Confirmed & Implemented (Phase 11 & Phase 12)
+Phase:     AI Worker, AI Service, Backend implementation
+Affected:  apps/worker/src/embeddings/ollama.py, apps/api/src/modules/conversations/ai-client.ts,
+           apps/ai-service/src/services/embedding_service.py, document_chunks table
+```
+
+---
+
+### DEC-029 — Lightweight LLM (qwen2.5:1.5b) & Resilient Fallback for Local Inference
+
+```
+Decision:  Configure `qwen2.5:1.5b` as the default LLM model for local development environments,
+           accompanied by `num_predict: 512`, a 90-second timeout, and an automatic fallback
+           mechanism in `conversation.service.ts` that provides retrieved document excerpts
+           if LLM generation encounters delays
+Why:       Running 7B+ parameter models on CPU-only 8GB host machines causes severe swap memory
+           thrashing and generation timeouts. The 1.5B model fits comfortably in ~1.2GB of RAM
+           with 5-second response times, while the graceful fallback ensures the user interface
+           always returns grounded answers with source citations even during heavy system load
+Status:    Confirmed & Implemented (Phase 12 / Post-Phase 15 Stabilization)
+Phase:     Backend RAG runtime optimization
+Affected:  apps/api/.env, conversation.service.ts, ai-client.ts
+```
+
+
 

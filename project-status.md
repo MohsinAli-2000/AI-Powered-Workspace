@@ -1,15 +1,20 @@
 # Project Status
 
-> **Last synchronized:** 2026-09-09  
+> **Last synchronized:** 2026-09-11  
 > **Purpose:** Single source of truth for project phase, completed work, in-progress work, and planned work.
 
 ---
 
 ## Current Phase
 
-**Phase: Phase 15 Completed → Ready for Phase 16 (Audit Logging)**
+**Phase: Phase 15 Completed & RAG Pipeline Stabilized → Ready for Phase 16 (Audit Logging)**
 
 Phase 15 (Next.js Frontend) has been fully implemented in `apps/web`, providing a production-grade web application featuring modern dark-slate aesthetics, JWT token rotation with an automatic refresh mutex queue, full tenant and project context isolation, document management with real-time status polling, granular 6-step access rule configuration with `DENY` precedence, and a grounded conversational AI assistant with interactive source citation drawers.
+
+In addition, the local RAG pipeline has been fully synchronized and stabilized:
+- Standardized on **`nomic-embed-text`** (768-dimensional L2-normalized vectors with HNSW index) and **`qwen2.5:1.5b`** for responsive local CPU inference.
+- Re-embedded all active document chunks in PostgreSQL with real embeddings to prevent vector mismatch.
+- Added graceful fallback and a 90-second timeout with `num_predict: 512` in `conversation.service.ts` to ensure users always receive grounded answers with citations even during model prefill.
 
 The immediate next implementation phase is **Phase 16 — Audit Logging**.
 
@@ -353,8 +358,8 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 
 | # | Item | Status | Impact / Implementation Resolution |
 |---|------|--------|-----------------------------------|
-| 1 | Exact embedding model name/version | ⏳ Pending | AI Worker, AI Service (Phase 11) |
-| 2 | Exact LLM model name/version | ⏳ Pending | AI Service (Phase 12) |
+| 1 | Exact embedding model name/version | ✅ **Resolved** | **`nomic-embed-text`** (768-dim L2-normalized vectors, HNSW index with m=16, ef_construction=64) |
+| 2 | Exact LLM model name/version | ✅ **Resolved** | **`qwen2.5:1.5b`** confirmed for fast local CPU development; `qwen2.5` (7.6B) supported for GPU/cloud environments |
 | 3 | Production LLM provider (Ollama vs OpenAI vs Anthropic) | ⏳ Pending | Architecture, cost (Phase 14) |
 | 4 | Exact email provider | ✅ **Resolved** | **Resend** confirmed & implemented (`apps/api/src/modules/email/email.service.ts`) |
 | 5 | Maximum allowed file size | ✅ **Resolved** | **50MB** (`52,428,800` bytes) enforced in `env.ts` and `upload.middleware.ts` |
