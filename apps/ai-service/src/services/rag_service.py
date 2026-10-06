@@ -1,6 +1,7 @@
 import json
 import time
 from typing import AsyncIterator, List, Tuple
+from xml.sax.saxutils import quoteattr
 from src.config import settings
 from src.logger import logger
 from src.db import search_authorized_chunks
@@ -39,8 +40,9 @@ class RAGService:
 
         for idx, chunk in enumerate(retrieved_chunks):
             page_info = f' page="{chunk["page_number"]}"' if chunk["page_number"] else ""
+            # quoteattr escapes quotes/angle brackets so names cannot break out of the XML tag
             context_parts.append(
-                f'<context_document id="{idx + 1}" title="{chunk["document_name"]}" project="{chunk["project_name"]}"{page_info}>\n'
+                f'<context_document id="{idx + 1}" title={quoteattr(str(chunk["document_name"]))} project={quoteattr(str(chunk["project_name"]))}{page_info}>\n'
                 f'{chunk["content"]}\n'
                 f'</context_document>'
             )
@@ -72,7 +74,11 @@ class RAGService:
         query_vector = await embedding_provider.embed_text(request.question)
 
         # 2. Similarity search with authorization filters
-        threshold = request.similarity_threshold or settings.rag_similarity_threshold
+        threshold = (
+            request.similarity_threshold
+            if request.similarity_threshold is not None
+            else settings.rag_similarity_threshold
+        )
         top_k = request.top_k or settings.rag_top_k
 
         retrieved_chunks = await search_authorized_chunks(
@@ -112,6 +118,9 @@ class RAGService:
             system_prompt=SYSTEM_PROMPT,
             history=history_dicts,
         )
+        if not answer or not answer.strip():
+            # e.g. provider safety filter returned no text
+            answer = "The model returned an empty response. Please rephrase your question and try again."
 
         latency_ms = (time.perf_counter() - start_time) * 1000.0
 
@@ -131,7 +140,11 @@ class RAGService:
         query_vector = await embedding_provider.embed_text(request.question)
 
         # 2. Similarity search with authorization filters
-        threshold = request.similarity_threshold or settings.rag_similarity_threshold
+        threshold = (
+            request.similarity_threshold
+            if request.similarity_threshold is not None
+            else settings.rag_similarity_threshold
+        )
         top_k = request.top_k or settings.rag_top_k
 
         retrieved_chunks = await search_authorized_chunks(
@@ -169,13 +182,19 @@ class RAGService:
         llm_provider = get_llm_provider()
         history_dicts = [{"role": m.role, "content": m.content} for m in request.conversation_history]
 
-        async for token in llm_provider.generate_stream(
-            prompt=user_prompt,
-            system_prompt=SYSTEM_PROMPT,
-            history=history_dicts,
-        ):
-            payload = json.dumps({"token": token})
-            yield f"event: token\ndata: {payload}\n\n"
+        try:
+            async for token in llm_provider.generate_stream(
+                prompt=user_prompt,
+                system_prompt=SYSTEM_PROMPT,
+                history=history_dicts,
+            ):
+                payload = json.dumps({"token": token})
+                yield f"event: token\ndata: {payload}\n\n"
+        except Exception as exc:
+            logger.error(f"LLM streaming failed: {exc}")
+            err_payload = json.dumps({"message": "The AI model failed while generating the answer. Please try again."})
+            yield f"event: error\ndata: {err_payload}\n\n"
+            return
 
         # 6. Stream final done event with full citation provenance
         done_payload = json.dumps({

@@ -312,6 +312,9 @@ ${contextExcerpts}`;
     let answerText: string;
     try {
       answerText = await aiClient.generateAnswer(systemPrompt, dto.content, history);
+      if (!answerText || !answerText.trim()) {
+        throw new Error('LLM returned an empty response');
+      }
     } catch (llmError: any) {
       logger.error({ err: llmError }, 'LLM generation failed or timed out, providing excerpts directly');
       const topChunks = retrievedChunks.slice(0, 2);

@@ -14,12 +14,19 @@ async def health_check():
     db_healthy = await check_db_health()
     status_code = "healthy" if db_healthy else "degraded"
 
+    if settings.ai_provider == "gemini":
+        embedding_model = settings.gemini_embedding_model
+        llm_model = settings.gemini_llm_model
+    else:
+        embedding_model = settings.embedding_model
+        llm_model = settings.llm_model
+
     return {
         "status": status_code,
         "service": "ai-service",
         "environment": settings.environment,
         "database": "connected" if db_healthy else "disconnected",
         "provider": settings.ai_provider,
-        "embedding_model": settings.embedding_model,
-        "llm_model": settings.llm_model,
+        "embedding_model": embedding_model,
+        "llm_model": llm_model,
     }

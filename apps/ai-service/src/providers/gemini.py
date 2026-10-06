@@ -125,7 +125,12 @@ class GeminiProvider(BaseEmbeddingProvider, BaseLLMProvider):
         contents: list[dict] = []
         if history:
             for item in history[-4:]:
+                if not item.get("content"):
+                    continue
                 role = "model" if item["role"].lower() in ("assistant", "model") else "user"
+                # Gemini expects the conversation to begin with a user turn
+                if not contents and role == "model":
+                    continue
                 contents.append({"role": role, "parts": [{"text": item["content"]}]})
         contents.append({"role": "user", "parts": [{"text": prompt}]})
 
