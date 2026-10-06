@@ -481,5 +481,20 @@ Note:      Gemini and nomic-embed-text vectors are not comparable; existing docu
            users (retired), so use a current model such as `gemini-3.8-flash`
 ```
 
+---
 
+### DEC-031 — Neon Serverless Postgres for Cloud & Production Deployment
 
+```
+Decision:  Migrate database from local PostgreSQL container to Neon Serverless PostgreSQL
+           (AWS us-east-1) with `pgvector` extension enabled and built-in PgBouncer pooling.
+           Use the pooled connection string (`-pooler`) for stateful and serverless applications
+           (API, AI Service, Worker) and direct unpooled connection for schema migrations.
+Why:       Provides a production-grade, zero-cost cloud database ideal for portfolio deployment.
+           Supports serverless scale-to-zero, native pgvector support for 768-dimensional embeddings,
+           automatic backups, and instant Vercel / Cloud deployment integration without requiring
+           a self-managed PostgreSQL server.
+Status:    Confirmed & Implemented
+Phase:     Deployment & Cloud Migration
+Affected:  apps/api/.env, apps/worker/.env, apps/ai-service/.env, PostgreSQL schema & data
+```
