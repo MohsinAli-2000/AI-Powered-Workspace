@@ -80,33 +80,36 @@ Affected:  All components — defines the deployment boundary
 
 ---
 
-### DEC-005 — Ollama for Initial Embedding and LLM Runtime
+### DEC-005 — AI Provider Strategy: Ollama for Local Development Only → Google Gemini API for Production
 
 ```
-Decision:  Use Ollama as the local model runtime for initial development
-           (embedding model and LLM via Qwen or similar)
-Why:       Zero-cost development, local execution, no API keys required
-           for initial builds; can be swapped for cloud providers in production
-Status:    Confirmed (for development)
-Phase:     Architecture design
-Affected:  AI Service, AI Worker, Embedding Pipeline, RAG orchestration
-Note:      Production LLM and embedding provider not yet finalized
-           (TODO — DECISION REQUIRED)
+Decision:  Use Ollama strictly as a local model runtime during development and offline testing;
+           standardize on Google Gemini API (gemini-3.8-flash for LLM and gemini-embedding-001
+           for 768-dim embeddings) as the primary cloud and production AI provider (see DEC-030).
+Why:       Ollama enables zero-cost local prototyping without external API keys on developer machines;
+           for production, Google Gemini API provides enterprise scalability, high token throughput,
+           and low latency without the operational overhead of self-hosted GPU infrastructure.
+Status:    Confirmed & Implemented (Development: Ollama | Production: Google Gemini API)
+Phase:     Architecture design & implementation (Phase 11-14 + DEC-030)
+Affected:  apps/ai-service, apps/worker, apps/api
 ```
 
 ---
 
-### DEC-006 — Object Storage: MinIO (dev) → AWS S3 (prod)
+### DEC-006 — Object Storage Strategy: MinIO for Local Development Only → AWS S3 for Production
 
 ```
-Decision:  Use MinIO locally for development, AWS S3 for production, unified
-           under the official @aws-sdk/client-s3 driver
-Why:       MinIO is S3-compatible, enabling local development with zero AWS costs;
-           production uses AWS S3 for scalability; switching environments
-           requires only changing environment variables with zero code changes
-Status:    Confirmed & Implemented (Phase 9)
+Decision:  Use MinIO strictly as a local S3-compatible emulator during development;
+           use AWS S3 as the standard production cloud object store, unified under
+           the official @aws-sdk/client-s3 driver (see DEC-025).
+Why:       MinIO provides exact S3 API compatibility locally with zero cloud AWS costs
+           during local development; production relies on AWS S3 for enterprise durability,
+           redundancy, and scalability. Transitioning from local dev to cloud production
+           requires only changing environment variables (S3_ENDPOINT, AWS_REGION, credentials)
+           with zero application code modifications.
+Status:    Confirmed & Implemented (Phase 9 & DEC-025)
 Phase:     Architecture design & implementation
-Affected:  Backend (document upload, storage.service.ts), AI Worker (file download)
+Affected:  Backend (storage.service.ts), AI Worker (storage.py)
 ```
 
 ---
@@ -383,16 +386,17 @@ Affected:  upload.middleware.ts, document.schema.ts
 
 ---
 
-### DEC-025 — Unified S3 Driver with MinIO (Dev) and AWS S3 (Prod) Parity
+### DEC-025 — Unified S3 Driver: MinIO for Local Development Only → AWS S3 for Production
 
 ```
-Decision:  Use @aws-sdk/client-s3 with S3_FORCE_PATH_STYLE and configurable S3_ENDPOINT
-           to support local MinIO in development and AWS S3 in production
-Why:       Zero cloud infrastructure costs during local development while guaranteeing
-           zero code changes when deploying to AWS S3 in production
+Decision:  Use @aws-sdk/client-s3 with S3_FORCE_PATH_STYLE and configurable S3_ENDPOINT,
+           using MinIO strictly for local development environments and AWS S3 for production.
+Why:       MinIO was chosen strictly as a local development tool to eliminate AWS cloud costs
+           on developer machines; the unified driver guarantees identical API semantics and
+           seamless zero-code transition to AWS S3 in production.
 Status:    Confirmed & Implemented (Phase 9)
 Phase:     Backend implementation
-Affected:  storage.service.ts, env.ts
+Affected:  storage.service.ts, env.ts, storage.py
 ```
 
 ---
@@ -427,58 +431,51 @@ Affected:  chunker.py, normalizer.py
 
 ---
 
-### DEC-028 — nomic-embed-text (768 Dimensions) as Standard Embedding Model
+### DEC-028 — Embedding Architecture: Ollama (Local Dev Only) → Google Gemini API (Production)
 
 ```
-Decision:  Standardize on `nomic-embed-text` with 768-dimensional L2-normalized vectors and
-           PostgreSQL pgvector HNSW index across worker, API, and AI service
-Why:       Provides strong retrieval accuracy for technical and business documentation, runs
-           efficiently in local Ollama environments with small memory footprint (~274MB),
-           and maintains exact dimensional parity with the pgvector schema
-Status:    Confirmed & Implemented (Phase 11 & Phase 12)
+Decision:  Use `nomic-embed-text` via Ollama strictly for local offline development;
+           standardize on Google Gemini API (`gemini-embedding-001`, 768 dimensions)
+           as the primary cloud/production embedding model.
+Why:       Ollama provides zero-cost local CPU embedding without internet connectivity or API keys;
+           for production, Gemini API delivers high-concurrency cloud throughput, low latency, and
+           exact 768-dim vector compatibility with the pgvector HNSW index schema.
+Status:    Confirmed & Implemented (Phase 11 & Phase 14)
 Phase:     AI Worker, AI Service, Backend implementation
-Affected:  apps/worker/src/embeddings/ollama.py, apps/api/src/modules/conversations/ai-client.ts,
-           apps/ai-service/src/services/embedding_service.py, document_chunks table
+Affected:  apps/worker/src/embeddings/gemini.py, apps/ai-service/src/services/embedding_service.py,
+           document_chunks table
 ```
 
 ---
 
-### DEC-029 — Lightweight LLM (qwen2.5:1.5b) & Resilient Fallback for Local Inference
+### DEC-029 — Local Development LLM (Ollama qwen2.5:1.5b) for Offline Prototyping
 
 ```
-Decision:  Configure `qwen2.5:1.5b` as the default LLM model for local development environments,
-           accompanied by `num_predict: 512`, a 90-second timeout, and an automatic fallback
-           mechanism in `conversation.service.ts` that provides retrieved document excerpts
-           if LLM generation encounters delays
-Why:       Running 7B+ parameter models on CPU-only 8GB host machines causes severe swap memory
-           thrashing and generation timeouts. The 1.5B model fits comfortably in ~1.2GB of RAM
-           with 5-second response times, while the graceful fallback ensures the user interface
-           always returns grounded answers with source citations even during heavy system load
-Status:    Confirmed & Implemented (Phase 12 / Post-Phase 15 Stabilization)
+Decision:  Configure `qwen2.5:1.5b` via Ollama as an optional local development model for
+           offline iteration without API keys, with graceful retrieval fallback in `conversation.service.ts`.
+Why:       Allows developers to test end-to-end prompt assembly on low-spec hardware without
+           external API charges; cloud production uses Google Gemini API (DEC-030).
+Status:    Confirmed & Implemented (Local Development Only)
 Phase:     Backend RAG runtime optimization
 Affected:  apps/api/.env, conversation.service.ts, ai-client.ts
 ```
 
 ---
 
-### DEC-030 — Gemini API as Switchable AI Provider (Cost Reduction)
+### DEC-030 — Google Gemini API as Primary Production AI Provider
 
 ```
-Decision:  Add a `GeminiProvider` (apps/ai-service/src/providers/gemini.py) selectable via
-           `AI_PROVIDER=gemini`. Embeddings use `gemini-embedding-001` with
-           `outputDimensionality=768`; generation/streaming uses `gemini-3.8-flash`.
-           The Ollama and mock providers are retained and selectable via `AI_PROVIDER`
-Why:       Running local models is costly in hardware/compute; the Gemini API (free tier
-           available) removes that cost. Requesting 768-dim vectors keeps the existing
-           `vector(768)` schema and HNSW index unchanged
-Status:    Confirmed & Implemented
-Phase:     Backend RAG runtime optimization
-Affected:  apps/ai-service/src/providers/gemini.py, apps/ai-service/src/config.py,
-           apps/worker/src/embeddings/gemini.py, apps/worker/src/config.py,
+Decision:  Standardize on Google Gemini API as the primary production AI provider across the platform:
+           `gemini-3.8-flash` for high-throughput grounded reasoning and SSE streaming, and
+           `gemini-embedding-001` (768 dimensions) for dense vector embeddings.
+           Local Ollama and mock providers are retained strictly as development alternatives.
+Why:       Self-hosting LLMs in production requires expensive dedicated GPU instances (e.g. EC2 g5).
+           Gemini API provides enterprise SLA, fast response times, and generous free/low-cost
+           pricing tiers, while 768-dim output preserves existing pgvector HNSW indexes without migration.
+Status:    Confirmed & Implemented (Production Standard)
+Phase:     Production AI Service & Worker Optimization
+Affected:  apps/ai-service/src/providers/gemini.py, apps/worker/src/embeddings/gemini.py,
            apps/api/.env (AI_PROVIDER=ai-service), .env.example files
-Note:      Gemini and nomic-embed-text vectors are not comparable; existing document chunks
-           must be re-embedded after switching. `gemini-2.5-flash` returns 404 for new
-           users (retired), so use a current model such as `gemini-3.8-flash`
 ```
 
 ---

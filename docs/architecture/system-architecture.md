@@ -98,7 +98,7 @@ flowchart TB
 
         RABBIT["RabbitMQ<br/><br/>PROCESS_DOCUMENT<br/>REPROCESS_DOCUMENT<br/>DELETE_DOCUMENT_VECTORS"]
 
-        STORAGE["Object Storage<br/><br/>Development: MinIO<br/>Production: AWS S3"]
+        STORAGE["Object Storage<br/><br/>Development Only: MinIO<br/>Production: AWS S3"]
 
     end
 
@@ -108,9 +108,9 @@ flowchart TB
 
     subgraph MODELS["🧠 AI MODELS"]
 
-        EMBEDDING_MODEL["Embedding Model<br/><br/>Initial: Local model via Ollama"]
+        EMBEDDING_MODEL["Embedding Model (768-dim)<br/><br/>Production: Google Gemini API<br/>Development: Local Ollama"]
 
-        LLM["LLM<br/><br/>Initial: Qwen via Ollama<br/>Later: Cloud Provider / API"]
+        LLM["LLM (Grounded Generation)<br/><br/>Production: Google Gemini API (gemini-3.8-flash)<br/>Development: Local Ollama (qwen2.5)"]
 
     end
 
@@ -120,11 +120,13 @@ flowchart TB
 
     subgraph EXTERNAL["☁️ EXTERNAL SERVICES"]
 
+        GEMINI["Google Gemini API<br/>Primary Production AI Provider"]
+
         RESEND["Nodemailer (Gmail SMTP) / Resend<br/>Transactional Email"]
 
         SENTRY["Sentry<br/>Errors<br/>Performance<br/>Tracing"]
 
-        OLLAMA["Ollama<br/>Local Model Runtime"]
+        OLLAMA["Ollama<br/>Local Dev Model Runtime"]
 
     end
 
@@ -382,9 +384,9 @@ document is accessible to the current user
 | Relational Database | PostgreSQL (Local / Neon Serverless) | Core application data                 |
 | Vector Store        | pgvector             | 768-dim embeddings and similarity search |
 | Job Queue           | RabbitMQ             | Reliable background job delivery      |
-| Object Storage      | MinIO → AWS S3       | Original uploaded documents           |
-| Embedding Runtime   | Gemini API default (`gemini-embedding-001`); Ollama alternative | Text-to-vector conversion (768-dim)   |
-| LLM Runtime         | Gemini API default (`gemini-3.8-flash`); Ollama alternative | Grounded answer generation and streaming |
+| Object Storage      | MinIO (Local Dev Only) → AWS S3 (Production) | Original uploaded documents           |
+| Embedding Runtime   | Google Gemini API default (`gemini-embedding-001`, 768-dim); Ollama for local dev | Text-to-vector conversion (768-dim)   |
+| LLM Runtime         | Google Gemini API default (`gemini-3.8-flash`); Ollama for local dev | Grounded answer generation and streaming |
 | Email               | Nodemailer (Gmail SMTP) / Resend | Transactional emails                  |
 | Monitoring          | Sentry               | Errors, performance, and tracing      |
 

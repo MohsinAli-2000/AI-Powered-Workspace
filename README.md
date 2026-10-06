@@ -1050,11 +1050,10 @@ Embeddings are requested at 768 dimensions, so the `vector(768)` schema is uncha
 | Background Worker | Python                              |
 | Database          | PostgreSQL                          |
 | Vector Search     | pgvector (PostgreSQL extension)     |
-| Job Queue         | RabbitMQ                            |
-| Object Storage    | MinIO (dev) → AWS S3 (prod)         |
-| AI Provider       | Gemini API (default); Ollama optional |
-| LLM               | gemini-3.8-flash (Qwen via Ollama optional) |
-| Embeddings        | gemini-embedding-001, 768-dim       |
+| Object Storage    | MinIO (Local Dev Only) → AWS S3 (Production standard) |
+| AI Provider       | Google Gemini API (Production default); Ollama for local dev |
+| LLM               | gemini-3.8-flash (Production); qwen2.5 via Ollama (Local dev) |
+| Embeddings        | gemini-embedding-001 (Production, 768-dim); nomic-embed-text via Ollama (Local dev) |
 | Email             | Nodemailer (Gmail SMTP) / Resend    |
 | Monitoring        | Sentry                              |
 | Containerization  | Docker + Docker Compose             |
@@ -1095,32 +1094,29 @@ This allows most of the application to be developed without depending on paid cl
 
 ---
 
-# 💰 Cost Strategy
+# 💰 Cost Strategy: Development vs. Production
 
-The initial goal is to avoid unnecessary development costs.
+The architecture strictly separates zero-cost local development tooling from production cloud infrastructure:
 
-Development strategy:
-
+### Local Development (Zero Infrastructure Cost)
 ```text
-Local PostgreSQL
-Local pgvector
-Local RabbitMQ
-Local MinIO
-Local Ollama
-Free-tier / free services where appropriate
+Local PostgreSQL (or Neon Serverless free tier) with pgvector
+Local RabbitMQ message broker
+MinIO (S3-compatible local emulator — strictly for development)
+Ollama (Local CPU model runner — strictly for development & offline testing)
+Free-tier / mock email fallbacks
 ```
 
-Production can gradually move toward:
-
+### Production Cloud Architecture
 ```text
-AWS S3
-Hosted PostgreSQL
-Hosted application services
-Managed infrastructure
-External AI providers where justified
+AWS S3 (Standard production cloud object storage)
+Google Gemini API (gemini-3.8-flash for generation + gemini-embedding-001 for 768-dim embeddings)
+Neon Serverless PostgreSQL (with pgvector & PgBouncer pooling)
+Managed RabbitMQ (CloudAMQP / AWS MQ)
+Sentry error tracking & performance monitoring
 ```
 
-The architecture is intentionally designed so that infrastructure providers can be changed without rewriting the core application.
+The unified `@aws-sdk/client-s3` and pluggable AI provider abstractions ensure zero code changes are required when switching between local dev (MinIO/Ollama) and production (AWS S3/Gemini API).
 
 ---
 

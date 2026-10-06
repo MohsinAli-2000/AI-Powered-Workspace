@@ -21,21 +21,19 @@ The RAG system is implemented as a **separate Python AI Service** (FastAPI) and 
 |-----------|-----------|---------------|
 | AI Service | Python + FastAPI | Real-time RAG orchestration and answer generation |
 | AI Worker | Python | Asynchronous document processing and embedding generation |
-| Embedding Model | Gemini API `gemini-embedding-001` (768-dim); Ollama optional | Text-to-vector conversion |
-| LLM | Gemini API `gemini-3.8-flash`; Qwen via Ollama optional | Answer generation |
+| Embedding Model | Google Gemini API `gemini-embedding-001` (768-dim, production standard); Ollama for local dev | Text-to-vector conversion |
+| LLM | Google Gemini API `gemini-3.8-flash` (production standard); Qwen via Ollama for local dev | Answer generation |
 | Vector Store | pgvector (PostgreSQL) | Similarity search |
 
 ### Embedding Model Selection
 
-> **Current Default:** `gemini-embedding-001` via Gemini API (`AI_PROVIDER=gemini`, 768 dimensions, L2 unit-normalized, HNSW index). Switching providers requires re-embedding existing chunks.  
-> **Local Alternative:** `nomic-embed-text` via Ollama (`AI_PROVIDER=ollama`, 768 dimensions).  
-> **Production Consideration:** Can be swapped transparently for OpenAI `text-embedding-3-small` or cloud endpoints with matching 768 or re-indexed dimensions.
+> **Production Standard:** `gemini-embedding-001` via Google Gemini API (`AI_PROVIDER=gemini`, 768 dimensions, L2 unit-normalized, HNSW index). Delivers high-throughput cloud vectorization with zero self-hosted infrastructure.  
+> **Development Runtime:** `nomic-embed-text` via Ollama (`AI_PROVIDER=ollama`, 768 dimensions) for offline local development without external API calls.  
 
 ### LLM Selection
 
-> **Current Default:** `gemini-3.8-flash` via Gemini API (`AI_PROVIDER=gemini`, configured with `GEMINI_API_KEY`, `GEMINI_LLM_MODEL`).  
-> **Local Alternative:** `qwen2.5:1.5b` via Ollama for fast, lightweight local CPU execution (with `qwen2.5:latest` 7.6B supported on GPU/cloud instances).  
-> **Production Consideration:** Ollama self-hosted on GPU EC2 instance or cloud API provider (OpenAI GPT-4o-mini / Anthropic Claude 3.5 Haiku).
+> **Production Standard:** `gemini-3.8-flash` via Google Gemini API (`AI_PROVIDER=gemini`, configured with `GEMINI_API_KEY`). Provides enterprise-grade grounded reasoning, low latency token streaming, and massive context windows.  
+> **Development Runtime:** `qwen2.5:1.5b` via Ollama for fast, lightweight local CPU execution on developer laptops.  
 
 ---
 
@@ -243,9 +241,9 @@ Documents support multiple versions.
  
 | Item | Status | Implementation Details |
 |------|--------|------------------------|
-| Exact embedding model | ✅ Confirmed | `gemini-embedding-001` (768-dim L2-normalized) via Gemini API (default); `nomic-embed-text` via Ollama |
-| Exact LLM model | ✅ Confirmed | `gemini-3.8-flash` via Gemini API (default); `qwen2.5:1.5b` via Ollama |
-| Production LLM provider | ✅ Confirmed | Gemini API (DEC-030) with local Ollama fallback |
+| Exact embedding model | ✅ Confirmed | Google Gemini API `gemini-embedding-001` (768-dim L2-normalized) in Production; `nomic-embed-text` via Ollama for Local Dev |
+| Exact LLM model | ✅ Confirmed | Google Gemini API `gemini-3.8-flash` in Production; `qwen2.5:1.5b` via Ollama for Local Dev |
+| Production AI provider | ✅ Confirmed | Google Gemini API (DEC-030) as primary cloud production provider; Ollama as local dev fallback |
 | Chunking strategy | ✅ Confirmed | 1000 characters chunk window, 200 characters overlap with paragraph/sentence/word boundary snapping (`apps/worker/src/chunker.py`) |
 | Similarity threshold | ✅ Confirmed | Configurable cosine threshold (`MIN_SIMILARITY_SCORE`) with prompt-level insufficient-evidence fallback (`FR-AI-005`) |
 | Historical versions search | ✅ Confirmed | By default, vector retrieval strictly filters `v.is_current = true` and `v.status = 'READY'` chunks |

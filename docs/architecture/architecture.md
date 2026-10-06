@@ -37,9 +37,9 @@
 | Relational Database | PostgreSQL (Local / Neon Serverless) | Core relational application data |
 | Vector Store | pgvector | 768-dim embeddings and HNSW similarity search |
 | Job Queue | RabbitMQ | Reliable background job delivery with DLQ |
-| Object Storage | MinIO (dev) → AWS S3 (prod) | Original uploaded documents |
-| Embedding Runtime | Gemini API default (`gemini-embedding-001`); Ollama alternative | Text-to-vector conversion (768-dim) |
-| LLM Runtime | Gemini API default (`gemini-3.8-flash`); Ollama alternative | Grounded answer generation and streaming |
+| Object Storage | MinIO (Local Dev Only) → AWS S3 (Production) | Original uploaded documents |
+| Embedding Runtime | Google Gemini API default (`gemini-embedding-001`); Ollama for local dev | Text-to-vector conversion (768-dim) |
+| LLM Runtime | Google Gemini API default (`gemini-3.8-flash`); Ollama for local dev | Grounded answer generation and streaming |
 | Email | Nodemailer (Gmail SMTP) / Resend | Transactional emails |
 | Monitoring | Sentry | Errors, performance, and tracing |
 
@@ -246,23 +246,24 @@ documents-bucket/
 ## 13. Development vs. Production
 
 ### Development (Local)
-- All services run via **Docker Compose**
-- MinIO for object storage
-- Local Ollama for embedding and LLM
-- Local PostgreSQL with pgvector
-- Local RabbitMQ
+- **Object Storage:** MinIO (Local S3 emulator for development only)
+- **AI Models:** Local Ollama (`nomic-embed-text` & `qwen2.5`) for offline dev/testing
+- **Database:** Local PostgreSQL with pgvector (or Neon Serverless)
+- **Message Broker:** Local RabbitMQ
+- **Runtime:** Microservices run locally or via Docker Compose
 
 ### Production (Cloud)
 | Component | Deployment |
 |-----------|-----------|
-| Frontend | Vercel |
-| Backend | EC2 / ECS / Render |
-| AI Service | EC2 / ECS / Render (auto-scaling) |
-| AI Worker | EC2 / ECS / Render |
-| PostgreSQL | RDS (Managed) |
-| RabbitMQ | Managed |
-| Object Storage | AWS S3 |
-| Monitoring | CloudWatch + Sentry |
+| Frontend | Vercel / Cloud Container |
+| Backend | AWS ECS / Render / Cloud Container |
+| AI Service | AWS ECS / Render (FastAPI) |
+| AI Worker | AWS ECS / Render (Python Worker) |
+| PostgreSQL | Neon Serverless PostgreSQL / AWS RDS with pgvector |
+| RabbitMQ | Managed RabbitMQ (CloudAMQP / AWS MQ) |
+| Object Storage | AWS S3 (Production standard) |
+| AI / LLM & Embeddings | Google Gemini API (`gemini-3.8-flash` & `gemini-embedding-001`) |
+| Monitoring | Sentry |
 
 > **TODO — DECISION REQUIRED:** Exact production deployment provider for backend, AI service, and worker.
 

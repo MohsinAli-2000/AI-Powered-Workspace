@@ -53,9 +53,8 @@ The following have been decided, designed, and documented / implemented:
 - [x] Architecture PNG diagram (`AI Powered Workspace Architecture Diagram.png`)
 - [x] Document upload and processing flow (Mermaid sequence diagram)
 - [x] RAG question-answer flow (Mermaid sequence diagram)
-- [x] Security and multi-tenant isolation rules defined
-- [x] Development setup: Docker Compose + MinIO + local Ollama
-- [x] Production outline: Vercel + EC2/ECS/Render + RDS + AWS S3
+- [x] Development setup: Docker Compose + MinIO (local S3 emulator for dev only) + local Ollama (local dev only)
+- [x] Production outline: Vercel / Cloud Container + AWS S3 + Google Gemini API + Neon Serverless PostgreSQL
 
 ### Authorization Model
 - [x] Organization roles defined (OWNER, ADMIN, MEMBER)
@@ -419,9 +418,9 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 
 | # | Item | Status | Impact / Implementation Resolution |
 |---|------|--------|-----------------------------------|
-| 1 | Exact embedding model name/version | ✅ **Resolved** | **`nomic-embed-text`** (768-dim L2-normalized vectors, HNSW index with m=16, ef_construction=64) |
-| 2 | Exact LLM model name/version | ✅ **Resolved** | **`qwen2.5:1.5b`** confirmed for fast local CPU development; `qwen2.5` (7.6B) supported for GPU/cloud environments |
-| 3 | Production LLM provider (Ollama vs OpenAI vs Anthropic) | ✅ **Resolved (interim)** | **Gemini API** (`gemini-3.8-flash`, `gemini-embedding-001`) selected for cost; see DEC-030 |
+| 1 | Exact embedding model name/version | ✅ **Resolved** | **Google Gemini API `gemini-embedding-001`** (768-dim L2-normalized) in Production; **`nomic-embed-text`** via Ollama for Local Dev |
+| 2 | Exact LLM model name/version | ✅ **Resolved** | **Google Gemini API `gemini-3.8-flash`** in Production; **`qwen2.5:1.5b`** via Ollama for Local Dev |
+| 3 | Production AI provider (Gemini vs Ollama) | ✅ **Resolved** | **Google Gemini API** (`gemini-3.8-flash`, `gemini-embedding-001`) confirmed as primary cloud production provider (DEC-030); Ollama is strictly local dev fallback |
 | 4 | Exact email provider | ✅ **Resolved** | **Nodemailer (Gmail SMTP)** default / **Resend** custom domain (`apps/api/src/modules/email/email.service.ts`) |
 | 5 | Maximum allowed file size | ✅ **Resolved** | **50MB** (`52,428,800` bytes) enforced in `env.ts` and `upload.middleware.ts` |
 | 6 | Exact JWT / session authentication strategy | ✅ **Resolved** | **Dual-token**: 15m Access Token + 7d Refresh Token with rotation in `auth.service.ts` |
@@ -443,7 +442,7 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 | 22 | Whether historical document versions are searchable by default | ✅ **Resolved** | Default retrieval strictly scopes to `is_current = true` and `status = 'READY'` chunks |
 | 23 | Streaming vs. non-streaming LLM responses | ✅ **Resolved** | Both supported: synchronous `POST /api/v1/rag/query` and Server-Sent Events (SSE) `POST /api/v1/rag/stream` with frontend streaming token rendering |
 | 24 | Whether conversation history is included as LLM context | ✅ **Resolved** | Multi-turn conversational history loaded from database and prepended to prompt context |
-| 25 | AWS S3 development configuration / bucket naming | ✅ **Resolved** | Local MinIO (`http://localhost:9000`), bucket `ai-workspace-documents`, `@aws-sdk/client-s3` |
+| 25 | Object storage configuration (Dev vs Prod) | ✅ **Resolved** | **MinIO** (`http://localhost:9000`, development only) → **AWS S3** (production standard) via unified `@aws-sdk/client-s3` |
 
 ---
 
