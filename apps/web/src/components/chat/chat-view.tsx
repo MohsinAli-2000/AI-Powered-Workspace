@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useOrgStore } from '@/stores/org.store';
 import { apiClient } from '@/lib/api-client';
@@ -30,6 +31,7 @@ import {
   PanelLeft,
   Search,
   Lock,
+  Info,
 } from 'lucide-react';
 
 interface ChatViewProps {
@@ -64,6 +66,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [projectsChecked, setProjectsChecked] = useState(false);
   const [conversationSearch, setConversationSearch] = useState('');
   const [isListOpen, setIsListOpen] = useState(false); // mobile conversation drawer
 
@@ -109,7 +112,11 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
 
   // 0. Make sure the project list (used by the scope selector) is available even when /chat is opened directly.
   useEffect(() => {
-    if (!orgId || projects.length > 0) return;
+    if (!orgId) return;
+    if (projects.length > 0) {
+      setProjectsChecked(true);
+      return;
+    }
     let cancelled = false;
     apiClient<Project[]>(`/organizations/${orgId}/projects`)
       .then((list) => {
@@ -117,6 +124,9 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
       })
       .catch(() => {
         // The scope selector simply falls back to "All accessible projects".
+      })
+      .finally(() => {
+        if (!cancelled) setProjectsChecked(true);
       });
     return () => {
       cancelled = true;
@@ -582,6 +592,21 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
             )}
           </div>
         </div>
+
+        {/* Shown when the user belongs to the organization but to no project: chat has nothing to search. */}
+        {projectsChecked && projects.length === 0 && (
+          <div className="px-4 py-2.5 border-b border-amber-500/20 bg-amber-500/10 text-xs text-amber-200 flex items-start gap-2.5">
+            <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span>
+              You aren&apos;t a member of any project yet, so there are no documents for the assistant to search. Ask a
+              project manager or the organization owner to add you to a project, or{' '}
+              <Link href="/projects" className="underline font-semibold hover:text-amber-100">
+                open Projects
+              </Link>
+              .
+            </span>
+          </div>
+        )}
 
         {/* Message Viewport */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">

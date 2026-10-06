@@ -116,6 +116,7 @@ export default function ProjectsPage() {
   };
 
   const orgRole = activeOrg?.role || activeOrg?.user_role;
+  const isOrgAdminOrOwner = orgRole === 'OWNER' || orgRole === 'ADMIN';
 
   return (
     <div className="space-y-6">
@@ -137,8 +138,12 @@ export default function ProjectsPage() {
       ) : projects.length === 0 ? (
         <EmptyState
           icon={<FolderKanban className="w-12 h-12" />}
-          title="No projects yet"
-          description="Create your first project to begin uploading organizational documents and scoping AI assistance."
+          title={isOrgAdminOrOwner ? 'No projects yet' : "You're not in any project yet"}
+          description={
+            isOrgAdminOrOwner
+              ? 'Create your first project to begin uploading organizational documents and scoping AI assistance.'
+              : 'Documents live inside projects, and you can only see the projects you belong to. Ask a project manager or the organization owner to add you (project → Project Members → Add Member), or create a project of your own.'
+          }
           action={
             <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
               <Plus className="w-4 h-4 mr-1.5" /> Create Project

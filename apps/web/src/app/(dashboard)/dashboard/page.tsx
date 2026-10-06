@@ -274,7 +274,9 @@ export default function DashboardPage() {
               <FolderKanban className="w-10 h-10 text-slate-400 mx-auto mb-3" />
               <h3 className="text-sm font-semibold text-slate-200">No projects found</h3>
               <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1 mb-4">
-                Create your first project to begin uploading organizational documents and scoping AI assistance.
+                {activeOrg?.role === 'OWNER' || activeOrg?.role === 'ADMIN'
+                  ? 'Create your first project to begin uploading organizational documents and scoping AI assistance.'
+                  : "You can only see projects you belong to. Ask a project manager or the organization owner to add you to one, or create your own."}
               </p>
               <Link href="/projects">
                 <Button size="sm">

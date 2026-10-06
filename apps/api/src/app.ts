@@ -38,12 +38,15 @@ app.use(httpLogger);
 // Core standard middlewares
 app.use(helmet());
 // Only the configured frontend may call the API from a browser (CORS_ORIGIN may be a comma-separated list).
-app.use(
-  cors({
-    origin: env.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean),
-    credentials: true,
-  })
-);
+// In development, any localhost / 127.0.0.1 port is also accepted so opening the site by IP or on another
+// port doesn't fail with a confusing "could not load" error.
+const allowedOrigins: (string | RegExp)[] = env.CORS_ORIGIN.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+if (env.NODE_ENV !== 'production') {
+  allowedOrigins.push(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/);
+}
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

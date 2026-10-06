@@ -250,7 +250,14 @@ export class ConversationService {
     // 2. Previous turns only (fetched before the new question is saved, so it isn't repeated in the prompt)
     const history = await messageRepository.getRecentHistory(conversationId, 4);
 
-    let answerText = insufficientInfoResponse;
+    // Someone who belongs to the organization but to no project (yet) has nothing to search; say so plainly
+    // instead of the generic "could not find sufficient information" answer.
+    const noProjectAccessResponse =
+      authorizedProjectIds.length === 0
+        ? 'You are not a member of any project in this organization yet, so there are no documents I can search for you. Ask a project manager or the organization owner to add you to a project (Projects → open the project → Project Members → Add Member).'
+        : insufficientInfoResponse;
+
+    let answerText = noProjectAccessResponse;
     let retrievedChunks: Awaited<ReturnType<typeof ragRepository.searchAuthorizedChunks>> = [];
 
     if (candidateProjectIds.length > 0) {
