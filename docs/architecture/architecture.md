@@ -30,16 +30,16 @@
 
 | Component | Technology | Primary Responsibility |
 |-----------|-----------|----------------------|
-| Frontend | Next.js + TypeScript | User interface and user experience |
-| Core API | Node.js + TypeScript | SaaS business logic and authorization |
-| AI API | Python + FastAPI | Real-time RAG and AI orchestration |
-| AI Worker | Python | Asynchronous document processing |
-| Relational Database | PostgreSQL | Core application data |
-| Vector Store | pgvector | Embeddings and similarity search |
-| Job Queue | RabbitMQ | Reliable background job delivery |
+| Frontend | Next.js 16 + TypeScript | User interface, dark-mode styling, SSE streaming chat, citation drawer |
+| Core API | Node.js + Express 5 + TypeScript | SaaS business logic, authorization, rate limiting, audit logging |
+| AI API | Python + FastAPI | Real-time RAG orchestration, SSE streaming, internal security token |
+| AI Worker | Python | Asynchronous document processing, chunking, and embedding generation |
+| Relational Database | PostgreSQL (Local / Neon Serverless) | Core relational application data |
+| Vector Store | pgvector | 768-dim embeddings and HNSW similarity search |
+| Job Queue | RabbitMQ | Reliable background job delivery with DLQ |
 | Object Storage | MinIO (dev) → AWS S3 (prod) | Original uploaded documents |
-| Embedding Runtime | Ollama (initially) | Text-to-vector conversion |
-| LLM Runtime | Ollama (initially) | Answer generation |
+| Embedding Runtime | Gemini API default (`gemini-embedding-001`); Ollama alternative | Text-to-vector conversion (768-dim) |
+| LLM Runtime | Gemini API default (`gemini-3.8-flash`); Ollama alternative | Grounded answer generation and streaming |
 | Email | Nodemailer (Gmail SMTP) / Resend | Transactional emails |
 | Monitoring | Sentry | Errors, performance, and tracing |
 
@@ -71,7 +71,7 @@ Node.js Core Backend
         │                       ├── Prompt & Context Builder
         │                       └── Source / Citation Builder
         │
-        └──────────────► Resend (Email)
+        └──────────────► Nodemailer / Resend (Email)
 
 All Applications
         └──────────────► Sentry (Monitoring)
@@ -134,34 +134,38 @@ EXTERNAL MANAGED SERVICES
 
 ## 6. Core Backend
 
-**Technology:** Node.js + TypeScript (Express.js router)
+**Technology:** Node.js + TypeScript (Express.js 5)
 
 **Modules:**
-- Auth Module (Register, Login, JWT Management, Refresh Token Rotation, Password Reset, Email Verification)
-- User Module (Profile, Preferences)
-- Organization Module (Create Organization, Settings, Plan & Usage)
-- Membership Module (Add/Remove Members, Roles & Permissions, Invitations)
-- Project Module (Create Project, Settings, Project Members)
-- Document Module (Upload, Metadata, Status, Versioning, Delete)
-- Conversation Module (Start, History, Message History)
-- Permission / RBAC (Roles, Middleware)
-- Background Job Publisher (Publish to RabbitMQ)
-- Email Module (via Resend)
-- Notification Module (In-app + Email notifications)
-- Structured Logging + Tracing Context
+- Auth Module (Register, Login, JWT Dual-Token Rotation, Password Reset, Email Verification, Rate Limiting)
+- User Module (Profile, Preferences, Account Settings)
+- Organization Module (Create Organization, Settings, Ownership Transfer, Member Management)
+- Membership Module (Add/Remove Members, Roles & Permissions, Invitations, ADMIN Minimum Count)
+- Project Module (Create Project, Settings, Project Members, PROJECT_MANAGER Minimum Count)
+- Document Module (Upload, Metadata, Status Polling, Versioning, Deduplication, Delete, Access Control)
+- Document Access Control (PROJECT vs RESTRICTED, 6-step evaluation with DENY precedence)
+- Conversation Module (Start, Thread History, Multi-turn RAG Orchestration, Source Citations)
+- Audit Module (Append-only PostgreSQL Audit Logs, Non-fatal recording, OWNER/ADMIN queries)
+- Permission / RBAC (Roles, Multi-tenant Isolation Middleware, Document Access Guards)
+- Background Job Publisher (Publish to RabbitMQ with DLQ and connection reconnect resilience)
+- Email Module (Nodemailer Gmail SMTP default & Resend custom domain support)
+- Rate Limiting Middleware (In-memory IP fixed-window throttling for credential endpoints)
+- Structured Logging + Tracing Context (Pino, Sentry)
 
 ---
 
 ## 7. AI Service
 
 **Technology:** Python + FastAPI  
-**Role:** Internal API — not exposed to the public internet directly
+**Role:** Internal microservice — secured with `AI_SERVICE_TOKEN`, not exposed to the public internet directly
 
-**Services:**
-- Embedding Service (Generate embeddings via Ollama/OpenAI/HuggingFace)
-- RAG Service (Semantic search via pgvector, retrieve relevant chunks, build context)
-- LLM Service (Call LLM — OpenAI / Anthropic / Ollama, stream/non-stream)
-- Utility Service (Text extraction, chunking strategies, file type handlers)
+**Services & Endpoints:**
+- Embedding Service (`POST /api/v1/embeddings`, `POST /api/v1/embeddings/batch` — Gemini `gemini-embedding-001` 768-dim default, Ollama `nomic-embed-text` alternative)
+- Synchronous RAG Service (`POST /api/v1/rag/query` — pgvector search, XML prompt isolation, grounded answer generation, citations)
+- Streaming RAG Service (`POST /api/v1/rag/stream` — real-time token streaming via Server-Sent Events `text/event-stream`)
+- LLM Service (`POST /api/v1/llm/chat` — Gemini `gemini-3.8-flash` default, Ollama `qwen2.5:1.5b` alternative)
+- Utility Service (`POST /api/v1/utils/chunk` — semantic sliding-window chunking)
+- Database Pooling — Async PostgreSQL connection pool (`asyncpg`) with native pgvector type registration
 
 ---
 
@@ -171,14 +175,15 @@ EXTERNAL MANAGED SERVICES
 **Role:** Async document processing via RabbitMQ consumer
 
 **Process flow per job:**
-1. Get document metadata from PostgreSQL
-2. Download original file from object storage
-3. Extract text from document
-4. Normalize and clean content
-5. Split into chunks
-6. Generate embeddings (via AI Service or directly)
-7. Store chunks + embeddings in PostgreSQL (pgvector)
-8. Update document status to READY / FAILED
+1. Pick up job from RabbitMQ queue (`document-processing`) with Dead Letter Queue protection
+2. Get document version metadata from PostgreSQL using `ThreadedConnectionPool`
+3. Download original file from object storage (MinIO or AWS S3) with 50MB file size safeguard
+4. Extract text from document (PDF, DOCX, XLSX, PPTX, TXT extractors with safe stream handling)
+5. Normalize and clean content (NFKC Unicode normalization, null-byte stripping)
+6. Split into chunks (1000 characters with 200 characters overlap and boundary snapping)
+7. Generate embeddings in batches (Gemini `gemini-embedding-001` default, Ollama `nomic-embed-text` alternative)
+8. Store chunks + 768-dim embeddings in PostgreSQL (pgvector)
+9. Update document status to `READY` (with `processed_at`) or `FAILED`
 
 ---
 

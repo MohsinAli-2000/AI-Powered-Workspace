@@ -239,15 +239,15 @@ Documents support multiple versions.
 
 ---
 
-## 11. Open Questions / TODO
-
-| Item | Status |
-|------|--------|
-| Exact embedding model | `gemini-embedding-001` (768-dim) |
-| Exact LLM model | `gemini-3.8-flash` |
-| Production LLM provider (Ollama vs cloud API) | Gemini API (see DEC-030) |
-| Chunking strategy (size, overlap) | `TODO — DECISION REQUIRED` |
-| Similarity threshold for "insufficient information" | `TODO — DECISION REQUIRED` |
-| Whether historical versions are searchable by default | `TODO — DECISION REQUIRED` |
-| Streaming vs. non-streaming LLM responses | `TODO — DECISION REQUIRED` |
-| Conversation history included as LLM context | `TODO — DECISION REQUIRED` |
+## 11. Design Decisions & Implementation Status
+ 
+| Item | Status | Implementation Details |
+|------|--------|------------------------|
+| Exact embedding model | ✅ Confirmed | `gemini-embedding-001` (768-dim L2-normalized) via Gemini API (default); `nomic-embed-text` via Ollama |
+| Exact LLM model | ✅ Confirmed | `gemini-3.8-flash` via Gemini API (default); `qwen2.5:1.5b` via Ollama |
+| Production LLM provider | ✅ Confirmed | Gemini API (DEC-030) with local Ollama fallback |
+| Chunking strategy | ✅ Confirmed | 1000 characters chunk window, 200 characters overlap with paragraph/sentence/word boundary snapping (`apps/worker/src/chunker.py`) |
+| Similarity threshold | ✅ Confirmed | Configurable cosine threshold (`MIN_SIMILARITY_SCORE`) with prompt-level insufficient-evidence fallback (`FR-AI-005`) |
+| Historical versions search | ✅ Confirmed | By default, vector retrieval strictly filters `v.is_current = true` and `v.status = 'READY'` chunks |
+| Streaming vs. non-streaming | ✅ Confirmed | Dual support: synchronous `POST /api/v1/rag/query` and Server-Sent Events (SSE) `POST /api/v1/rag/stream` |
+| Conversation history context | ✅ Confirmed | Chronological message history loaded from database and supplied as context in the prompt builder |

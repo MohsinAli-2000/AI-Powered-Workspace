@@ -1126,47 +1126,43 @@ The architecture is intentionally designed so that infrastructure providers can 
 
 # 📋 Current Development Status
 
-### ✅ Design & Planning — Complete
+### ✅ Implementation — Complete
 
-* [x] Product idea defined
-* [x] Problem identified
-* [x] Functional requirements defined
-* [x] High-level architecture designed
-* [x] Technology choices established
-* [x] Document processing flow designed
-* [x] RAG flow designed
-* [x] Multi-tenant concept defined
-* [x] Security boundaries defined
-* [x] Authorization model designed (roles, groups, DENY precedence, document access modes)
-* [x] Database / domain model designed
-* [x] ERD created (see `ERD/` directory)
-* [x] All 20 database tables defined with columns, types, and constraints
-* [x] PostgreSQL schema implemented (6 enums, 20 tables, constraints, foreign keys, indexes)
-* [x] Node.js backend foundation (TypeScript ESM, Express 5, connection pool, error handling, logging, Sentry, BaseRepository)
-* [x] Authentication & User management (registration, bcrypt, login, JWT rotation, email verification, password reset)
-* [x] Organization management (multi-tenant CRUD, roles, tenant isolation middleware, atomic ownership transfer)
-* [x] Members & invitation flow (Invite member, role assignment, accept/reject tokens, ADMIN count rule, Nodemailer/Resend email)
-* [x] Project management (CRUD, project membership, project manager minimum count rule)
-* [x] Group management (Group CRUD, membership, group project role assignments)
-* [x] Document upload & validation (Multipart upload, 50MB limit, PDF/DOCX/XLSX/PPTX/TXT, SHA-256 deduplication)
-* [x] Object storage integration (MinIO in development, AWS S3 in production, streaming & presigned URLs)
-* [x] RabbitMQ job publishing (`PROCESS_DOCUMENT` queue dispatch)
-* [x] Python Background Worker (`apps/worker`: format extractors, NFKC normalizer, sliding-window chunker, ThreadedConnectionPool, DLQ)
-* [x] 27 architectural decisions confirmed and documented
+* [x] **Product Idea & Requirements**: Concept defined, target users, problem statement, full functional requirements (`docs/requirements/functional-requirements.md`).
+* [x] **Architecture & Database Design**: System architecture diagrams, ERD (20 tables, 6 enums), component matrix, security and tenant isolation principles.
+* [x] **PostgreSQL Schema & pgvector**: Full DDL schema with relational constraints, foreign keys, and `vector(768)` HNSW cosine index.
+* [x] **Node.js Backend Foundation (Phase 3)**: Express 5, TypeScript ESM, connection pooling, AppError hierarchy, Pino logging, Sentry monitoring, BaseRepository.
+* [x] **Authentication & User Management (Phase 4)**: Registration, bcrypt, login, JWT dual-token rotation, email verification, password reset, logout.
+* [x] **Organization Management (Phase 5)**: Multi-tenant CRUD, roles (`OWNER`, `ADMIN`, `MEMBER`), tenant isolation middleware, atomic ownership transfer.
+* [x] **Members & Invitations (Phase 6)**: Invite member, role assignment, accept/reject token flows, ADMIN minimum count enforcement, Nodemailer (Gmail SMTP) & Resend email dispatch.
+* [x] **Project Management (Phase 7)**: Project CRUD, project membership, PROJECT_MANAGER minimum count rule, member self-removal.
+* [x] **Group Management (Phase 8)**: Group CRUD, memberships, group-based document access rule integration.
+* [x] **Document Upload & Storage (Phase 9)**: Multipart upload, 50MB file size limit, PDF/DOCX/XLSX/PPTX/TXT format validation, project-scoped SHA-256 deduplication, MinIO & AWS S3 object storage driver.
+* [x] **Asynchronous Document Processing Worker (Phase 10)**: Python worker (`apps/worker`), RabbitMQ consumer with DLQ, format extractors, NFKC text normalizer, sliding-window chunker, thread-safe connection pooling.
+* [x] **Embedding Pipeline (Phase 11)**: Pluggable embedding clients (Gemini API `gemini-embedding-001`, Ollama `nomic-embed-text`, deterministic Mock), batch embedding, pgvector HNSW indexing, standalone batch embedder tool.
+* [x] **RAG & Conversations (Phase 12)**: Multi-turn conversations, XML prompt isolation, grounded answer generation, `FR-AI-005` insufficient-information fallback, citation provenance tracking in single DB transactions.
+* [x] **Document Access Control (Phase 13)**: `PROJECT` vs `RESTRICTED` mode, user/group/org-role/project-role access rules with strict `DENY` precedence, 6-step evaluation pipeline, DB-level vector search filtering.
+* [x] **Python AI Service (Phase 14)**: FastAPI microservice (`apps/ai-service`), asyncpg connection pooling, synchronous `/rag/query`, Server-Sent Events `/rag/stream`, Gemini and Ollama providers, internal auth token.
+* [x] **Next.js Frontend (Phase 15)**: Next.js 16 App Router, dark-mode design system with Tailwind CSS v4, full auth views, organization switcher, project & document management, drag-and-drop upload with status polling, granular access rule dialog, AI chat with SSE streaming, and off-canvas source citation drawer.
+* [x] **Audit Logging (Phase 16)**: Immutable PostgreSQL append-only audit log, non-fatal event dispatch across all system mutations, protected OWNER/ADMIN endpoints, interactive frontend audit log inspector.
+* [x] **Post-Phase 16 Hardening, UI/UX Polish & Cloud Readiness**:
+  - Gemini API default provider (`gemini-3.8-flash`, `gemini-embedding-001`) with local Ollama fallback.
+  - Neon Serverless PostgreSQL support with pgvector connection pooling.
+  - In-memory fixed-window IP rate limiter (`rate-limit.middleware.ts`) on credential routes.
+  - Interactive Help Center (`/help`), User Account Settings (`/settings/account`), Invitation Acceptance flow (`/invitations/accept`).
+  - Contextual "Your Access" card, email verification banner, empty org view, accessible dialogs, and normalized API client.
+  - Reconnect resilience for RabbitMQ and S3 storage error recovery.
+* [x] **31 architectural decisions confirmed and documented** (see `docs/decision-log.md`).
 
-### ⏭️ Next — Immediate
+### ⏭️ Next — Immediate Implementation Phase
 
-* [ ] Phase 11 — Embedding Pipeline (Ollama / `nomic-embed-text`, batch embedding generation, pgvector storage)
+* [ ] **Phase 17 — Deployment & Dockerization** (Docker Compose for full dev stack, service Dockerfiles, CI/CD pipeline, production cloud deployment).
 
-### 🔮 Implementation (Not Started)
+### 🔮 Future Phases
 
-* [ ] Authorization-aware RAG pipeline
-* [ ] Conversations & AI chat
-* [ ] Source citations
-* [ ] Document access control (RESTRICTED mode & custom access rules)
-* [ ] Audit logging
-* [ ] Next.js frontend
-* [ ] Production Dockerization & CI/CD deployment
+* [ ] **Phase 18 — Testing Suite Expansion** (End-to-end integration test suites across full microservices stack).
+* [ ] **Phase 19 — Security Hardening** (Secrets manager integration, distributed Redis rate limiting, security headers audit).
+* [ ] **Phase 20 — Production Monitoring & Observability** (Centralized log aggregation, distributed tracing dashboards).
 
 
 ---
@@ -1316,9 +1312,9 @@ License details will be added when the project reaches the appropriate stage.
 
 # 👨‍💻 Project Status
 
-This project has completed **Phase 10 (Asynchronous Document Processing / AI Worker)** and is ready to begin **Phase 11 (Embedding Pipeline / Ollama / pgvector)**.
+This project has completed **Phase 16 (Audit Logging) + Post-Phase 16 Hardening & UI/UX Polish** and is ready to begin **Phase 17 (Deployment & Dockerization)**.
 
-The system is being developed incrementally:
+The system has been developed incrementally:
 
 ```text
 ✅ Product Idea & Requirements
@@ -1343,20 +1339,26 @@ The system is being developed incrementally:
       ↓
 ✅ Asynchronous Document Processing Worker (Extractors, chunker, RabbitMQ DLQ)
       ↓
-⏭️ Embedding Pipeline & Vector Storage (Ollama, pgvector)  ← NEXT
+✅ Embedding Pipeline & Vector Storage (pgvector, Gemini & Ollama clients)
       ↓
-⬜ RAG Pipeline & AI Conversations (Grounded answers, citations)
+✅ RAG Pipeline & AI Conversations (Grounded answers, XML prompt, citations)
       ↓
-⬜ Document Access Control (RESTRICTED mode & custom access rules)
+✅ Document Access Control (RESTRICTED mode, DENY precedence, DB vector filter)
       ↓
-⬜ Next.js Frontend
+✅ Python FastAPI AI Service (Real-time RAG, SSE streaming, multi-provider)
       ↓
-⬜ Production Containerization & CI/CD Deployment
+✅ Next.js 16 Frontend (App Router, Tailwind v4, Chat, Citations, UI polish)
+      ↓
+✅ Audit Logging (Append-only PostgreSQL log, UI viewer)
+      ↓
+✅ Post-Phase Polish (Gemini API default, Rate limiting, Help center, Account view)
+      ↓
+⏭️ Production Containerization & CI/CD Deployment (Phase 17)  ← NEXT
 ```
 
 See [project-status.md](project-status.md) for the full progress tracker, open TODOs, and upcoming milestones.
 
-See [docs/decision-log.md](docs/decision-log.md) for all 27 confirmed architectural and product decisions.
+See [docs/decision-log.md](docs/decision-log.md) for all 31 confirmed architectural and product decisions.
 
 The objective is to build the system end-to-end while maintaining production-oriented engineering practices throughout the development process.
 

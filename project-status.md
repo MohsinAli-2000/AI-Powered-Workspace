@@ -1,23 +1,25 @@
 # Project Status
 
-> **Last synchronized:** 2026-09-11  
+> **Last synchronized:** 2026-10-06  
 > **Purpose:** Single source of truth for project phase, completed work, in-progress work, and planned work.
 
 ---
 
 ## Current Phase
 
-**Phase: Phase 16 Completed (Audit Logging) → Ready for Phase 17 (Deployment & Dockerization)**
+**Phase: Phase 16 Completed (Audit Logging) + Post-Phase Polish & Security Hardening → Ready for Phase 17 (Deployment & Dockerization)**
 
-Phase 16 (Audit Logging) has been fully implemented across the stack:
-- **Backend Data Layer & Service (`apps/api/src/modules/audit/`)**:
-  - `AuditRepository`: Append-only, organization-scoped queries with joined actor details (`users` join), dynamic filtering (`action`, `resource_type`, `actor_user_id`, `search`, date ranges), and pagination.
-  - `AuditService`: Safe, non-fatal event dispatch (`auditService.record(...)`) protecting transactional integrity.
-  - `AuditController` & `organizationAuditRouter`: Protected endpoints (`GET /organizations/:id/audit-logs` and `/filters`), strictly restricted to `OWNER` and `ADMIN` roles.
-- **Instrumented Mutations**: Major mutations across organizations, members, invitations, projects, groups, documents, and granular access rules now automatically record immutable audit events.
-- **Frontend Audit Log Viewer (`apps/web/src/app/(dashboard)/settings/audit-logs/`)**:
-  - Modern dark-slate viewer with search bar, action & resource filters, pagination controls, real-time reload, and an interactive metadata JSON modal.
-  - Integrated into the organization sidebar with role-based restriction guards.
+All foundational, core business, AI processing, frontend, and audit features (Phases 1 through 16) are fully implemented and verified:
+- **Phase 11 (Embedding Pipeline)**: pgvector `vector(768)` HNSW cosine index, Gemini (`gemini-embedding-001`) and Ollama (`nomic-embed-text`) clients, batch embedding in worker.
+- **Phase 12 (RAG & Conversations)**: Multi-turn conversations, XML prompt isolation, grounded answer generation, insufficient-information fallback, and source citations.
+- **Phase 13 (Document Access Control)**: Granular access control (`PROJECT` vs `RESTRICTED`), 6-step evaluation pipeline with strict `DENY` precedence, database-level subquery filtering during vector search.
+- **Phase 14 (Python AI Service)**: FastAPI microservice with asyncpg connection pooling, synchronous `/rag/query`, Server-Sent Events `/rag/stream`, and Gemini/Ollama provider abstraction.
+- **Phase 15 (Next.js Frontend)**: Next.js 16 App Router, dark-mode design system with Tailwind CSS v4, complete auth suite, organization & project management, drag-and-drop file upload with status polling, granular access rule dialog, and interactive citation drawer.
+- **Phase 16 (Audit Logging)**: Append-only PostgreSQL audit log, non-fatal event dispatch across all entity mutations, protected endpoints for OWNER/ADMIN, and frontend audit log inspector.
+- **Post-Phase 16 Hardening & UX Polish (Completed)**:
+  - **API Rate Limiting & Security (`apps/api`)**: In-memory IP-based rate limiting on sensitive auth endpoints (`/login`, `/register`, etc.) and internal service token (`AI_SERVICE_TOKEN`) protection for the Python AI service.
+  - **Frontend UI/UX Refinement (`apps/web`)**: Interactive Help Center (`/help`), User Account Settings (`/settings/account`), Invitation Acceptance page (`/invitations/accept`), "Your Access" permission cards, Email Verification banner, empty organization guards, accessible confirm dialogs & custom select inputs, and client-side response normalization.
+  - **Service Resilience (`apps/worker`, `apps/api`, `apps/ai-service`)**: Reconnect resilience for RabbitMQ, S3/MinIO error handling, Neon Serverless Postgres support with pgvector, and Gemini provider as cost-effective default with Ollama fallback.
 
 The immediate next implementation phase is **Phase 17 — Deployment & Dockerization**.
 
@@ -323,6 +325,33 @@ The following have been decided, designed, and documented / implemented:
 
 ---
 
+### Post-Phase 16 — Hardening, UI/UX Polish & Cloud Readiness ✅ COMPLETE (2026-10-06)
+- [x] **Gemini API Integration (Primary AI Provider)**:
+  - Configured `gemini-3.8-flash` for high-throughput, low-latency generation and streaming.
+  - Configured `gemini-embedding-001` with 768 output dimensions matching pgvector HNSW schema.
+  - Seamless toggle between Gemini, local Ollama (`qwen2.5` + `nomic-embed-text`), and deterministic Mock providers via `AI_PROVIDER` / `EMBEDDING_PROVIDER`.
+- [x] **Neon Serverless PostgreSQL Support**:
+  - Connection pooling via PgBouncer pooled connection strings.
+  - Direct connection support for vector migrations and vector registration.
+- [x] **API Rate Limiting & Microservice Security**:
+  - In-memory fixed-window IP rate limiter (`apps/api/src/middlewares/rate-limit.middleware.ts`) guarding `/login`, `/register`, and verification endpoints.
+  - Internal service authentication token (`AI_SERVICE_TOKEN`) guarding Python FastAPI endpoints from unauthorized intranet calls.
+- [x] **Frontend UI/UX Enhancements (`apps/web`)**:
+  - Interactive Help Center (`/help`) with guides for RAG search, access control, roles, and FAQs.
+  - User Account Settings (`/settings/account`) with profile information and credential management.
+  - Seamless Invitation Acceptance flow (`/invitations/accept`) with deep linking and auth redirection.
+  - Contextual "Your Access" permission card (`YourAccessCard`) displaying user privileges.
+  - Email verification reminder banner (`VerificationBanner`) with one-click resend.
+  - Empty organization fallback view (`NoOrganization`) guiding initial setup.
+  - Custom themed accessible dialogs and dropdowns (`ConfirmDialog`, `Modal`, `Select`).
+  - Client-side payload unwrapping, normalization, and error handling (`api-client.ts`, `normalize.ts`, `permissions.ts`).
+- [x] **Service & Queue Resilience**:
+  - Exponential backoff reconnect and recovery for RabbitMQ consumers and publishers.
+  - Graceful connection pool teardown on SIGTERM/SIGINT across Node.js and FastAPI services.
+  - S3 / MinIO storage error handling and unified streaming.
+
+---
+
 ## 🔄 In Progress
 
 Nothing currently in active implementation. Phase 16 completed. Ready to initiate Phase 17 (Deployment & Dockerization).
@@ -382,19 +411,18 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 | 10 | Exact project deletion strategy | ✅ **Resolved** | **Hard delete with cascade**: PostgreSQL `ON DELETE CASCADE` purges project memberships, documents, chunks |
 | 11 | Exact document deletion and retention strategy | ✅ **Resolved** | **Hard delete + Storage purge**: DB cascade deletes versions; MinIO/S3 objects are deleted via `StorageService` |
 | 12 | Exact duplicate detection scope | ✅ **Resolved** | **Project-scoped SHA-256**: duplicate content in same project rejected (`409 Conflict`, `FR-DOC-005`) |
-| 13 | Rate limiting rules | ⏳ Pending | Security, infrastructure (pre-production hardening) |
-| 14 | AI answer evaluation metrics | ⏳ Pending | RAG quality (Phase 12) |
+| 13 | Rate limiting rules | ✅ **Resolved** | In-memory fixed-window IP rate limiter implemented in `apps/api/src/middlewares/rate-limit.middleware.ts` for sensitive auth endpoints |
+| 14 | AI answer evaluation metrics | ✅ **Resolved** | Source citation provenance with cosine similarity scores, confidence percentages, and `FR-AI-005` insufficient-evidence warning callouts |
 | 15 | Whether OAuth social login is in scope for MVP | ⏳ Pending | Frontend, Auth (post-MVP extension) |
 | 16 | Log aggregation platform (Sentry only / Logtail / ELK) | ⏳ Pending | Monitoring (Pino HTTP + Sentry active; external aggregator deferred) |
 | 17 | Exact production deployment provider (EC2, ECS, or Render) | ⏳ Pending | Deployment (DevOps phase) |
 | 18 | Migration tooling choice (Flyway, Liquibase, raw SQL) | ⏳ Pending | Database (raw PostgreSQL baseline currently verified) |
 | 19 | Exact CI/CD provider | ⏳ Pending | DevOps (GitHub Actions / GitLab CI) |
 | 20 | Chunking strategy (chunk size, overlap) | ✅ **Resolved** | 1000 characters chunk size, 200 characters overlap with paragraph, sentence, and word boundary snapping (`apps/worker/src/chunker.py`) |
-
-| 21 | Similarity threshold for "insufficient information" response | ⏳ Pending | RAG orchestration (Phase 12) |
-| 22 | Whether historical document versions are searchable by default | ⏳ Pending | RAG retrieval (Phase 12) |
-| 23 | Streaming vs. non-streaming LLM responses | ⏳ Pending | AI Service, Frontend (Phase 12) |
-| 24 | Whether conversation history is included as LLM context | ⏳ Pending | RAG orchestration (Phase 12) |
+| 21 | Similarity threshold for "insufficient information" response | ✅ **Resolved** | Configurable similarity threshold (`MIN_SIMILARITY_SCORE`) with fallback response and citation suppression (`FR-AI-005`) |
+| 22 | Whether historical document versions are searchable by default | ✅ **Resolved** | Default retrieval strictly scopes to `is_current = true` and `status = 'READY'` chunks |
+| 23 | Streaming vs. non-streaming LLM responses | ✅ **Resolved** | Both supported: synchronous `POST /api/v1/rag/query` and Server-Sent Events (SSE) `POST /api/v1/rag/stream` with frontend streaming token rendering |
+| 24 | Whether conversation history is included as LLM context | ✅ **Resolved** | Multi-turn conversational history loaded from database and prepended to prompt context |
 | 25 | AWS S3 development configuration / bucket naming | ✅ **Resolved** | Local MinIO (`http://localhost:9000`), bucket `ai-workspace-documents`, `@aws-sdk/client-s3` |
 
 ---

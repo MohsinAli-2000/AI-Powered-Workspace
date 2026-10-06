@@ -376,15 +376,15 @@ document is accessible to the current user
 | Component           | Technology           | Primary Responsibility                |
 | ------------------- | -------------------- | ------------------------------------- |
 | Frontend            | Next.js + TypeScript | User interface and user experience    |
-| Core API            | Node.js + TypeScript | SaaS business logic and authorization |
-| AI API              | Python + FastAPI     | Real-time RAG and AI orchestration    |
+| Core API            | Node.js + TypeScript | SaaS business logic, authorization, rate limiting |
+| AI API              | Python + FastAPI     | Real-time RAG orchestration, SSE streaming |
 | AI Worker           | Python               | Asynchronous document processing      |
-| Relational Database | PostgreSQL           | Core application data                 |
-| Vector Store        | pgvector             | Embeddings and similarity search      |
+| Relational Database | PostgreSQL (Local / Neon Serverless) | Core application data                 |
+| Vector Store        | pgvector             | 768-dim embeddings and similarity search |
 | Job Queue           | RabbitMQ             | Reliable background job delivery      |
 | Object Storage      | MinIO → AWS S3       | Original uploaded documents           |
-| Embedding Runtime   | Ollama initially     | Text-to-vector conversion             |
-| LLM Runtime         | Ollama initially     | Answer generation                     |
+| Embedding Runtime   | Gemini API default (`gemini-embedding-001`); Ollama alternative | Text-to-vector conversion (768-dim)   |
+| LLM Runtime         | Gemini API default (`gemini-3.8-flash`); Ollama alternative | Grounded answer generation and streaming |
 | Email               | Nodemailer (Gmail SMTP) / Resend | Transactional emails                  |
 | Monitoring          | Sentry               | Errors, performance, and tracing      |
 
@@ -466,7 +466,7 @@ Node.js Core Backend
         │                       ├── RAG
         │                       └── LLM
         │
-        └──────────────► Resend
+        └──────────────► Nodemailer / Resend
 
 All Applications
         │
