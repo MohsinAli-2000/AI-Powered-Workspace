@@ -363,7 +363,7 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 | 1 | Exact embedding model name/version | ✅ **Resolved** | **`nomic-embed-text`** (768-dim L2-normalized vectors, HNSW index with m=16, ef_construction=64) |
 | 2 | Exact LLM model name/version | ✅ **Resolved** | **`qwen2.5:1.5b`** confirmed for fast local CPU development; `qwen2.5` (7.6B) supported for GPU/cloud environments |
 | 3 | Production LLM provider (Ollama vs OpenAI vs Anthropic) | ✅ **Resolved (interim)** | **Gemini API** (`gemini-3.8-flash`, `gemini-embedding-001`) selected for cost; see DEC-030 |
-| 4 | Exact email provider | ✅ **Resolved** | **Resend** confirmed & implemented (`apps/api/src/modules/email/email.service.ts`) |
+| 4 | Exact email provider | ✅ **Resolved** | **Nodemailer (Gmail SMTP)** default / **Resend** custom domain (`apps/api/src/modules/email/email.service.ts`) |
 | 5 | Maximum allowed file size | ✅ **Resolved** | **50MB** (`52,428,800` bytes) enforced in `env.ts` and `upload.middleware.ts` |
 | 6 | Exact JWT / session authentication strategy | ✅ **Resolved** | **Dual-token**: 15m Access Token + 7d Refresh Token with rotation in `auth.service.ts` |
 | 7 | Exact invitation expiration period | ✅ **Resolved** | **7 days** cryptographically signed invitation tokens in `invitation.service.ts` |
@@ -393,11 +393,11 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 
 ### CONFLICT-001 — Email Provider (RESOLVED)
 
-- **Status:** **Resolved — Resend Confirmed & Implemented**
-- **Location A:** `docs/system-architecture.md` (line 124) → Resend
+- **Status:** **Resolved — Nodemailer (Gmail SMTP) & Resend Confirmed & Implemented**
+- **Location A:** `docs/system-architecture.md` → Nodemailer (Gmail SMTP) / Resend
 - **Location B:** `AI Powered Workspace Architecture Diagram.png` → SendGrid / Mailgun alternatives
 - **Resolution:**
-  Resend is the confirmed transactional email provider for all authentication, invitation, and notification flows. The email module is implemented in `apps/api/src/modules/email/email.service.ts` using the Resend SDK, supporting verification emails, password resets, and organization invites.
+  Nodemailer with Gmail SMTP (`smtp.gmail.com:465`) is implemented as the zero-cost, zero-domain provider for all authentication, invitation, and password reset flows (allowing instant delivery to any recipient via standard Google App Passwords). Resend remains fully supported for custom verified domains. The unified email module in `apps/api/src/modules/email/email.service.ts` auto-detects configured credentials and provides a mock console logger fallback for local offline development.
 
 ---
 

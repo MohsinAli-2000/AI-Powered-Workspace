@@ -773,13 +773,15 @@ This prevents accidental cross-organization data access.
 
 # 📧 Email
 
-Transactional email will initially use:
+Transactional email supports multiple dispatch providers via a unified `EmailService`:
 
 ```text
-Resend
+Nodemailer (Gmail SMTP) — Default zero-cost, zero-domain provider (up to 500 emails/day)
+Resend — Modern transactional email API for verified custom domains
+Console Mock — Graceful development fallback when keys are unconfigured
 ```
 
-Potential email types:
+Supported email types:
 
 ```text
 Email Verification
@@ -788,7 +790,7 @@ Password Reset
 Important Account Notifications
 ```
 
-The email provider should be accessed through an application email module rather than being scattered throughout business logic.
+The email provider is abstracted cleanly through `apps/api/src/modules/email/email.service.ts` rather than being scattered throughout business logic.
 
 ---
 
@@ -1053,7 +1055,7 @@ Embeddings are requested at 768 dimensions, so the `vector(768)` schema is uncha
 | AI Provider       | Gemini API (default); Ollama optional |
 | LLM               | gemini-3.8-flash (Qwen via Ollama optional) |
 | Embeddings        | gemini-embedding-001, 768-dim       |
-| Email             | Resend                              |
+| Email             | Nodemailer (Gmail SMTP) / Resend    |
 | Monitoring        | Sentry                              |
 | Containerization  | Docker + Docker Compose             |
 | Version Control   | Git + GitHub                        |
@@ -1143,7 +1145,7 @@ The architecture is intentionally designed so that infrastructure providers can 
 * [x] Node.js backend foundation (TypeScript ESM, Express 5, connection pool, error handling, logging, Sentry, BaseRepository)
 * [x] Authentication & User management (registration, bcrypt, login, JWT rotation, email verification, password reset)
 * [x] Organization management (multi-tenant CRUD, roles, tenant isolation middleware, atomic ownership transfer)
-* [x] Members & invitation flow (Invite member, role assignment, accept/reject tokens, ADMIN count rule, Resend email)
+* [x] Members & invitation flow (Invite member, role assignment, accept/reject tokens, ADMIN count rule, Nodemailer/Resend email)
 * [x] Project management (CRUD, project membership, project manager minimum count rule)
 * [x] Group management (Group CRUD, membership, group project role assignments)
 * [x] Document upload & validation (Multipart upload, 50MB limit, PDF/DOCX/XLSX/PPTX/TXT, SHA-256 deduplication)
@@ -1331,7 +1333,7 @@ The system is being developed incrementally:
       ↓
 ✅ Organization Management (Multi-tenant CRUD, roles, transfer)
       ↓
-✅ Member & Invitation Management (Invitations, tokens, Resend email)
+✅ Member & Invitation Management (Invitations, tokens, Nodemailer/Resend email)
       ↓
 ✅ Project Management (CRUD, memberships, PM minimum rule)
       ↓

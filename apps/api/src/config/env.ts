@@ -42,6 +42,19 @@ const envSchema = z.object({
     .default(true),
   MAX_FILE_SIZE_BYTES: z.coerce.number().default(52428800), // 50MB
 
+  // Email Configuration (SMTP / Nodemailer & Resend)
+  SMTP_HOST: z.string().default('smtp.gmail.com'),
+  SMTP_PORT: z.coerce.number().default(465),
+  SMTP_SECURE: z
+    .string()
+    .transform((val) => val === 'true')
+    .or(z.boolean())
+    .default(true),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().default('AI Workspace <no-reply@example.com>'),
+
   // AI & RAG Configuration (Phase 12 & Phase 14)
   AI_SERVICE_URL: z.string().default('http://localhost:8001'),
   OLLAMA_BASE_URL: z.string().default('http://localhost:11434'),

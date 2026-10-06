@@ -111,15 +111,19 @@ Affected:  Backend (document upload, storage.service.ts), AI Worker (file downlo
 
 ---
 
-### DEC-007 — Resend for Transactional Email
+### DEC-007 — Nodemailer (Gmail SMTP) & Resend for Transactional Email
 
 ```
-Decision:  Use Resend for transactional email (verification, invitations,
-           password reset)
-Why:       Modern, developer-friendly email API; clean abstraction in EmailService
-Status:    Confirmed & Implemented (Phase 4, Phase 6; CONFLICT-001 resolved)
+Decision:  Support Nodemailer (Gmail SMTP) as default zero-cost, zero-domain provider,
+           alongside Resend for custom domain production environments, with graceful
+           console logging mock fallback.
+Why:       Resend requires verified custom domain ownership to send emails to arbitrary
+           recipients. Nodemailer with Gmail App Passwords enables 100% free email
+           dispatch (500 emails/day) for any recipient without upfront domain purchase.
+           The unified EmailService abstraction handles both transparently.
+Status:    Confirmed & Implemented (`apps/api/src/modules/email/email.service.ts`)
 Phase:     Architecture design & implementation
-Affected:  Backend Email Module (email.service.ts)
+Affected:  Backend Email Module (email.service.ts, env.ts)
 ```
 
 ---

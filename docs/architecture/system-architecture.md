@@ -120,7 +120,7 @@ flowchart TB
 
     subgraph EXTERNAL["☁️ EXTERNAL SERVICES"]
 
-        RESEND["Resend<br/>Transactional Email"]
+        RESEND["Nodemailer (Gmail SMTP) / Resend<br/>Transactional Email"]
 
         SENTRY["Sentry<br/>Errors<br/>Performance<br/>Tracing"]
 
@@ -385,7 +385,7 @@ document is accessible to the current user
 | Object Storage      | MinIO → AWS S3       | Original uploaded documents           |
 | Embedding Runtime   | Ollama initially     | Text-to-vector conversion             |
 | LLM Runtime         | Ollama initially     | Answer generation                     |
-| Email               | Resend               | Transactional emails                  |
+| Email               | Nodemailer (Gmail SMTP) / Resend | Transactional emails                  |
 | Monitoring          | Sentry               | Errors, performance, and tracing      |
 
 ---

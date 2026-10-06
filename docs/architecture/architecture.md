@@ -40,7 +40,7 @@
 | Object Storage | MinIO (dev) → AWS S3 (prod) | Original uploaded documents |
 | Embedding Runtime | Ollama (initially) | Text-to-vector conversion |
 | LLM Runtime | Ollama (initially) | Answer generation |
-| Email | Resend | Transactional emails |
+| Email | Nodemailer (Gmail SMTP) / Resend | Transactional emails |
 | Monitoring | Sentry | Errors, performance, and tracing |
 
 ---
@@ -217,14 +217,14 @@ documents-bucket/
 
 ## 11. Email
 
-**Technology:** Resend (transactional email)  
+**Technology:** Nodemailer (Gmail SMTP) & Resend (transactional email)  
 **Status:** Confirmed & Implemented (`apps/api/src/modules/email/email.service.ts`)  
 **Use cases:**
 - Email verification
 - Organization invitations
 - Password reset
 
-> **Resolution:** Resend is the confirmed transactional email provider (resolving CONFLICT-001). Alternative providers (Sendgrid / Mailgun) were evaluated but Resend was selected for its modern API and Node.js SDK integration.
+> **Resolution:** Nodemailer with Gmail SMTP (`smtp.gmail.com:465`) is supported as the default zero-cost, zero-domain provider (up to 500 emails/day), allowing immediate delivery to any recipient via standard Google App Passwords without requiring domain verification. Resend is supported for custom domain setups. If neither is configured, `email.service.ts` gracefully logs outgoing emails to the console in development mode to avoid breaking auth flows.
 
 ---
 
