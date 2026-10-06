@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { validateRequest } from '../../middlewares/validate.middleware.js';
 import { authenticateUser } from '../../middlewares/auth.middleware.js';
+import { rateLimit } from '../../middlewares/rate-limit.middleware.js';
 import {
   registerSchema,
   loginSchema,
@@ -14,12 +15,25 @@ import { authController } from './auth.controller.js';
 
 const authenticationRouter = Router();
 
+// Throttle credential endpoints per client IP (generous enough not to bother real users or local testing).
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: 'Too many sign-in attempts. Please wait a few minutes and try again.',
+});
+const emailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many requests. Please wait a few minutes before asking for another email.',
+});
+
 /**
  * Route: POST /api/v1/auth/register
  * Description: Register a new user account
  */
 authenticationRouter.post(
   '/register',
+  loginLimiter,
   validateRequest(registerSchema),
   authController.registerHandler
 );
@@ -30,6 +44,7 @@ authenticationRouter.post(
  */
 authenticationRouter.post(
   '/login',
+  loginLimiter,
   validateRequest(loginSchema),
   authController.loginHandler
 );
@@ -70,6 +85,7 @@ authenticationRouter.post(
  */
 authenticationRouter.post(
   '/resend-verification',
+  emailLimiter,
   validateRequest(resendVerificationSchema),
   authController.resendVerificationHandler
 );
@@ -80,6 +96,7 @@ authenticationRouter.post(
  */
 authenticationRouter.post(
   '/forgot-password',
+  emailLimiter,
   validateRequest(forgotPasswordSchema),
   authController.forgotPasswordHandler
 );
@@ -90,6 +107,7 @@ authenticationRouter.post(
  */
 authenticationRouter.post(
   '/reset-password',
+  loginLimiter,
   validateRequest(resetPasswordSchema),
   authController.resetPasswordHandler
 );

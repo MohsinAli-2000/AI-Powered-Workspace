@@ -177,10 +177,18 @@ function buildHeaders(init: RequestInit): Headers {
   return headers;
 }
 
+/**
+ * Endpoints that handle credentials themselves: a 401 there is a real answer, not an expired token.
+ * (`/auth/me` and `/auth/logout` are NOT in this list, so they refresh an expired access token like any other call.)
+ */
+function isCredentialRoute(path: string): boolean {
+  return /^\/auth\/(login|register|refresh|verify-email|resend-verification|forgot-password|reset-password)(\/|\?|$)/.test(path);
+}
+
 /** Performs the request, retrying once with a refreshed token on a 401. */
 async function authorizedFetch(path: string, init: RequestInit): Promise<Response> {
   const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
-  const isAuthRoute = path.startsWith('/auth/');
+  const isAuthRoute = isCredentialRoute(path);
 
   let response = await fetch(url, { ...init, headers: buildHeaders(init) });
 
@@ -197,7 +205,7 @@ async function authorizedFetch(path: string, init: RequestInit): Promise<Respons
  * types via `shapeResponse` (see `normalize.ts`).
  */
 export async function apiClient<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
-  const isAuthRoute = path.startsWith('/auth/');
+  const isAuthRoute = isCredentialRoute(path);
   const response = await authorizedFetch(path, init);
   const body = await parseBody(response);
 
@@ -239,12 +247,15 @@ export async function downloadFile(path: string, fallbackName = 'download'): Pro
 
   let filename = fallbackName;
   const disposition = response.headers.get('Content-Disposition');
-  const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
-  if (match?.[1]) {
+  // Prefer the RFC 5987 UTF-8 name (filename*=UTF-8''...) over the ASCII fallback.
+  const utf8Match = disposition?.match(/filename\*=UTF-8''([^;]+)/i);
+  const plainMatch = disposition?.match(/filename="?([^";]+)"?/i);
+  const rawName = utf8Match?.[1] ?? plainMatch?.[1];
+  if (rawName) {
     try {
-      filename = decodeURIComponent(match[1]);
+      filename = decodeURIComponent(rawName);
     } catch {
-      filename = match[1];
+      filename = rawName;
     }
   }
 

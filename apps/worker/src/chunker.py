@@ -10,8 +10,9 @@ class DocumentChunker:
         chunk_size: Optional[int] = None,
         chunk_overlap: Optional[int] = None
     ):
-        self.chunk_size = chunk_size or settings.CHUNK_SIZE
-        self.chunk_overlap = chunk_overlap or settings.CHUNK_OVERLAP
+        # `is None` (not `or`): an explicit overlap of 0 must be honored.
+        self.chunk_size = chunk_size if chunk_size is not None else settings.CHUNK_SIZE
+        self.chunk_overlap = chunk_overlap if chunk_overlap is not None else settings.CHUNK_OVERLAP
 
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError("chunk_overlap must be strictly less than chunk_size")
@@ -59,7 +60,7 @@ class DocumentChunker:
         start = 0
 
         while start < text_len:
-            end = start + self.chunk_size
+            end = min(start + self.chunk_size, text_len)
 
             # If this is not the last chunk, try to break at a newline or space
             if end < text_len:
@@ -92,6 +93,10 @@ class DocumentChunker:
                     }
                 })
                 current_idx += 1
+
+            # The window reached the end of the text: stop, or the overlap would emit a duplicate tail chunk.
+            if end >= text_len:
+                break
 
             # Advance by step (size - overlap)
             step = end - start

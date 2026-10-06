@@ -148,9 +148,8 @@ export class ConversationRepository extends BaseRepository<Conversation> {
    * Deletes a conversation by ID.
    */
   public async delete(id: string, client?: PoolClient): Promise<boolean> {
-    const sql = `DELETE FROM ${this.tableName} WHERE id = $1;`;
-    const rows = await this.query(sql, [id], client);
-    return rows.length >= 0;
+    const { rowCount } = await this.execute(`DELETE FROM ${this.tableName} WHERE id = $1;`, [id], client);
+    return rowCount > 0;
   }
 }
 

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { BaseRepository } from '../../db/base.repository.js';
 import {
   invitationRepository,
@@ -112,33 +113,25 @@ export class InvitationService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + INVITATION_EXPIRY_DAYS);
 
-    // Create the invitation record first to obtain the ID
-    // Use a placeholder token_hash; we'll update it after generating the JWT (which needs the ID)
-    const placeholderHash = 'pending';
-
-    const createdInvitation = await this.invitationRepo.create({
-      organization_id: organizationId,
-      email: input.email.toLowerCase(),
-      role: input.role,
-      invited_by: inviterId,
-      token_hash: placeholderHash,
-      status: 'PENDING',
-      expires_at: expiresAt,
-    });
-
-    // Generate the JWT token embedding the invitation ID
+    // Generate the id up front so the token (which embeds it) and its hash are known before the INSERT:
+    // one atomic statement, never a "pending" placeholder row that could be left unusable.
+    const invitationId = crypto.randomUUID();
     const rawInvitationToken = generateInvitationToken(
-      createdInvitation.id,
+      invitationId,
       input.email.toLowerCase(),
       organizationId
     );
 
-    // Hash the token and update the record
-    const tokenHash = hashToken(rawInvitationToken);
-    const updatedInvitation = await this.invitationRepo.updateTokenHash(
-      createdInvitation.id,
-      tokenHash
-    );
+    const createdInvitation = await this.invitationRepo.create({
+      id: invitationId,
+      organization_id: organizationId,
+      email: input.email.toLowerCase(),
+      role: input.role,
+      invited_by: inviterId,
+      token_hash: hashToken(rawInvitationToken),
+      status: 'PENDING',
+      expires_at: expiresAt,
+    });
 
     // FR-MEMBER-005: Dispatch invitation email
     await this.mailer.sendOrganizationInvitationEmail({
@@ -158,11 +151,13 @@ export class InvitationService {
       metadata: { email: input.email, role: input.role },
     });
 
-    const result = updatedInvitation ?? createdInvitation;
+    // Never hand the stored hash back to API consumers.
+    const { token_hash: _omitHash, ...safeInvitation } = createdInvitation;
+    void _omitHash;
     return {
-      ...result,
+      ...safeInvitation,
       token: rawInvitationToken,
-    };
+    } as Invitation;
   }
 
   /**
@@ -176,11 +171,13 @@ export class InvitationService {
 
     // Compute effective status: mark expired PENDING invitations
     const now = new Date();
-    return invitations.map((invitation) => {
-      if (invitation.status === 'PENDING' && new Date(invitation.expires_at) <= now) {
-        return { ...invitation, status: 'EXPIRED' };
+    return invitations.map(({ token_hash: _omitHash, ...invitation }) => {
+      void _omitHash;
+      const safe = invitation as InvitationDetail;
+      if (safe.status === 'PENDING' && new Date(safe.expires_at) <= now) {
+        return { ...safe, status: 'EXPIRED' };
       }
-      return invitation;
+      return safe;
     });
   }
 
@@ -207,9 +204,9 @@ export class InvitationService {
       throw new BadRequestError('Cannot revoke an invitation that has already expired.');
     }
 
-    const revokedInvitation = await this.invitationRepo.updateStatus(invitationId, 'REVOKED');
+    const revokedInvitation = await this.invitationRepo.transitionFromPending(invitationId, 'REVOKED');
     if (!revokedInvitation) {
-      throw new NotFoundError('Invitation not found.');
+      throw new ConflictError('This invitation was already used, revoked or has expired.');
     }
 
     await this.audit.record({
@@ -276,8 +273,15 @@ export class InvitationService {
 
     // FR-MEMBER-009: Execute atomically — accept invitation + create membership
     return BaseRepository.withTransaction(async (transactionClient) => {
-      // 1. Update invitation status to ACCEPTED
-      await this.invitationRepo.updateStatus(invitation.id, 'ACCEPTED', transactionClient);
+      // 1. Claim the invitation (fails if a concurrent accept/revoke already changed it)
+      const claimed = await this.invitationRepo.transitionFromPending(
+        invitation.id,
+        'ACCEPTED',
+        transactionClient
+      );
+      if (!claimed) {
+        throw new ConflictError('This invitation was already used, revoked or has expired.');
+      }
 
       // 2. Create organization membership with the role from the invitation
       const newMembership = await this.membershipRepo.create(

@@ -1,4 +1,6 @@
 import { BaseRepository } from '../../db/base.repository.js';
+import { documentVersionRepository } from '../documents/document-version.repository.js';
+import { storageService } from '../storage/storage.service.js';
 import {
   organizationRepository,
   type OrganizationRepository,
@@ -272,16 +274,22 @@ export class OrganizationService {
       throw new NotFoundError('Organization not found.');
     }
 
+    // Collect file keys first: once the rows are gone there is no way to find the stored objects.
+    const storageKeys = await documentVersionRepository.listStorageKeysByOrganization(organizationId);
+
     await this.audit.record({
       organizationId,
       actorUserId: userId,
       action: 'organization.deleted',
       resourceType: 'organization',
       resourceId: organizationId,
-      metadata: { name: organization.name },
+      metadata: { name: organization.name, purgedFiles: storageKeys.length },
     });
 
     await this.organizationRepo.deleteById(organizationId);
+
+    // Best-effort purge of the organization's files from object storage.
+    void storageService.deleteFiles(storageKeys);
   }
 
   /**
@@ -342,8 +350,22 @@ export class OrganizationService {
       }
     }
 
-    // DEC-019: Only remove membership — do NOT delete the user account
-    await this.membershipRepo.deleteByUserAndOrg(targetUserId, organizationId);
+    // DEC-019: Only remove membership — do NOT delete the user account.
+    // The user's project and group memberships in this organization go with it (atomically); otherwise
+    // "ghost" members would keep counting as project managers and reappear if the user is re-invited.
+    await BaseRepository.withTransaction(async (client) => {
+      await this.membershipRepo.execute(
+        'DELETE FROM project_memberships WHERE user_id = $1 AND organization_id = $2',
+        [targetUserId, organizationId],
+        client
+      );
+      await this.membershipRepo.execute(
+        'DELETE FROM group_memberships WHERE user_id = $1 AND organization_id = $2',
+        [targetUserId, organizationId],
+        client
+      );
+      await this.membershipRepo.deleteByUserAndOrg(targetUserId, organizationId, client);
+    });
 
     await this.audit.record({
       organizationId,

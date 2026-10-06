@@ -7,7 +7,10 @@ export const pool = new Pool({
   min: env.DB_POOL_MIN,
   max: env.DB_POOL_MAX,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  // Neon can take several seconds to wake a suspended compute; 5s caused spurious "timeout exceeded" errors.
+  connectionTimeoutMillis: 20000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
 });
 
 // Pool lifecycle event handlers

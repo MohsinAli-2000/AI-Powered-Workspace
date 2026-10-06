@@ -41,6 +41,7 @@ export default function MembersPage() {
   const isPrivileged = activeOrg?.role === 'OWNER' || activeOrg?.role === 'ADMIN';
   // The API only lets the OWNER remove members.
   const canRemove = activeOrg?.role === 'OWNER';
+  const isOwnerActor = activeOrg?.role === 'OWNER';
 
   const loadMembers = useCallback(async () => {
     if (!orgId) return;
@@ -231,7 +232,8 @@ export default function MembersPage() {
                           {member.user?.email}
                         </td>
                         <td className="py-3 pr-4">
-                          {isPrivileged && !isMemberOwner && !isSelf ? (
+                          {/* An ADMIN may only change MEMBERs; changing another ADMIN's role is OWNER-only. */}
+                          {isPrivileged && !isMemberOwner && !isSelf && (isOwnerActor || member.role !== 'ADMIN') ? (
                             <select
                               aria-label={`Role for ${member.user?.full_name}`}
                               value={member.role}

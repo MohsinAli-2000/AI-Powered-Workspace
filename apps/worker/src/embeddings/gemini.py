@@ -52,22 +52,32 @@ class GeminiEmbeddingClient(BaseEmbeddingClient):
             return False
 
     def _post(self, endpoint: str, payload: dict) -> httpx.Response:
+        """POST with exponential backoff (honoring Retry-After) for 429/5xx and transport errors."""
         last_error = None
         for attempt in range(1, self.max_retries + 1):
+            retry_after = None
             try:
                 resp = self._client.post(endpoint, json=payload)
                 if resp.status_code == 200:
                     return resp
                 if resp.status_code in (429, 500, 502, 503, 504):
                     last_error = f"HTTP {resp.status_code}: {resp.text[:200]}"
+                    header = resp.headers.get("retry-after")
+                    if header:
+                        try:
+                            retry_after = min(float(header), 60.0)
+                        except ValueError:
+                            retry_after = None
                     logger.warning(f"Gemini {last_error} (attempt {attempt}/{self.max_retries})")
                 else:
-                    resp.raise_for_status()
-            except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
-                last_error = str(e)
+                    # 4xx other than 429: retrying cannot help (bad key, bad request...)
+                    raise RuntimeError(f"Gemini rejected the embedding request: HTTP {resp.status_code}: {resp.text[:200]}")
+            except httpx.TransportError as e:  # timeouts, resets, DNS, protocol errors
+                last_error = f"{type(e).__name__}: {e}"
                 logger.warning(f"Gemini connection error (attempt {attempt}/{self.max_retries}): {e}")
             if attempt < self.max_retries:
-                time.sleep((2 ** (attempt - 1)) * 1.0 + random.uniform(0.1, 0.4))
+                delay = retry_after if retry_after is not None else min(2 ** attempt, 30) + random.uniform(0.1, 0.9)
+                time.sleep(delay)
         raise RuntimeError(
             f"Gemini embedding request failed after {self.max_retries} attempts: {last_error}"
         )
@@ -96,13 +106,18 @@ class GeminiEmbeddingClient(BaseEmbeddingClient):
                 ]
             }
             resp = self._post(f"/models/{self.model_name}:batchEmbedContents", payload)
-            embeddings = resp.json().get("embeddings", [])
+            try:
+                embeddings = resp.json().get("embeddings", [])
+            except ValueError as exc:
+                raise RuntimeError(f"Gemini returned an unreadable response: {exc}")
             if len(embeddings) != len(group):
                 raise ValueError(
                     f"Gemini returned {len(embeddings)} vectors, expected {len(group)}"
                 )
             for emb in embeddings:
-                vec = emb["values"]
+                vec = emb.get("values")
+                if not vec:
+                    raise ValueError("Gemini returned an empty embedding vector.")
                 self.validate_dimension(vec)
                 results.append(self.normalize_l2(vec))
         return results

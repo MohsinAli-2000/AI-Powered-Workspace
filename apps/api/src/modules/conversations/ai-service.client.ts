@@ -1,6 +1,11 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
+import { ServiceUnavailableError } from '../../errors/app-error.js';
 import type { AiClient } from './ai-client.js';
+
+const EMBED_TIMEOUT_MS = 30_000;
+const CHAT_TIMEOUT_MS = 120_000;
+const EXPECTED_EMBEDDING_DIMENSION = 768;
 
 export interface RemoteRagQueryRequest {
   question: string;
@@ -41,11 +46,51 @@ export class FastApiAiServiceClient implements AiClient {
     this.baseUrl = env.AI_SERVICE_URL.replace(/\/$/, '');
   }
 
+  private headers(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (env.AI_SERVICE_TOKEN) headers['X-Internal-Token'] = env.AI_SERVICE_TOKEN;
+    return headers;
+  }
+
+  /**
+   * POSTs JSON to the AI service with a hard timeout. Any transport failure, timeout or 5xx/429 becomes a
+   * clean 503 for the browser (instead of an opaque 500), and the real cause is logged.
+   */
+  private async post(path: string, body: unknown, timeoutMs: number): Promise<unknown> {
+    let resp: Response;
+    try {
+      resp = await fetch(`${this.baseUrl}${path}`, {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (err) {
+      logger.error({ err, path }, 'AI Service request failed (network or timeout)');
+      throw new ServiceUnavailableError(
+        'The AI assistant is not reachable right now. Please try again in a moment.'
+      );
+    }
+
+    if (!resp.ok) {
+      const errorText = await resp.text().catch(() => '');
+      logger.error({ errorText: errorText.slice(0, 500), status: resp.status, path }, 'AI Service call failed');
+      if (resp.status === 429 || resp.status >= 500) {
+        throw new ServiceUnavailableError(
+          'The AI assistant is temporarily busy. Please try again in a moment.'
+        );
+      }
+      throw new Error(`AI Service call to ${path} failed with HTTP ${resp.status}`);
+    }
+
+    return resp.json();
+  }
+
   /**
    * Health check to verify AI Service readiness.
    */
   public async checkHealth(): Promise<{ status: string; service: string }> {
-    const resp = await fetch(`${this.baseUrl}/health`);
+    const resp = await fetch(`${this.baseUrl}/health`, { signal: AbortSignal.timeout(10_000) });
     if (!resp.ok) {
       throw new Error(`AI Service health check failed with HTTP ${resp.status}`);
     }
@@ -56,19 +101,16 @@ export class FastApiAiServiceClient implements AiClient {
    * Calls /api/v1/embeddings to generate 768-dim embedding vector.
    */
   public async embedQuestion(text: string): Promise<number[]> {
-    const resp = await fetch(`${this.baseUrl}/api/v1/embeddings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-
-    if (!resp.ok) {
-      const errorText = await resp.text();
-      logger.error({ errorText, status: resp.status }, 'FastAPI AI Service embedding call failed');
-      throw new Error(`AI Service embedding failed with HTTP ${resp.status}`);
+    const data = (await this.post('/api/v1/embeddings', { text }, EMBED_TIMEOUT_MS)) as {
+      embedding?: number[];
+    };
+    if (!Array.isArray(data?.embedding) || data.embedding.length !== EXPECTED_EMBEDDING_DIMENSION) {
+      logger.error(
+        { received: Array.isArray(data?.embedding) ? data.embedding.length : typeof data?.embedding },
+        'AI Service returned an invalid embedding'
+      );
+      throw new ServiceUnavailableError('The AI assistant returned an unexpected response. Please try again.');
     }
-
-    const data = (await resp.json()) as { embedding: number[] };
     return data.embedding;
   }
 
@@ -76,19 +118,7 @@ export class FastApiAiServiceClient implements AiClient {
    * Calls /api/v1/rag/query for end-to-end RAG question answering.
    */
   public async queryRag(params: RemoteRagQueryRequest): Promise<RemoteRagQueryResponse> {
-    const resp = await fetch(`${this.baseUrl}/api/v1/rag/query`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-    });
-
-    if (!resp.ok) {
-      const errorText = await resp.text();
-      logger.error({ errorText, status: resp.status }, 'FastAPI AI Service RAG query failed');
-      throw new Error(`AI Service RAG query failed with HTTP ${resp.status}`);
-    }
-
-    return (await resp.json()) as RemoteRagQueryResponse;
+    return (await this.post('/api/v1/rag/query', params, CHAT_TIMEOUT_MS)) as RemoteRagQueryResponse;
   }
 
   /**
@@ -99,22 +129,12 @@ export class FastApiAiServiceClient implements AiClient {
     userPrompt: string,
     history: Array<{ role: string; content: string }> = []
   ): Promise<string> {
-    const resp = await fetch(`${this.baseUrl}/api/v1/llm/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt: userPrompt,
-        system_prompt: systemPrompt,
-        history,
-      }),
-    });
-
-    if (!resp.ok) {
-      throw new Error(`AI Service LLM chat failed with HTTP ${resp.status}`);
-    }
-
-    const data = (await resp.json()) as { content: string };
-    return data.content;
+    const data = (await this.post(
+      '/api/v1/llm/chat',
+      { prompt: userPrompt, system_prompt: systemPrompt, history },
+      CHAT_TIMEOUT_MS
+    )) as { content?: string };
+    return typeof data?.content === 'string' ? data.content : '';
   }
 }
 

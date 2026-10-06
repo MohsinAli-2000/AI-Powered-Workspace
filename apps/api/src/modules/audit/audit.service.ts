@@ -31,8 +31,13 @@ export class AuditService {
     input: CreateAuditLogInput,
     client?: PoolClient
   ): Promise<AuditLog | null> {
+    // Inside a caller's transaction, a failed INSERT would put the whole transaction in an aborted state and
+    // the final COMMIT would silently roll everything back. A savepoint confines the failure to this insert.
+    const savepoint = client ? 'audit_record_sp' : null;
     try {
+      if (client && savepoint) await client.query(`SAVEPOINT ${savepoint}`);
       const entry = await this.repo.create(input, client);
+      if (client && savepoint) await client.query(`RELEASE SAVEPOINT ${savepoint}`);
       logger.info(
         {
           auditId: entry.id,
@@ -45,6 +50,13 @@ export class AuditService {
       );
       return entry;
     } catch (error) {
+      if (client && savepoint) {
+        try {
+          await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+        } catch {
+          // Connection is gone; the surrounding transaction will fail on its own.
+        }
+      }
       logger.warn(
         { error, input },
         '⚠️ Failed to record audit log event (non-fatal, proceeding)'

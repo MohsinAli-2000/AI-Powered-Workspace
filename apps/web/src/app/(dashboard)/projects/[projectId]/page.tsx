@@ -81,10 +81,11 @@ export default function ProjectDetailsPage({
 
   const orgRole = activeOrg?.role || activeOrg?.user_role;
   const projectRole = project?.role || project?.user_role;
-  const isOrgAdmin = orgRole === 'OWNER' || orgRole === 'ADMIN';
+  // Only the org OWNER has implicit authority over every project; an ADMIN needs project membership like anyone else.
+  const isOrgOwner = orgRole === 'OWNER';
 
-  const canManage = projectRole === 'PROJECT_MANAGER' || isOrgAdmin;
-  const canUpload = Boolean(projectRole || isOrgAdmin);
+  const canManage = projectRole === 'PROJECT_MANAGER' || isOrgOwner;
+  const canUpload = Boolean(projectRole || isOrgOwner);
 
   // Org members that aren't in the project yet
   const addableMembers = useMemo(() => {
@@ -295,8 +296,8 @@ export default function ProjectDetailsPage({
     <Badge variant={projectRole === 'PROJECT_MANAGER' ? 'brand' : 'default'} size="sm">
       {PROJECT_ROLE_LABEL[projectRole]}
     </Badge>
-  ) : isOrgAdmin ? (
-    <Badge variant="info" size="sm">Org {orgRole === 'OWNER' ? 'Owner' : 'Admin'}</Badge>
+  ) : isOrgOwner ? (
+    <Badge variant="info" size="sm">Org Owner</Badge>
   ) : null;
 
   return (

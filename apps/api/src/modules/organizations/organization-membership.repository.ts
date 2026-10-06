@@ -132,9 +132,8 @@ export class OrganizationMembershipRepository extends BaseRepository<Organizatio
       DELETE FROM ${this.tableName}
       WHERE user_id = $1 AND organization_id = $2;
     `;
-    const queryExecutor = databaseClient ?? this.query;
-    const deleteResult = await this.query(sqlQuery, [userId, organizationId], databaseClient);
-    return deleteResult.length > 0;
+    const { rowCount } = await this.execute(sqlQuery, [userId, organizationId], databaseClient);
+    return rowCount > 0;
   }
 }
 

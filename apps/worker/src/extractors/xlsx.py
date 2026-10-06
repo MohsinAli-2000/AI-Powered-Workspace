@@ -23,6 +23,11 @@ class XlsxExtractor(BaseExtractor):
             for sheet_idx, sheet_name in enumerate(sheet_names):
                 sheet = wb[sheet_name]
                 sheet_lines = []
+                # Some generators write a wrong <dimension> tag; in read-only mode that truncates the sheet.
+                try:
+                    sheet.reset_dimensions()
+                except AttributeError:
+                    pass
 
                 for row in sheet.iter_rows(values_only=True):
                     # Filter out all-None rows

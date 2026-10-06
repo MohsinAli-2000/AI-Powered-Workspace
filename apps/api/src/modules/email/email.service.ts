@@ -23,6 +23,15 @@ export interface SendInvitationEmailInput {
   invitationToken: string;
 }
 
+/** Escapes user-controlled text before it is placed into an HTML email body. */
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 export class EmailService {
   private readonly transporter: Transporter | null = null;
   private readonly resendClient: Resend | null = null;
@@ -34,6 +43,10 @@ export class EmailService {
         host: env.SMTP_HOST,
         port: env.SMTP_PORT,
         secure: env.SMTP_SECURE,
+        // Without timeouts a blocked SMTP port hangs register / forgot-password / invite requests for minutes.
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 20_000,
         auth: {
           user: env.SMTP_USER,
           pass: env.SMTP_PASS.replace(/\s+/g, ''),
@@ -150,7 +163,7 @@ export class EmailService {
         <div style="background: #111827; padding: 32px; border-radius: 12px; border: 1px solid #1e293b;">
           <h2 style="font-size: 18px; color: #ffffff; margin-top: 0;">Verify your email address</h2>
           <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">
-            Hello <strong>${input.recipientName}</strong>,
+            Hello <strong>${escapeHtml(input.recipientName)}</strong>,
           </p>
           <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">
             Thanks for creating an account. Click the button below to verify your email and unlock all features.
@@ -198,7 +211,7 @@ export class EmailService {
         <div style="background: #111827; padding: 32px; border-radius: 12px; border: 1px solid #1e293b;">
           <h2 style="font-size: 18px; color: #ffffff; margin-top: 0;">Reset your password</h2>
           <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">
-            Hello <strong>${input.recipientName}</strong>,
+            Hello <strong>${escapeHtml(input.recipientName)}</strong>,
           </p>
           <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">
             We received a request to reset your password. Click the button below to choose a new one:
@@ -244,9 +257,9 @@ export class EmailService {
           <h1 style="color: #6366f1; font-size: 24px; font-weight: 700; margin: 0;">AI Powered Workspace</h1>
         </div>
         <div style="background: #111827; padding: 32px; border-radius: 12px; border: 1px solid #1e293b;">
-          <h2 style="font-size: 18px; color: #ffffff; margin-top: 0;">Join ${input.organizationName}</h2>
+          <h2 style="font-size: 18px; color: #ffffff; margin-top: 0;">Join ${escapeHtml(input.organizationName)}</h2>
           <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">
-            <strong>${input.inviterName}</strong> has invited you to join <strong>${input.organizationName}</strong> as a <strong>${input.assignedRole}</strong>.
+            <strong>${escapeHtml(input.inviterName)}</strong> has invited you to join <strong>${escapeHtml(input.organizationName)}</strong> as a <strong>${escapeHtml(input.assignedRole)}</strong>.
           </p>
           <div style="text-align: center; margin: 32px 0;">
             <a href="${invitationUrl}" style="background: #4f46e5; color: #ffffff; padding: 12px 28px; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 8px; display: inline-block;">

@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 import psycopg2
@@ -22,11 +23,28 @@ def get_connection_pool() -> pool.ThreadedConnectionPool:
         logger.info(
             f"Initializing ThreadedConnectionPool (min={settings.DB_POOL_MIN}, max={settings.DB_POOL_MAX})..."
         )
-        _connection_pool = pool.ThreadedConnectionPool(
-            minconn=settings.DB_POOL_MIN,
-            maxconn=settings.DB_POOL_MAX,
-            dsn=settings.DATABASE_URL
-        )
+        last_error: Optional[Exception] = None
+        # Neon wakes suspended compute on the first connection, which can fail or take several seconds.
+        for attempt in range(1, 4):
+            try:
+                _connection_pool = pool.ThreadedConnectionPool(
+                    minconn=settings.DB_POOL_MIN,
+                    maxconn=settings.DB_POOL_MAX,
+                    dsn=settings.DATABASE_URL,
+                    connect_timeout=20,
+                    keepalives=1,
+                    keepalives_idle=30,
+                    keepalives_interval=10,
+                    keepalives_count=5,
+                )
+                last_error = None
+                break
+            except psycopg2.OperationalError as exc:
+                last_error = exc
+                logger.warning(f"Database connection failed (attempt {attempt}/3): {exc}")
+                time.sleep(2 * attempt)
+        if last_error is not None:
+            raise last_error
     return _connection_pool
 
 
@@ -44,6 +62,10 @@ def get_db_cursor(commit: bool = True):
     """Context manager for acquiring a connection and cursor from the pool with pgvector registered."""
     p = get_connection_pool()
     conn = p.getconn()
+    # A pooled connection can have been closed by the server while idle (Neon suspend, long embedding run).
+    if conn.closed:
+        p.putconn(conn, close=True)
+        conn = p.getconn()
     try:
         register_vector(conn)
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
@@ -52,11 +74,15 @@ def get_db_cursor(commit: bool = True):
             conn.commit()
     except Exception as e:
         if not conn.closed:
-            conn.rollback()
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         logger.error(f"Database error: {e}")
         raise
     finally:
-        p.putconn(conn)
+        # Throw broken connections away instead of returning them to the pool.
+        p.putconn(conn, close=bool(conn.closed))
 
 
 def ensure_vector_schema(dimension: Optional[int] = None) -> None:
@@ -145,6 +171,71 @@ def update_version_status(
                 """,
                 (status, version_id)
             )
+
+
+def claim_version_for_processing(version_id: str) -> bool:
+    """
+    Atomically moves a version to PROCESSING unless another run already holds it.
+    Returns False when the version is already PROCESSING (a concurrent duplicate run), so the caller
+    can skip instead of racing - the race previously ended with FAILED written over a successful READY.
+    """
+    with get_db_cursor(commit=True) as cur:
+        cur.execute(
+            """
+            UPDATE document_versions
+            SET status = 'PROCESSING', updated_at = NOW()
+            WHERE id = %s AND status <> 'PROCESSING'
+            RETURNING id
+            """,
+            (version_id,)
+        )
+        return cur.fetchone() is not None
+
+
+def save_chunks_and_mark_ready(version_id: str, chunks: List[Dict[str, Any]]) -> int:
+    """
+    Replaces the version's chunks and marks it READY in ONE transaction.
+    Either everything is saved and the version is READY, or nothing changes - there is no window where
+    chunks exist but the status is stale (or vice versa).
+    """
+    if not chunks:
+        raise ValueError("Refusing to mark a version READY with zero chunks.")
+
+    with get_db_cursor(commit=True) as cur:
+        cur.execute(
+            "DELETE FROM document_chunks WHERE document_version_id = %s",
+            (version_id,)
+        )
+        records = [
+            (
+                version_id,
+                c["chunk_index"],
+                c["content"],
+                c.get("page_number"),
+                json.dumps(c.get("metadata", {})),
+                c.get("embedding")
+            )
+            for c in chunks
+        ]
+        execute_values(
+            cur,
+            """
+            INSERT INTO document_chunks (
+                document_version_id, chunk_index, content, page_number, metadata, embedding
+            ) VALUES %s
+            """,
+            records,
+            page_size=200,
+        )
+        cur.execute(
+            """
+            UPDATE document_versions
+            SET status = 'READY', processed_at = NOW(), updated_at = NOW()
+            WHERE id = %s
+            """,
+            (version_id,)
+        )
+        return len(chunks)
 
 
 def save_document_chunks(

@@ -39,12 +39,13 @@ invitationOrgRouter.post(
 /**
  * Route: GET /api/v1/organizations/:id/invitations
  * Description: List all invitations for an organization
- * Access: Any organization member
+ * Access: OWNER or ADMIN only (the list exposes invitee e-mail addresses)
  */
 invitationOrgRouter.get(
   '/:id/invitations',
   validateRequest(listInvitationsSchema),
   requireOrgMembership('id'),
+  requireOrgRole(['OWNER', 'ADMIN']),
   invitationController.listInvitationsHandler
 );
 

@@ -19,10 +19,13 @@ class TextNormalizer:
         # 1. Unicode normalization
         text = unicodedata.normalize("NFKC", text)
 
+        # Drop lone surrogates (malformed PDF fonts) - they crash JSON/UTF-8 encoding of the whole document.
+        text = text.encode("utf-8", "ignore").decode("utf-8")
+
         # 2. Remove null bytes and unprintable control characters
         # Preserve \t (0x09) and \n (0x0A)
         text = text.replace("\x00", "")
-        text = re.sub(r"[\x01-\x08\x0B-\x0C\x0E-\x1F\x7F]", "", text)
+        text = re.sub(r"[\x01-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F\ufeff]", "", text)
 
         # 3. Standardize line endings
         text = text.replace("\r\n", "\n").replace("\r", "\n")

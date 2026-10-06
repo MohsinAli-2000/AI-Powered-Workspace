@@ -50,29 +50,21 @@ def get_embedding_client(
             timeout_seconds=settings.EMBEDDING_TIMEOUT_SECONDS,
             max_retries=settings.EMBEDDING_MAX_RETRIES,
         )
-        if ollama_client.health_check():
-            client = ollama_client
-        else:
-            logger.warning(
+        if not ollama_client.health_check():
+            # Never fall back to mock vectors: documents would be marked READY with meaningless embeddings.
+            raise RuntimeError(
                 f"Ollama daemon unreachable at {settings.OLLAMA_BASE_URL}. "
-                "Automatically using MockEmbeddingClient (768-dim normalized vectors) so document processing succeeds."
+                "Start Ollama, or set EMBEDDING_PROVIDER=gemini (or mock, explicitly, for tests)."
             )
-            client = MockEmbeddingClient(
-                model_name=settings.EMBEDDING_MODEL,
-                expected_dimension=settings.EMBEDDING_DIMENSION,
-            )
+        client = ollama_client
     elif chosen_provider in ("mock", "test"):
         client = MockEmbeddingClient(
             model_name=settings.EMBEDDING_MODEL,
             expected_dimension=settings.EMBEDDING_DIMENSION,
         )
     else:
-        logger.warning(
-            f"Unrecognized EMBEDDING_PROVIDER '{chosen_provider}'. Falling back to MockEmbeddingClient."
-        )
-        client = MockEmbeddingClient(
-            model_name=settings.EMBEDDING_MODEL,
-            expected_dimension=settings.EMBEDDING_DIMENSION,
+        raise ValueError(
+            f"Unrecognized EMBEDDING_PROVIDER '{chosen_provider}'. Use 'gemini', 'ollama' or 'mock'."
         )
 
     if not force_new and provider is None:

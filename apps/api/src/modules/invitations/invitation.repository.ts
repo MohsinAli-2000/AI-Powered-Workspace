@@ -11,6 +11,8 @@ export class InvitationRepository extends BaseRepository<Invitation> {
    */
   public async create(
     invitationData: {
+      /** Optional pre-generated id, so the token (which embeds the id) can be hashed before the single INSERT. */
+      id?: string;
       organization_id: string;
       email: string;
       role: OrganizationRole;
@@ -23,8 +25,8 @@ export class InvitationRepository extends BaseRepository<Invitation> {
   ): Promise<Invitation> {
     const sqlQuery = `
       INSERT INTO ${this.tableName}
-        (organization_id, email, role, invited_by, token_hash, status, expires_at)
-      VALUES ($1, LOWER($2), $3, $4, $5, $6, $7)
+        (id, organization_id, email, role, invited_by, token_hash, status, expires_at)
+      VALUES (COALESCE($8::uuid, gen_random_uuid()), $1, LOWER($2), $3, $4, $5, $6, $7)
       RETURNING *;
     `;
     const createdRows = await this.query<Invitation>(
@@ -37,6 +39,7 @@ export class InvitationRepository extends BaseRepository<Invitation> {
         invitationData.token_hash,
         invitationData.status,
         invitationData.expires_at,
+        invitationData.id ?? null,
       ],
       databaseClient
     );
@@ -146,6 +149,25 @@ export class InvitationRepository extends BaseRepository<Invitation> {
    * Updates the status of an invitation.
    * Optionally sets `accepted_at` when the status transitions to ACCEPTED.
    */
+  /**
+   * Moves an invitation out of PENDING atomically. Returns null when it is no longer PENDING / has expired,
+   * so a concurrent accept/revoke can never overwrite the other's outcome.
+   */
+  public async transitionFromPending(
+    invitationId: string,
+    newStatus: string,
+    databaseClient?: PoolClient
+  ): Promise<Invitation | null> {
+    const acceptedAtClause = newStatus === 'ACCEPTED' ? ', accepted_at = NOW()' : '';
+    const sqlQuery = `
+      UPDATE ${this.tableName}
+      SET status = $1${acceptedAtClause}
+      WHERE id = $2 AND status = 'PENDING' AND expires_at > NOW()
+      RETURNING *;
+    `;
+    return this.queryOne<Invitation>(sqlQuery, [newStatus, invitationId], databaseClient);
+  }
+
   public async updateStatus(
     invitationId: string,
     newStatus: string,

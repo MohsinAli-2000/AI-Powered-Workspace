@@ -79,16 +79,22 @@ export class MessageRepository extends BaseRepository<Message> {
    */
   public async listByConversationWithSources(
     conversationId: string,
-    limit = 50,
+    limit = 500,
     client?: PoolClient
   ): Promise<MessageWithSources[]> {
     // 1. Fetch messages
+    // Take the NEWEST `limit` messages (not the oldest), then restore chronological order, so a long
+    // conversation keeps showing its latest turns instead of freezing at its first ones.
     const messagesSql = `
       SELECT *
-      FROM ${this.tableName}
-      WHERE conversation_id = $1
-      ORDER BY created_at ASC
-      LIMIT $2;
+      FROM (
+        SELECT *
+        FROM ${this.tableName}
+        WHERE conversation_id = $1
+        ORDER BY created_at DESC, id DESC
+        LIMIT $2
+      ) recent
+      ORDER BY created_at ASC, id ASC;
     `;
     const messages = await this.query<Message>(messagesSql, [conversationId, limit], client);
     if (messages.length === 0) {

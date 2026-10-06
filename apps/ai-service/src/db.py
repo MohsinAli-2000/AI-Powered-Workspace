@@ -7,6 +7,15 @@ from src.config import settings
 from src.logger import logger
 
 _db_pool: Optional[asyncpg.Pool] = None
+_pool_lock = asyncio.Lock()
+
+# Errors that mean "this pooled connection went away" (Neon suspends idle compute / recycles pooler links).
+_CONNECTION_ERRORS = (
+    asyncpg.PostgresConnectionError,
+    asyncpg.InterfaceError,
+    ConnectionResetError,
+    OSError,
+)
 
 __all__ = [
     "get_db_pool",
@@ -28,16 +37,25 @@ async def get_db_pool() -> asyncpg.Pool:
     Returns the singleton asyncpg database pool, initializing it if necessary.
     """
     global _db_pool
-    if _db_pool is None:
-        logger.info("Initializing asyncpg connection pool...")
-        _db_pool = await asyncpg.create_pool(
-            dsn=settings.database_url,
-            min_size=2,
-            max_size=10,
-            init=init_connection,
-            timeout=30.0,
-        )
-        logger.info("asyncpg connection pool initialized successfully.")
+    if _db_pool is not None:
+        return _db_pool
+    # The lock prevents concurrent first requests from each creating (and leaking) their own pool.
+    async with _pool_lock:
+        if _db_pool is None:
+            logger.info("Initializing asyncpg connection pool...")
+            _db_pool = await asyncpg.create_pool(
+                dsn=settings.database_url,
+                min_size=1,
+                max_size=10,
+                init=init_connection,
+                timeout=30.0,
+                command_timeout=30.0,
+                # Drop connections before Neon's idle timeout does it for us.
+                max_inactive_connection_lifetime=60.0,
+                # Neon's `-pooler` endpoint is PgBouncer; named prepared statements are not safe there.
+                statement_cache_size=0,
+            )
+            logger.info("asyncpg connection pool initialized successfully.")
     return _db_pool
 
 
@@ -58,10 +76,12 @@ async def check_db_health() -> bool:
     Performs a lightweight ping against PostgreSQL to verify connectivity.
     """
     try:
-        pool = await get_db_pool()
-        async with pool.acquire() as conn:
-            val = await conn.fetchval("SELECT 1;")
-            return val == 1
+        async def _ping() -> bool:
+            pool = await get_db_pool()
+            async with pool.acquire() as conn:
+                return await conn.fetchval("SELECT 1;") == 1
+
+        return await asyncio.wait_for(_ping(), timeout=8.0)
     except Exception as exc:
         logger.error(f"Database health check failed: {exc}")
         return False
@@ -96,10 +116,10 @@ async def search_authorized_chunks(
 
     pool = await get_db_pool()
 
-    # Convert string IDs to UUIDs for asyncpg parameterized binding
-    org_uuid = uuid.UUID(organization_id)
-    project_uuids = [uuid.UUID(pid) for pid in authorized_project_ids]
-    user_uuid = uuid.UUID(user_id) if user_id else None
+    # Convert IDs (str or UUID) to UUIDs for asyncpg parameterized binding
+    org_uuid = uuid.UUID(str(organization_id))
+    project_uuids = [uuid.UUID(str(pid)) for pid in authorized_project_ids]
+    user_uuid = uuid.UUID(str(user_id)) if user_id else None
 
     sql = """
       SELECT
@@ -168,29 +188,48 @@ async def search_authorized_chunks(
       LIMIT $5;
     """
 
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            sql,
-            query_vector,
-            org_uuid,
-            project_uuids,
-            threshold,
-            top_k,
-            is_org_owner,
-            user_uuid,
-        )
+    async def _run() -> list[Any]:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                # An HNSW index returns only the ~40 globally nearest rows and the tenant/access filters
+                # run afterwards, which can starve results. Iterative scans keep reading until enough rows
+                # pass the filters (pgvector >= 0.8). Ignore the setting where it isn't supported.
+                try:
+                    async with conn.transaction():
+                        await conn.execute(
+                            "SELECT set_config('hnsw.iterative_scan', 'strict_order', true)"
+                        )
+                except asyncpg.PostgresError:
+                    pass
+                return await conn.fetch(
+                    sql,
+                    query_vector,
+                    org_uuid,
+                    project_uuids,
+                    threshold,
+                    top_k,
+                    is_org_owner,
+                    user_uuid,
+                )
 
-        return [
-            {
-                "chunk_id": str(row["chunk_id"]),
-                "content": row["content"],
-                "chunk_index": row["chunk_index"],
-                "page_number": row["page_number"],
-                "document_id": str(row["document_id"]),
-                "document_name": row["document_name"],
-                "project_id": str(row["project_id"]),
-                "project_name": row["project_name"],
-                "similarity": float(row["similarity"]),
-            }
-            for row in rows
-        ]
+    try:
+        rows = await _run()
+    except _CONNECTION_ERRORS as exc:
+        # A stale pooled connection (Neon idle suspend) fails once; the retry gets a fresh one.
+        logger.warning(f"Database connection error during search ({exc!r}); retrying once.")
+        rows = await _run()
+
+    return [
+        {
+            "chunk_id": str(row["chunk_id"]),
+            "content": row["content"],
+            "chunk_index": row["chunk_index"],
+            "page_number": row["page_number"],
+            "document_id": str(row["document_id"]),
+            "document_name": row["document_name"],
+            "project_id": str(row["project_id"]),
+            "project_name": row["project_name"],
+            "similarity": float(row["similarity"]),
+        }
+        for row in rows
+    ]

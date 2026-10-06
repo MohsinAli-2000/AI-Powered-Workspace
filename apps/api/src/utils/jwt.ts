@@ -9,7 +9,12 @@ export interface AccessTokenPayload {
 
 export interface RefreshTokenPayload {
   userId: string;
+  /** Fingerprint of the password hash the session was created with; a password reset changes it. */
+  pwv?: string;
 }
+
+/** Short fingerprint of a password hash, embedded in refresh tokens. */
+export const passwordFingerprint = (passwordHash: string): string => passwordHash.slice(-16);
 
 /**
  * Signs a short-lived access token containing user identity claims.
@@ -27,7 +32,14 @@ export const generateAccessToken = (tokenPayload: AccessTokenPayload): string =>
  */
 export const verifyAccessToken = (accessTokenString: string): AccessTokenPayload => {
   try {
-    const verifiedPayload = jwt.verify(accessTokenString, env.JWT_SECRET) as AccessTokenPayload;
+    const verifiedPayload = jwt.verify(accessTokenString, env.JWT_SECRET) as AccessTokenPayload & {
+      purpose?: string;
+    };
+    // Email-verification, password-reset and invitation tokens share this secret; they must never be
+    // accepted as login credentials.
+    if (verifiedPayload.purpose !== undefined || !verifiedPayload.userId) {
+      throw new jwt.JsonWebTokenError('Token is not an access token');
+    }
     return verifiedPayload;
   } catch (jwtVerificationError) {
     if (jwtVerificationError instanceof jwt.TokenExpiredError) {

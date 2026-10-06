@@ -37,7 +37,13 @@ app.use(httpLogger);
 
 // Core standard middlewares
 app.use(helmet());
-app.use(cors());
+// Only the configured frontend may call the API from a browser (CORS_ORIGIN may be a comma-separated list).
+app.use(
+  cors({
+    origin: env.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean),
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

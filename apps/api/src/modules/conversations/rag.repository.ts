@@ -1,5 +1,5 @@
 import { BaseRepository } from '../../db/base.repository.js';
-import type { PoolClient } from '../../db/pool.js';
+import { pool, type PoolClient } from '../../db/pool.js';
 import type { RetrievedChunk } from './conversation.entity.js';
 
 export class RagRepository extends BaseRepository<RetrievedChunk> {
@@ -103,19 +103,49 @@ export class RagRepository extends BaseRepository<RetrievedChunk> {
       LIMIT $5;
     `;
 
-    return this.query<RetrievedChunk>(
-      sql,
-      [
-        vectorString,
-        params.organizationId,
-        params.authorizedProjectIds,
-        params.threshold,
-        params.topK,
-        isOwner,
-        userId,
-      ],
-      client
-    );
+    const queryParams = [
+      vectorString,
+      params.organizationId,
+      params.authorizedProjectIds,
+      params.threshold,
+      params.topK,
+      isOwner,
+      userId,
+    ];
+
+    // An HNSW index returns only the ~40 globally nearest rows and the tenant/access filters are applied
+    // afterwards, which can starve results in a multi-tenant table. Iterative scans keep reading until enough
+    // rows pass the filters (pgvector >= 0.8); the setting is skipped gracefully where unsupported.
+    const run = async (executor: PoolClient): Promise<RetrievedChunk[]> => {
+      await executor.query('BEGIN');
+      try {
+        await executor.query('SAVEPOINT hnsw_scan');
+        try {
+          await executor.query("SELECT set_config('hnsw.iterative_scan', 'strict_order', true)");
+          await executor.query('RELEASE SAVEPOINT hnsw_scan');
+        } catch {
+          await executor.query('ROLLBACK TO SAVEPOINT hnsw_scan');
+        }
+        const result = await executor.query<RetrievedChunk>(sql, queryParams);
+        await executor.query('COMMIT');
+        return result.rows;
+      } catch (err) {
+        await executor.query('ROLLBACK').catch(() => undefined);
+        throw err;
+      }
+    };
+
+    if (client) {
+      // The caller owns the transaction; just run the query on it.
+      return this.query<RetrievedChunk>(sql, queryParams, client);
+    }
+
+    const poolClient = await pool.connect();
+    try {
+      return await run(poolClient);
+    } finally {
+      poolClient.release();
+    }
   }
 }
 

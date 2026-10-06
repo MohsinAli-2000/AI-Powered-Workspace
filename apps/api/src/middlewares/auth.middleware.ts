@@ -21,6 +21,13 @@ export const authenticateUser = async (
   _outgoingResponse: Response,
   nextMiddleware: NextFunction
 ): Promise<void> => {
+  // Several routers are mounted on the same prefix and each applies this middleware; once a request has been
+  // authenticated there is no need to verify the token and hit the users table again.
+  if (incomingRequest.authenticatedUser) {
+    nextMiddleware();
+    return;
+  }
+
   try {
     const authorizationHeader = incomingRequest.headers.authorization;
 

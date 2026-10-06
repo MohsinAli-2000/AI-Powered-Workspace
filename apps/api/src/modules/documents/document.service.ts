@@ -37,6 +37,7 @@ import {
   BadRequestError,
 } from '../../errors/app-error.js';
 import { logger } from '../../utils/logger.js';
+import { documentAccessRepository } from './document-access.repository.js';
 
 export class DocumentService {
   constructor(
@@ -94,10 +95,12 @@ export class DocumentService {
     // 4. Upload file to Object Storage (MinIO / S3)
     await this.storage.uploadFile(storageKey, file.buffer, file.mimetype);
 
+    // 5. Atomic Database Transaction (only a failure HERE should remove the uploaded object)
+    let result: DocumentWithCurrentVersion;
     try {
-      // 5. Atomic Database Transaction
-      const result = await BaseRepository.withTransaction(async (transactionClient) => {
+      result = await BaseRepository.withTransaction(async (transactionClient) => {
         const displayName = metadata.name?.trim() || file.originalname;
+        const accessMode = metadata.access_mode ?? 'PROJECT';
 
         const createdDoc = await this.documentRepo.create(
           {
@@ -106,11 +109,22 @@ export class DocumentService {
             project_id: projectId,
             name: displayName,
             description: metadata.description,
-            access_mode: metadata.access_mode ?? 'PROJECT',
+            access_mode: accessMode,
             created_by: uploaderUserId,
           },
           transactionClient
         );
+
+        // A RESTRICTED document with no rules would be invisible to its own uploader (and non-owner
+        // managers), making the upload look lost. Grant the uploader access up front.
+        if (accessMode === 'RESTRICTED') {
+          await documentAccessRepository.upsertUserAccess(
+            createdDoc.id,
+            uploaderUserId,
+            'ALLOW',
+            transactionClient
+          );
+        }
 
         const createdVersion = await this.documentVersionRepo.create(
           {
@@ -138,8 +152,16 @@ export class DocumentService {
           original_filename: createdVersion.original_filename,
         };
       });
+    } catch (dbError) {
+      // Clean up the orphaned storage object: the database has no record of it.
+      logger.error({ storageKey, dbError }, 'Rolling back storage upload after database failure.');
+      await this.storage.deleteFile(storageKey).catch(() => {});
+      throw dbError;
+    }
 
-      // 6. Publish Background Processing Job (FR-DOC-009)
+    // 6. Publish Background Processing Job (FR-DOC-009). The rows are committed, so a problem past this
+    // point must never delete the stored file; the queue's recovery sweep re-dispatches stuck jobs.
+    try {
       await this.queue.publishDocumentProcessingJob({
         document_id: result.id,
         version_id: result.current_version_id,
@@ -149,28 +171,25 @@ export class DocumentService {
         mime_type: file.mimetype,
         original_filename: file.originalname,
       });
-
-      await this.audit.record({
-        organizationId: project.organization_id,
-        actorUserId: uploaderUserId,
-        action: 'document.uploaded',
-        resourceType: 'document',
-        resourceId: result.id,
-        metadata: {
-          name: result.name,
-          projectId,
-          fileSize: file.size,
-          mimeType: file.mimetype,
-        },
-      });
-
-      return result;
-    } catch (dbError) {
-      // Clean up orphaned storage object if database transaction failed
-      logger.error({ storageKey, dbError }, 'Rolling back storage upload after database failure.');
-      await this.storage.deleteFile(storageKey).catch(() => {});
-      throw dbError;
+    } catch (queueError) {
+      logger.error({ versionId: result.current_version_id, queueError }, 'Failed to dispatch processing job');
     }
+
+    await this.audit.record({
+      organizationId: project.organization_id,
+      actorUserId: uploaderUserId,
+      action: 'document.uploaded',
+      resourceType: 'document',
+      resourceId: result.id,
+      metadata: {
+        name: result.name,
+        projectId,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+      },
+    });
+
+    return result;
   }
 
   /**
@@ -199,6 +218,49 @@ export class DocumentService {
       throw new NotFoundError('Document not found.');
     }
     return document;
+  }
+
+  /**
+   * Re-queues a document whose processing FAILED (transient embedding errors, provider outages...) so the
+   * user does not have to delete and re-upload it.
+   */
+  public async reprocessDocument(documentId: string): Promise<DocumentWithCurrentVersion> {
+    const document = await this.getDocument(documentId);
+    const version = await this.documentVersionRepo.findCurrentByDocumentId(documentId);
+    if (!version) {
+      throw new NotFoundError('Document version content not found.');
+    }
+    if (version.status !== 'FAILED') {
+      throw new ConflictError(
+        `Only documents whose processing failed can be retried (current status: ${version.status}).`
+      );
+    }
+
+    // Conditional update so two quick clicks cannot start two runs.
+    const requeued = await this.documentVersionRepo.requeueIfFailed(version.id);
+    if (!requeued) {
+      throw new ConflictError('This document is already being processed again.');
+    }
+
+    await this.queue.publishDocumentProcessingJob({
+      document_id: document.id,
+      version_id: version.id,
+      organization_id: document.organization_id,
+      project_id: document.project_id,
+      storage_key: version.storage_key,
+      mime_type: version.mime_type,
+      original_filename: version.original_filename,
+    });
+
+    await this.audit.record({
+      organizationId: document.organization_id,
+      action: 'document.reprocessed',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { name: document.name },
+    });
+
+    return this.getDocument(documentId);
   }
 
   /**

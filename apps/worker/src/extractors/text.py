@@ -5,7 +5,8 @@ from .base import BaseExtractor, ExtractedDocument, ExtractedSection
 
 logger = logging.getLogger(__name__)
 
-ENCODINGS_TO_TRY = ["utf-8", "utf-8-sig", "latin-1", "cp1252", "utf-16"]
+# latin-1 accepts every byte sequence, so it must be last; cp1252 comes before it for Windows "smart quotes".
+ENCODINGS_TO_TRY = ["utf-8-sig", "cp1252", "latin-1"]
 
 
 class TextExtractor(BaseExtractor):
@@ -20,7 +21,12 @@ class TextExtractor(BaseExtractor):
         decoded_text = None
         used_encoding = None
 
-        for encoding in ENCODINGS_TO_TRY:
+        # A UTF-16 BOM (Notepad's "Unicode" option) must be honored before anything else.
+        candidates = ENCODINGS_TO_TRY
+        if raw_bytes.startswith((b"\xff\xfe", b"\xfe\xff")):
+            candidates = ["utf-16"] + ENCODINGS_TO_TRY
+
+        for encoding in candidates:
             try:
                 decoded_text = raw_bytes.decode(encoding)
                 used_encoding = encoding

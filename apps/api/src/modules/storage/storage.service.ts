@@ -173,6 +173,15 @@ export class StorageService {
   /**
    * Deletes an object from S3 / MinIO object storage.
    */
+  /**
+   * Best-effort removal of many objects (e.g. after a project/organization delete). Never throws.
+   */
+  public async deleteFiles(storageKeys: string[]): Promise<void> {
+    for (const key of storageKeys) {
+      await this.deleteFile(key);
+    }
+  }
+
   public async deleteFile(storageKey: string): Promise<void> {
     try {
       const command = new DeleteObjectCommand({

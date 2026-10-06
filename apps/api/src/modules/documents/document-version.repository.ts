@@ -93,6 +93,8 @@ export class DocumentVersionRepository extends BaseRepository<DocumentVersion> {
       WHERE dv.content_hash = $1
         AND d.project_id = $2
         AND dv.is_current = true
+        -- A FAILED version is unusable; it must not block re-uploading the same file.
+        AND dv.status <> 'FAILED'
       LIMIT 1;
     `;
     return this.queryOne<DocumentVersion>(
@@ -125,6 +127,56 @@ export class DocumentVersionRepository extends BaseRepository<DocumentVersion> {
       databaseClient
     );
     return updatedRows[0] ?? null;
+  }
+
+  /**
+   * FAILED -> QUEUED, atomically. Returns false if the version was not FAILED any more.
+   */
+  public async requeueIfFailed(versionId: string, databaseClient?: PoolClient): Promise<boolean> {
+    const { rowCount } = await this.execute(
+      `UPDATE ${this.tableName}
+          SET status = 'QUEUED', processed_at = NULL, updated_at = NOW()
+        WHERE id = $1 AND status = 'FAILED'`,
+      [versionId],
+      databaseClient
+    );
+    return rowCount > 0;
+  }
+
+  /**
+   * Storage keys of every version of every document in a project (used to purge S3 after a project delete).
+   */
+  public async listStorageKeysByProject(
+    projectId: string,
+    databaseClient?: PoolClient
+  ): Promise<string[]> {
+    const rows = await this.query<{ storage_key: string }>(
+      `SELECT dv.storage_key
+         FROM ${this.tableName} dv
+         JOIN documents d ON d.id = dv.document_id
+        WHERE d.project_id = $1;`,
+      [projectId],
+      databaseClient
+    );
+    return rows.map((r) => r.storage_key);
+  }
+
+  /**
+   * Storage keys of every version of every document in an organization.
+   */
+  public async listStorageKeysByOrganization(
+    organizationId: string,
+    databaseClient?: PoolClient
+  ): Promise<string[]> {
+    const rows = await this.query<{ storage_key: string }>(
+      `SELECT dv.storage_key
+         FROM ${this.tableName} dv
+         JOIN documents d ON d.id = dv.document_id
+        WHERE d.organization_id = $1;`,
+      [organizationId],
+      databaseClient
+    );
+    return rows.map((r) => r.storage_key);
   }
 
   /**

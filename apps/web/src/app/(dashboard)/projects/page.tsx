@@ -165,8 +165,8 @@ export default function ProjectsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredProjects.map((project) => {
                 const projectRole = project.role || project.user_role;
-                const isManager =
-                  projectRole === 'PROJECT_MANAGER' || orgRole === 'OWNER' || orgRole === 'ADMIN';
+                // Org ADMINs have no implicit project authority (only the OWNER does).
+                const isManager = projectRole === 'PROJECT_MANAGER' || orgRole === 'OWNER';
 
                 return (
                   <Card key={project.id} hoverEffect className="relative h-full flex flex-col justify-between">

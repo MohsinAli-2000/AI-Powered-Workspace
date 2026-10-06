@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -8,21 +9,23 @@ class Settings(BaseSettings):
     Application configuration loaded from environment variables and .env file.
     """
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Resolve relative to this file so the service finds its .env regardless of the launch directory.
+        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"
     )
 
     port: int = Field(default=8001, validation_alias="PORT")
-    host: str = Field(default="0.0.0.0", validation_alias="HOST")
+    host: str = Field(default="127.0.0.1", validation_alias="HOST")
     environment: str = Field(default="development", validation_alias="ENVIRONMENT")
     log_level: str = Field(default="info", validation_alias="LOG_LEVEL")
 
-    database_url: str = Field(
-        default="postgresql://postgres:postgresadmin@localhost:5432/ai_workspace",
-        validation_alias="DATABASE_URL"
-    )
+    # Shared secret the Node API sends as `X-Internal-Token`. Leave empty only for local experiments.
+    ai_service_token: Optional[str] = Field(default=None, validation_alias="AI_SERVICE_TOKEN")
+
+    # No default on purpose: a missing DATABASE_URL should fail fast, not silently use a localhost guess.
+    database_url: str = Field(validation_alias="DATABASE_URL")
 
     ollama_base_url: str = Field(
         default="http://localhost:11434",
@@ -60,6 +63,11 @@ class Settings(BaseSettings):
     gemini_llm_model: str = Field(
         default="gemini-3.8-flash",
         validation_alias="GEMINI_LLM_MODEL"
+    )
+    # Optional second model tried when the primary one stays overloaded / rate limited.
+    gemini_llm_fallback_model: Optional[str] = Field(
+        default=None,
+        validation_alias="GEMINI_LLM_FALLBACK_MODEL"
     )
 
     rag_similarity_threshold: float = Field(

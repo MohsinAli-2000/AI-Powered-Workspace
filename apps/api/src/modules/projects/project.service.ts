@@ -1,4 +1,6 @@
 import { BaseRepository } from '../../db/base.repository.js';
+import { documentVersionRepository } from '../documents/document-version.repository.js';
+import { storageService } from '../storage/storage.service.js';
 import {
   projectRepository,
   type ProjectRepository,
@@ -225,16 +227,23 @@ export class ProjectService {
 
     await this.assertProjectManagementAuthority(project, actingUserId);
 
+    // Collect file keys first: once the rows are gone there is no way to find the stored objects.
+    const storageKeys = await documentVersionRepository.listStorageKeysByProject(projectId);
+
+    await this.projectRepo.delete(projectId);
+
+    // Record the deletion only after it actually happened.
     await this.audit.record({
       organizationId: project.organization_id,
       actorUserId: actingUserId,
       action: 'project.deleted',
       resourceType: 'project',
       resourceId: projectId,
-      metadata: { name: project.name },
+      metadata: { name: project.name, purgedFiles: storageKeys.length },
     });
 
-    await this.projectRepo.delete(projectId);
+    // Best-effort purge of the project's files from object storage (otherwise they are orphaned forever).
+    void storageService.deleteFiles(storageKeys);
   }
 
   /**

@@ -23,6 +23,7 @@ import {
   Shield,
   Pencil,
   Search,
+  RotateCcw,
 } from 'lucide-react';
 
 interface DocumentTableProps {
@@ -42,6 +43,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
   const [selectedDocForRules, setSelectedDocForRules] = useState<DocumentItem | null>(null);
   const [search, setSearch] = useState('');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   // Rename
   const [docToRename, setDocToRename] = useState<DocumentItem | null>(null);
@@ -81,6 +83,19 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
       showToast(err instanceof Error ? err.message : 'Download failed', 'error');
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  const handleRetry = async (doc: DocumentItem) => {
+    setRetryingId(doc.id);
+    try {
+      await apiClient(`/documents/${doc.id}/reprocess`, { method: 'POST' });
+      showToast(`Retrying "${doc.name}"...`, 'info');
+      onRefresh();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not retry processing', 'error');
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -221,6 +236,19 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
                       >
                         <Download className={`w-3.5 h-3.5 ${downloadingId === doc.id ? 'animate-pulse' : ''}`} />
                       </button>
+
+                      {canManage && doc.status === 'FAILED' && (
+                        <button
+                          type="button"
+                          onClick={() => handleRetry(doc)}
+                          disabled={retryingId === doc.id}
+                          className="p-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                          title="Processing failed - retry"
+                          aria-label={`Retry processing ${doc.name}`}
+                        >
+                          <RotateCcw className={`w-3.5 h-3.5 ${retryingId === doc.id ? 'animate-spin' : ''}`} />
+                        </button>
+                      )}
 
                       {canManage && (
                         <button

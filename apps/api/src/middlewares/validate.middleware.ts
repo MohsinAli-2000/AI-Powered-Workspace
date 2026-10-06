@@ -28,7 +28,14 @@ export const validateRequest = (validationSchema: ZodType) => {
         request.body = parsedRequestData.body;
       }
       if (parsedRequestData.query !== undefined) {
-        request.query = parsedRequestData.query;
+        // Express 5 exposes `req.query` as a getter-only property, so plain assignment throws a TypeError
+        // (this made every query-validated route, e.g. the audit log list, fail with a 500).
+        Object.defineProperty(request, 'query', {
+          value: parsedRequestData.query,
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        });
       }
       if (parsedRequestData.params !== undefined) {
         request.params = parsedRequestData.params;

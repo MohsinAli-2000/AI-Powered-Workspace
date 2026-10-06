@@ -5,6 +5,7 @@ import { hashPassword, comparePassword } from '../../utils/password.js';
 import {
   generateAccessToken,
   generateRefreshToken,
+  passwordFingerprint,
   verifyRefreshToken,
   generateEmailVerificationToken,
   verifyEmailVerificationToken,
@@ -74,6 +75,7 @@ export class AuthService {
 
     const refreshTokenString = generateRefreshToken({
       userId: newlyCreatedUser.id,
+      pwv: passwordFingerprint(newlyCreatedUser.password_hash),
     });
 
     return {
@@ -114,6 +116,7 @@ export class AuthService {
 
     const refreshTokenString = generateRefreshToken({
       userId: matchedUser.id,
+      pwv: passwordFingerprint(matchedUser.password_hash),
     });
 
     return {
@@ -137,6 +140,14 @@ export class AuthService {
       throw new UnauthorizedError('User account associated with this session no longer exists.');
     }
 
+    // A password reset invalidates every session created before it (older tokens carry no/other fingerprint).
+    if (
+      decodedToken.pwv !== undefined &&
+      decodedToken.pwv !== passwordFingerprint(existingUser.password_hash)
+    ) {
+      throw new UnauthorizedError('Your password was changed. Please log in again.');
+    }
+
     const newAccessTokenString = generateAccessToken({
       userId: existingUser.id,
       email: existingUser.email,
@@ -144,6 +155,7 @@ export class AuthService {
 
     const newRefreshTokenString = generateRefreshToken({
       userId: existingUser.id,
+      pwv: passwordFingerprint(existingUser.password_hash),
     });
 
     return {

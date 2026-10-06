@@ -129,18 +129,49 @@ export class DocumentController {
         await this.docService.downloadDocument(documentId);
 
       outgoingResponse.setHeader('Content-Type', contentType);
+      // ASCII fallback for old clients plus an RFC 5987 UTF-8 name so non-ASCII filenames survive.
+      const asciiName = originalFilename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
       outgoingResponse.setHeader(
         'Content-Disposition',
-        `attachment; filename="${encodeURIComponent(originalFilename)}"`
+        `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(originalFilename)}`
       );
       if (fileSize) {
         outgoingResponse.setHeader('Content-Length', fileSize.toString());
       }
 
       stream.on('error', (err) => {
-        nextMiddleware(err);
+        // After the first bytes are sent a JSON error is impossible; abort the connection so the client
+        // sees a failed download instead of a silently truncated file.
+        if (outgoingResponse.headersSent) {
+          outgoingResponse.destroy(err);
+        } else {
+          nextMiddleware(err);
+        }
       });
+      // Stop reading from S3 if the browser cancels the download.
+      outgoingResponse.on('close', () => stream.destroy());
       stream.pipe(outgoingResponse);
+    } catch (controllerError) {
+      nextMiddleware(controllerError);
+    }
+  };
+
+  /**
+   * Handles retrying a failed document.
+   * Route: POST /api/v1/documents/:id/reprocess
+   */
+  public reprocessDocumentHandler = async (
+    incomingRequest: Request<{ id: string }>,
+    outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      const document = await this.docService.reprocessDocument(incomingRequest.params.id);
+      outgoingResponse.status(202).json({
+        success: true,
+        data: { document },
+        message: 'Document processing restarted.',
+      });
     } catch (controllerError) {
       nextMiddleware(controllerError);
     }

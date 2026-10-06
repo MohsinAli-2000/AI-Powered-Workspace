@@ -36,9 +36,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const current = get().user;
     if (!current) return;
     const updatedUser = { ...current, ...updatedFields };
-    const currentSession = get().session;
-    if (currentSession) {
-      const updatedSession = { ...currentSession, user: updatedUser };
+    // Merge into the *stored* session: the API client may have rotated the tokens since this
+    // store last saw them, and writing stale tokens back would force a spurious sign-out.
+    const baseSession = getStoredSession() ?? get().session;
+    if (baseSession) {
+      const updatedSession = { ...baseSession, user: updatedUser };
       setStoredSession(updatedSession);
       set({ user: updatedUser, session: updatedSession });
     } else {

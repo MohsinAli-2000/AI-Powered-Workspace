@@ -56,7 +56,9 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().default('AI Workspace <no-reply@example.com>'),
 
   // AI & RAG Configuration (Phase 12 & Phase 14)
-  AI_SERVICE_URL: z.string().default('http://localhost:8001'),
+  AI_SERVICE_URL: z.string().default('http://127.0.0.1:8001'),
+  // Shared secret sent to the AI service as `X-Internal-Token` (must match apps/ai-service AI_SERVICE_TOKEN).
+  AI_SERVICE_TOKEN: z.string().optional(),
   OLLAMA_BASE_URL: z.string().default('http://localhost:11434'),
   EMBEDDING_MODEL: z.string().default('nomic-embed-text'),
   LLM_MODEL: z.string().default('qwen2.5'),

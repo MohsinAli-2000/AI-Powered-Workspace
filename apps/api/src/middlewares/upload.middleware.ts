@@ -8,6 +8,8 @@ const storage = multer.memoryStorage();
 
 const multerUpload = multer({
   storage,
+  // multer decodes multipart filenames as latin1 by default, which mangles non-ASCII names.
+  defParamCharset: 'utf8',
   limits: {
     fileSize: env.MAX_FILE_SIZE_BYTES,
   },

@@ -22,3 +22,6 @@ python-dotenv==1.0.1
 httpx>=0.27.0
 pgvector>=0.3.0
 numpy>=1.26.0
+
+# Needed by pypdf to open AES-encrypted PDFs (even with an empty password)
+cryptography>=42.0.0

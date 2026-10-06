@@ -119,18 +119,32 @@ export abstract class BaseRepository<TEntity extends QueryResultRow> {
     transactionCallback: (transactionClient: PoolClient) => Promise<TResult>
   ): Promise<TResult> {
     const transactionClient = await pool.connect();
+    // Set when the connection itself is unusable, so the pool discards it instead of reusing it.
+    let discardClient: Error | undefined;
 
     try {
       await transactionClient.query('BEGIN');
       const transactionResult = await transactionCallback(transactionClient);
-      await transactionClient.query('COMMIT');
+      const commitResult = await transactionClient.query('COMMIT');
+      // If any statement inside the transaction failed (even if the error was caught), Postgres answers
+      // COMMIT with the tag ROLLBACK instead of throwing. Treat that as a failure - never report success
+      // for data that was not saved.
+      if (commitResult.command === 'ROLLBACK') {
+        throw new Error('Transaction was rolled back by the database; no changes were saved.');
+      }
       return transactionResult;
     } catch (transactionError) {
-      await transactionClient.query('ROLLBACK');
+      try {
+        await transactionClient.query('ROLLBACK');
+      } catch (rollbackError) {
+        // The connection is broken: keep the original error and make sure this client is thrown away.
+        discardClient = rollbackError as Error;
+        logger.error({ rollbackError }, 'ROLLBACK failed; discarding database connection');
+      }
       logger.error({ transactionError }, 'Transaction rolled back due to error');
       throw transactionError;
     } finally {
-      transactionClient.release();
+      transactionClient.release(discardClient);
     }
   }
 }

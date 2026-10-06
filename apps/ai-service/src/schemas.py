@@ -1,9 +1,20 @@
 from typing import Optional
-from pydantic import BaseModel, Field
+from uuid import UUID
+from pydantic import BaseModel, Field, field_validator
+
+
+def _require_text(value: str) -> str:
+    """Whitespace-only input would embed to a zero vector, so reject it up front."""
+    stripped = value.strip()
+    if not stripped:
+        raise ValueError("must not be empty or whitespace only")
+    return stripped
 
 
 class EmbeddingRequest(BaseModel):
     text: str = Field(..., min_length=1, description="Text string to embed")
+
+    _strip = field_validator("text")(_require_text)
 
 
 class EmbeddingResponse(BaseModel):
@@ -12,7 +23,7 @@ class EmbeddingResponse(BaseModel):
 
 
 class BatchEmbeddingRequest(BaseModel):
-    texts: list[str] = Field(..., min_length=1, description="List of strings to embed")
+    texts: list[str] = Field(..., min_length=1, max_length=100, description="List of strings to embed")
 
 
 class BatchEmbeddingResponse(BaseModel):
@@ -39,13 +50,15 @@ class ConversationMessage(BaseModel):
 
 class RAGQueryRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=4000)
-    organization_id: str = Field(..., description="Target organization UUID")
-    user_id: Optional[str] = Field(default=None, description="Requesting user UUID for access checks")
+    organization_id: UUID = Field(..., description="Target organization UUID")
+    user_id: Optional[UUID] = Field(default=None, description="Requesting user UUID for access checks")
     is_org_owner: bool = Field(default=False, description="True if caller is organization OWNER")
-    authorized_project_ids: list[str] = Field(default_factory=list, description="UUIDs of accessible projects")
-    conversation_history: list[ConversationMessage] = Field(default_factory=list)
-    similarity_threshold: Optional[float] = None
-    top_k: Optional[int] = None
+    authorized_project_ids: list[UUID] = Field(default_factory=list, max_length=500, description="UUIDs of accessible projects")
+    conversation_history: list[ConversationMessage] = Field(default_factory=list, max_length=50)
+    similarity_threshold: Optional[float] = Field(default=None, ge=-1.0, le=1.0)
+    top_k: Optional[int] = Field(default=None, ge=1, le=50)
+
+    _strip_question = field_validator("question")(_require_text)
 
 
 class RAGQueryResponse(BaseModel):
@@ -58,7 +71,9 @@ class RAGQueryResponse(BaseModel):
 class LLMChatRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
     system_prompt: Optional[str] = None
-    history: list[ConversationMessage] = Field(default_factory=list)
+    history: list[ConversationMessage] = Field(default_factory=list, max_length=50)
+
+    _strip_prompt = field_validator("prompt")(_require_text)
 
 
 class LLMChatResponse(BaseModel):

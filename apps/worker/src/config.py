@@ -14,15 +14,16 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = Field(..., description="PostgreSQL connection string")
-    DB_POOL_MIN: int = Field(default=2, description="Minimum pool connections")
+    DB_POOL_MIN: int = Field(default=1, description="Minimum pool connections")
     DB_POOL_MAX: int = Field(default=10, description="Maximum pool connections")
 
     # Logging
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
 
     # S3 / MinIO Storage
+    # Empty = real AWS S3. Set to e.g. http://localhost:9000 only when using MinIO.
     S3_ENDPOINT: str = Field(
-        default="http://localhost:9000",
+        default="",
         validation_alias=AliasChoices("S3_ENDPOINT", "S3_ENDPOINT_URL"),
         description="S3 / MinIO endpoint URL"
     )
@@ -37,7 +38,8 @@ class Settings(BaseSettings):
     )
 
     # RabbitMQ
-    RABBITMQ_URL: str = Field(..., description="RabbitMQ AMQP connection URL")
+    # Only used by the optional queue consumer (src.main); the API-spawned process_job does not need it.
+    RABBITMQ_URL: str = Field(default="", description="RabbitMQ AMQP connection URL")
     QUEUE_NAME: str = Field(default="document-processing")
 
     # Chunking defaults
@@ -78,8 +80,12 @@ class Settings(BaseSettings):
         description="Gemini embedding model (requested at EMBEDDING_DIMENSION dims)"
     )
     EMBEDDING_MAX_RETRIES: int = Field(
-        default=3,
+        default=6,
         description="Max retries for embedding requests"
+    )
+    EMBEDDING_BATCH_DELAY_SECONDS: float = Field(
+        default=0.5,
+        description="Pause between embedding batches to stay under provider rate limits"
     )
     EMBEDDING_TIMEOUT_SECONDS: float = Field(
         default=30.0,

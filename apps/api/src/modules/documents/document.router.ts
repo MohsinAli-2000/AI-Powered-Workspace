@@ -94,6 +94,18 @@ documentRouter.get(
 );
 
 /**
+ * Route: POST /api/v1/documents/:id/reprocess
+ * Description: Retry processing of a document whose status is FAILED
+ * Access: PROJECT_MANAGER or organization OWNER
+ */
+documentRouter.post(
+  '/:id/reprocess',
+  validateRequest(documentIdParamSchema),
+  requireDocumentManageAccess('id'),
+  documentController.reprocessDocumentHandler
+);
+
+/**
  * Route: PATCH /api/v1/documents/:id
  * Description: Update document metadata (name, description, access_mode)
  * Access: PROJECT_MANAGER or organization OWNER

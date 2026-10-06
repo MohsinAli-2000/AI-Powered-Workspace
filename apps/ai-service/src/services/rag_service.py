@@ -1,8 +1,10 @@
+import html
 import json
 import time
 from typing import AsyncIterator, List, Tuple
 from xml.sax.saxutils import quoteattr
 from src.config import settings
+from src.errors import ServiceError
 from src.logger import logger
 from src.db import search_authorized_chunks
 from src.providers import get_embedding_provider, get_llm_provider
@@ -43,7 +45,8 @@ class RAGService:
             # quoteattr escapes quotes/angle brackets so names cannot break out of the XML tag
             context_parts.append(
                 f'<context_document id="{idx + 1}" title={quoteattr(str(chunk["document_name"]))} project={quoteattr(str(chunk["project_name"]))}{page_info}>\n'
-                f'{chunk["content"]}\n'
+                # Escape angle brackets so document text cannot close the tag and smuggle in instructions.
+                f'{html.escape(chunk["content"], quote=False)}\n'
                 f'</context_document>'
             )
 
@@ -79,15 +82,15 @@ class RAGService:
             if request.similarity_threshold is not None
             else settings.rag_similarity_threshold
         )
-        top_k = request.top_k or settings.rag_top_k
+        top_k = request.top_k if request.top_k is not None else settings.rag_top_k
 
         retrieved_chunks = await search_authorized_chunks(
             query_vector=query_vector,
-            organization_id=request.organization_id,
-            authorized_project_ids=request.authorized_project_ids,
+            organization_id=str(request.organization_id),
+            authorized_project_ids=[str(p) for p in request.authorized_project_ids],
             threshold=threshold,
             top_k=top_k,
-            user_id=request.user_id,
+            user_id=str(request.user_id) if request.user_id else None,
             is_org_owner=request.is_org_owner,
         )
 
@@ -134,55 +137,59 @@ class RAGService:
     async def stream_query(self, request: RAGQueryRequest) -> AsyncIterator[str]:
         """
         Streams response tokens and ends with an SSE done event containing citations.
+        Headers are already sent once streaming starts, so every failure is reported as `event: error`.
         """
-        # 1. Embed query
-        embedding_provider = get_embedding_provider()
-        query_vector = await embedding_provider.embed_text(request.question)
-
-        # 2. Similarity search with authorization filters
-        threshold = (
-            request.similarity_threshold
-            if request.similarity_threshold is not None
-            else settings.rag_similarity_threshold
-        )
-        top_k = request.top_k or settings.rag_top_k
-
-        retrieved_chunks = await search_authorized_chunks(
-            query_vector=query_vector,
-            organization_id=request.organization_id,
-            authorized_project_ids=request.authorized_project_ids,
-            threshold=threshold,
-            top_k=top_k,
-            user_id=request.user_id,
-            is_org_owner=request.is_org_owner,
-        )
-
-        # 3. If insufficient information, stream message directly
-        if not retrieved_chunks:
-            payload = json.dumps({"token": INSUFFICIENT_INFO_MESSAGE})
-            yield f"event: token\ndata: {payload}\n\n"
-
-            done_payload = json.dumps({
-                "sources": [],
-                "insufficient_information": True,
-            })
-            yield f"event: done\ndata: {done_payload}\n\n"
-            return
-
-        # 4. Construct prompt
-        context_string, citations = self._build_context_and_citations(retrieved_chunks)
-        user_prompt = (
-            f"Here are the relevant document excerpts for context:\n\n"
-            f"{context_string}\n\n"
-            f"Question: {request.question}\n\n"
-            f"Answer:"
-        )
-
-        # 5. Stream LLM tokens
-        llm_provider = get_llm_provider()
-        history_dicts = [{"role": m.role, "content": m.content} for m in request.conversation_history]
+        def error_event(message: str) -> str:
+            return f"event: error\ndata: {json.dumps({'message': message})}\n\n"
 
         try:
+            # 1. Embed query
+            embedding_provider = get_embedding_provider()
+            query_vector = await embedding_provider.embed_text(request.question)
+
+            # 2. Similarity search with authorization filters
+            threshold = (
+                request.similarity_threshold
+                if request.similarity_threshold is not None
+                else settings.rag_similarity_threshold
+            )
+            top_k = request.top_k if request.top_k is not None else settings.rag_top_k
+
+            retrieved_chunks = await search_authorized_chunks(
+                query_vector=query_vector,
+                organization_id=str(request.organization_id),
+                authorized_project_ids=[str(p) for p in request.authorized_project_ids],
+                threshold=threshold,
+                top_k=top_k,
+                user_id=str(request.user_id) if request.user_id else None,
+                is_org_owner=request.is_org_owner,
+            )
+
+            # 3. If insufficient information, stream message directly
+            if not retrieved_chunks:
+                payload = json.dumps({"token": INSUFFICIENT_INFO_MESSAGE})
+                yield f"event: token\ndata: {payload}\n\n"
+
+                done_payload = json.dumps({
+                    "sources": [],
+                    "insufficient_information": True,
+                })
+                yield f"event: done\ndata: {done_payload}\n\n"
+                return
+
+            # 4. Construct prompt
+            context_string, citations = self._build_context_and_citations(retrieved_chunks)
+            user_prompt = (
+                f"Here are the relevant document excerpts for context:\n\n"
+                f"{context_string}\n\n"
+                f"Question: {request.question}\n\n"
+                f"Answer:"
+            )
+
+            # 5. Stream LLM tokens
+            llm_provider = get_llm_provider()
+            history_dicts = [{"role": m.role, "content": m.content} for m in request.conversation_history]
+
             async for token in llm_provider.generate_stream(
                 prompt=user_prompt,
                 system_prompt=SYSTEM_PROMPT,
@@ -190,18 +197,19 @@ class RAGService:
             ):
                 payload = json.dumps({"token": token})
                 yield f"event: token\ndata: {payload}\n\n"
-        except Exception as exc:
-            logger.error(f"LLM streaming failed: {exc}")
-            err_payload = json.dumps({"message": "The AI model failed while generating the answer. Please try again."})
-            yield f"event: error\ndata: {err_payload}\n\n"
-            return
 
-        # 6. Stream final done event with full citation provenance
-        done_payload = json.dumps({
-            "sources": [c.model_dump() for c in citations],
-            "insufficient_information": False,
-        })
-        yield f"event: done\ndata: {done_payload}\n\n"
+            # 6. Stream final done event with full citation provenance
+            done_payload = json.dumps({
+                "sources": [c.model_dump() for c in citations],
+                "insufficient_information": False,
+            })
+            yield f"event: done\ndata: {done_payload}\n\n"
+        except ServiceError as exc:
+            logger.error(f"RAG stream failed: {exc.message}")
+            yield error_event(exc.message)
+        except Exception as exc:
+            logger.error(f"RAG stream failed: {exc!r}", exc_info=True)
+            yield error_event("The AI model failed while generating the answer. Please try again.")
 
 
 rag_service = RAGService()
