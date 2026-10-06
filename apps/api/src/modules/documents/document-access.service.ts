@@ -32,6 +32,7 @@ import type {
 } from './document-access.entity.js';
 import type { OrganizationRole } from '../organizations/organization.entity.js';
 import type { ProjectRole } from '../projects/project.entity.js';
+import { auditService, type AuditService } from '../audit/audit.service.js';
 import {
   NotFoundError,
   ForbiddenError,
@@ -45,7 +46,8 @@ export class DocumentAccessService {
     private readonly accessRepo: DocumentAccessRepository = documentAccessRepository,
     private readonly orgMembershipRepo: OrganizationMembershipRepository = organizationMembershipRepository,
     private readonly projectMembershipRepo: ProjectMembershipRepository = projectMembershipRepository,
-    private readonly groupRepo: GroupRepository = groupRepository
+    private readonly groupRepo: GroupRepository = groupRepository,
+    private readonly audit: AuditService = auditService
   ) {}
 
   /**
@@ -102,6 +104,16 @@ export class DocumentAccessService {
       throw new NotFoundError('Document not found.');
     }
     logger.info({ documentId, accessMode, callerUserId }, 'Updated document access mode.');
+
+    await this.audit.record({
+      organizationId: updated.organization_id,
+      actorUserId: callerUserId,
+      action: 'document_access.mode_updated',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { accessMode },
+    });
+
     return updated;
   }
 
@@ -142,6 +154,16 @@ export class DocumentAccessService {
 
     const rule = await this.accessRepo.upsertUserAccess(documentId, targetUserId, effect);
     logger.info({ documentId, targetUserId, effect }, 'Set user document access rule.');
+
+    await this.audit.record({
+      organizationId: document.organization_id,
+      actorUserId: callerUserId,
+      action: 'document_access.user_rule_set',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { targetUserId, effect },
+    });
+
     return rule;
   }
 
@@ -159,6 +181,15 @@ export class DocumentAccessService {
       throw new NotFoundError('User access rule not found.');
     }
     logger.info({ documentId, targetUserId }, 'Removed user document access rule.');
+
+    await this.audit.record({
+      organizationId: (await this.documentRepo.findById(documentId))?.organization_id ?? '',
+      actorUserId: callerUserId,
+      action: 'document_access.user_rule_deleted',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { targetUserId },
+    });
   }
 
   /**
@@ -183,6 +214,16 @@ export class DocumentAccessService {
 
     const rule = await this.accessRepo.upsertGroupAccess(documentId, targetGroupId, effect);
     logger.info({ documentId, targetGroupId, effect }, 'Set group document access rule.');
+
+    await this.audit.record({
+      organizationId: document.organization_id,
+      actorUserId: callerUserId,
+      action: 'document_access.group_rule_set',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { targetGroupId, effect },
+    });
+
     return rule;
   }
 
@@ -194,12 +235,21 @@ export class DocumentAccessService {
     callerUserId: string,
     targetGroupId: string
   ): Promise<void> {
-    await this.getDocumentAndVerifyManager(documentId, callerUserId);
+    const document = await this.getDocumentAndVerifyManager(documentId, callerUserId);
     const removed = await this.accessRepo.removeGroupAccess(documentId, targetGroupId);
     if (!removed) {
       throw new NotFoundError('Group access rule not found.');
     }
     logger.info({ documentId, targetGroupId }, 'Removed group document access rule.');
+
+    await this.audit.record({
+      organizationId: document.organization_id,
+      actorUserId: callerUserId,
+      action: 'document_access.group_rule_deleted',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { targetGroupId },
+    });
   }
 
   /**
@@ -211,9 +261,19 @@ export class DocumentAccessService {
     role: OrganizationRole,
     effect: DocumentEffect
   ): Promise<DocumentOrgRoleAccess> {
-    await this.getDocumentAndVerifyManager(documentId, callerUserId);
+    const document = await this.getDocumentAndVerifyManager(documentId, callerUserId);
     const rule = await this.accessRepo.upsertOrgRoleAccess(documentId, role, effect);
     logger.info({ documentId, role, effect }, 'Set org role document access rule.');
+
+    await this.audit.record({
+      organizationId: document.organization_id,
+      actorUserId: callerUserId,
+      action: 'document_access.org_role_rule_set',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { role, effect },
+    });
+
     return rule;
   }
 
@@ -225,12 +285,21 @@ export class DocumentAccessService {
     callerUserId: string,
     role: OrganizationRole
   ): Promise<void> {
-    await this.getDocumentAndVerifyManager(documentId, callerUserId);
+    const document = await this.getDocumentAndVerifyManager(documentId, callerUserId);
     const removed = await this.accessRepo.removeOrgRoleAccess(documentId, role);
     if (!removed) {
       throw new NotFoundError('Organization role access rule not found.');
     }
     logger.info({ documentId, role }, 'Removed org role document access rule.');
+
+    await this.audit.record({
+      organizationId: document.organization_id,
+      actorUserId: callerUserId,
+      action: 'document_access.org_role_rule_deleted',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { role },
+    });
   }
 
   /**
@@ -242,9 +311,19 @@ export class DocumentAccessService {
     role: ProjectRole,
     effect: DocumentEffect
   ): Promise<DocumentProjectRoleAccess> {
-    await this.getDocumentAndVerifyManager(documentId, callerUserId);
+    const document = await this.getDocumentAndVerifyManager(documentId, callerUserId);
     const rule = await this.accessRepo.upsertProjectRoleAccess(documentId, role, effect);
     logger.info({ documentId, role, effect }, 'Set project role document access rule.');
+
+    await this.audit.record({
+      organizationId: document.organization_id,
+      actorUserId: callerUserId,
+      action: 'document_access.project_role_rule_set',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { role, effect },
+    });
+
     return rule;
   }
 
@@ -256,12 +335,21 @@ export class DocumentAccessService {
     callerUserId: string,
     role: ProjectRole
   ): Promise<void> {
-    await this.getDocumentAndVerifyManager(documentId, callerUserId);
+    const document = await this.getDocumentAndVerifyManager(documentId, callerUserId);
     const removed = await this.accessRepo.removeProjectRoleAccess(documentId, role);
     if (!removed) {
       throw new NotFoundError('Project role access rule not found.');
     }
     logger.info({ documentId, role }, 'Removed project role document access rule.');
+
+    await this.audit.record({
+      organizationId: document.organization_id,
+      actorUserId: callerUserId,
+      action: 'document_access.project_role_rule_deleted',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { role },
+    });
   }
 
   /**

@@ -29,6 +29,7 @@ import type {
   UpdateGroupInput,
 } from './group.schema.js';
 import type { OrganizationRole } from '../organizations/organization.entity.js';
+import { auditService, type AuditService } from '../audit/audit.service.js';
 import {
   NotFoundError,
   ForbiddenError,
@@ -42,7 +43,8 @@ export class GroupService {
     private readonly groupMembershipRepo: GroupMembershipRepository = groupMembershipRepository,
     private readonly organizationRepo: OrganizationRepository = organizationRepository,
     private readonly organizationMembershipRepo: OrganizationMembershipRepository = organizationMembershipRepository,
-    private readonly userRepo: UserRepository = userRepository
+    private readonly userRepo: UserRepository = userRepository,
+    private readonly audit: AuditService = auditService
   ) {}
 
   /**
@@ -79,6 +81,15 @@ export class GroupService {
       name: input.name,
       description: input.description,
       created_by: creatorUserId,
+    });
+
+    await this.audit.record({
+      organizationId,
+      actorUserId: creatorUserId,
+      action: 'group.created',
+      resourceType: 'group',
+      resourceId: createdGroup.id,
+      metadata: { name: createdGroup.name },
     });
 
     return {
@@ -137,6 +148,14 @@ export class GroupService {
       throw new NotFoundError('Group not found.');
     }
 
+    await this.audit.record({
+      organizationId: group.organization_id,
+      action: 'group.updated',
+      resourceType: 'group',
+      resourceId: groupId,
+      metadata: { name: input.name },
+    });
+
     return updated;
   }
 
@@ -148,6 +167,14 @@ export class GroupService {
     if (!group) {
       throw new NotFoundError('Group not found.');
     }
+
+    await this.audit.record({
+      organizationId: group.organization_id,
+      action: 'group.deleted',
+      resourceType: 'group',
+      resourceId: groupId,
+      metadata: { name: group.name },
+    });
 
     await this.groupRepo.delete(groupId);
   }
@@ -203,11 +230,21 @@ export class GroupService {
       throw new ConflictError('User is already a member of this group.');
     }
 
-    return this.groupMembershipRepo.create({
+    const membership = await this.groupMembershipRepo.create({
       organization_id: group.organization_id,
       group_id: groupId,
       user_id: targetUserId,
     });
+
+    await this.audit.record({
+      organizationId: group.organization_id,
+      action: 'group_member.added',
+      resourceType: 'group',
+      resourceId: groupId,
+      metadata: { targetUserId },
+    });
+
+    return membership;
   }
 
   /**
@@ -243,6 +280,15 @@ export class GroupService {
     }
 
     await this.groupMembershipRepo.deleteByUserAndGroup(targetUserId, groupId);
+
+    await this.audit.record({
+      organizationId: group.organization_id,
+      actorUserId: requestingUserId,
+      action: 'group_member.removed',
+      resourceType: 'group',
+      resourceId: groupId,
+      metadata: { targetUserId },
+    });
   }
 }
 

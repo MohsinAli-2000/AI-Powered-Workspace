@@ -31,6 +31,7 @@ import type {
   UpdateProjectInput,
   AddProjectMemberInput,
 } from './project.schema.js';
+import { auditService, type AuditService } from '../audit/audit.service.js';
 import {
   NotFoundError,
   ForbiddenError,
@@ -44,7 +45,8 @@ export class ProjectService {
     private readonly projectMembershipRepo: ProjectMembershipRepository = projectMembershipRepository,
     private readonly organizationRepo: OrganizationRepository = organizationRepository,
     private readonly organizationMembershipRepo: OrganizationMembershipRepository = organizationMembershipRepository,
-    private readonly userRepo: UserRepository = userRepository
+    private readonly userRepo: UserRepository = userRepository,
+    private readonly audit: AuditService = auditService
   ) {}
 
   /**
@@ -88,6 +90,19 @@ export class ProjectService {
           project_id: createdProject.id,
           user_id: creatorUserId,
           role: 'PROJECT_MANAGER',
+        },
+        transactionClient
+      );
+
+      // 3. Record audit event
+      await this.audit.record(
+        {
+          organizationId,
+          actorUserId: creatorUserId,
+          action: 'project.created',
+          resourceType: 'project',
+          resourceId: createdProject.id,
+          metadata: { name: createdProject.name },
         },
         transactionClient
       );
@@ -183,6 +198,15 @@ export class ProjectService {
       throw new NotFoundError('Project not found or update failed.');
     }
 
+    await this.audit.record({
+      organizationId: project.organization_id,
+      actorUserId: actingUserId,
+      action: 'project.updated',
+      resourceType: 'project',
+      resourceId: projectId,
+      metadata: { name: input.name },
+    });
+
     return updatedProject;
   }
 
@@ -200,6 +224,15 @@ export class ProjectService {
     }
 
     await this.assertProjectManagementAuthority(project, actingUserId);
+
+    await this.audit.record({
+      organizationId: project.organization_id,
+      actorUserId: actingUserId,
+      action: 'project.deleted',
+      resourceType: 'project',
+      resourceId: projectId,
+      metadata: { name: project.name },
+    });
 
     await this.projectRepo.delete(projectId);
   }
@@ -256,6 +289,15 @@ export class ProjectService {
       project_id: projectId,
       user_id: input.userId,
       role: input.role,
+    });
+
+    await this.audit.record({
+      organizationId: project.organization_id,
+      actorUserId: actingUserId,
+      action: 'project_member.added',
+      resourceType: 'project',
+      resourceId: projectId,
+      metadata: { targetUserId: input.userId, role: input.role },
     });
 
     return {
@@ -321,6 +363,15 @@ export class ProjectService {
       throw new NotFoundError('Membership record not found.');
     }
 
+    await this.audit.record({
+      organizationId: project.organization_id,
+      actorUserId: actingUserId,
+      action: 'project_member.role_updated',
+      resourceType: 'project',
+      resourceId: projectId,
+      metadata: { targetUserId, previousRole: existingMembership.role, newRole },
+    });
+
     return updatedMembership;
   }
 
@@ -366,6 +417,15 @@ export class ProjectService {
     }
 
     await this.projectMembershipRepo.delete(projectId, targetUserId);
+
+    await this.audit.record({
+      organizationId: project.organization_id,
+      actorUserId: actingUserId,
+      action: 'project_member.removed',
+      resourceType: 'project',
+      resourceId: projectId,
+      metadata: { targetUserId, removedRole: existingMembership.role },
+    });
   }
 
   /**

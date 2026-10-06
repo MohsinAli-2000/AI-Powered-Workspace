@@ -29,6 +29,7 @@ import {
   organizationConversationsRouter,
   conversationRouter,
 } from './modules/conversations/conversation.router.js';
+import { organizationAuditRouter } from './modules/audit/audit.router.js';
 
 const app: Application = express();
 
@@ -49,6 +50,7 @@ app.use(`${env.API_PREFIX}/organizations`, invitationOrgRouter);
 app.use(`${env.API_PREFIX}/organizations`, organizationProjectsRouter);
 app.use(`${env.API_PREFIX}/organizations`, organizationGroupsRouter);
 app.use(`${env.API_PREFIX}/organizations`, organizationConversationsRouter);
+app.use(`${env.API_PREFIX}/organizations`, organizationAuditRouter);
 app.use(`${env.API_PREFIX}/invitations`, invitationPublicRouter);
 app.use(`${env.API_PREFIX}/projects`, projectRouter);
 app.use(`${env.API_PREFIX}/projects`, projectDocumentsRouter);

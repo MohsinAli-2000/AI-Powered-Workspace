@@ -30,6 +30,7 @@ import type {
   UploadDocumentInput,
   UpdateDocumentInput,
 } from './document.schema.js';
+import { auditService, type AuditService } from '../audit/audit.service.js';
 import {
   NotFoundError,
   ConflictError,
@@ -43,7 +44,8 @@ export class DocumentService {
     private readonly documentVersionRepo: DocumentVersionRepository = documentVersionRepository,
     private readonly projectRepo: ProjectRepository = projectRepository,
     private readonly storage: StorageService = storageService,
-    private readonly queue: QueueService = queueService
+    private readonly queue: QueueService = queueService,
+    private readonly audit: AuditService = auditService
   ) {}
 
   /**
@@ -146,6 +148,20 @@ export class DocumentService {
         storage_key: storageKey,
         mime_type: file.mimetype,
         original_filename: file.originalname,
+      });
+
+      await this.audit.record({
+        organizationId: project.organization_id,
+        actorUserId: uploaderUserId,
+        action: 'document.uploaded',
+        resourceType: 'document',
+        resourceId: result.id,
+        metadata: {
+          name: result.name,
+          projectId,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+        },
       });
 
       return result;
@@ -278,6 +294,14 @@ export class DocumentService {
       throw new NotFoundError('Document not found.');
     }
 
+    await this.audit.record({
+      organizationId: existing.organization_id,
+      action: 'document.updated',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { name: input.name, accessMode: input.access_mode },
+    });
+
     return this.getDocument(documentId);
   }
 
@@ -296,6 +320,14 @@ export class DocumentService {
 
     // Delete database record (foreign key ON DELETE CASCADE removes versions & chunks)
     await this.documentRepo.delete(documentId);
+
+    await this.audit.record({
+      organizationId: document.organization_id,
+      action: 'document.deleted',
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { name: document.name, projectId: document.project_id },
+    });
 
     // Clean up objects in storage
     await Promise.all(

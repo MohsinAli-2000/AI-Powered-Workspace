@@ -17,6 +17,7 @@ import type {
   UpdateOrganizationInput,
   TransferOwnershipInput,
 } from './organization.entity.js';
+import { auditService, type AuditService } from '../audit/audit.service.js';
 import {
   BadRequestError,
   ForbiddenError,
@@ -27,7 +28,8 @@ export class OrganizationService {
   constructor(
     private readonly organizationRepo: OrganizationRepository = organizationRepository,
     private readonly membershipRepo: OrganizationMembershipRepository = organizationMembershipRepository,
-    private readonly userRepo: UserRepository = userRepository
+    private readonly userRepo: UserRepository = userRepository,
+    private readonly audit: AuditService = auditService
   ) {}
 
   /**
@@ -56,6 +58,19 @@ export class OrganizationService {
           organization_id: newlyCreatedOrg.id,
           user_id: creatorUserId,
           role: 'OWNER',
+        },
+        transactionClient
+      );
+
+      // 3. Record audit event
+      await this.audit.record(
+        {
+          organizationId: newlyCreatedOrg.id,
+          actorUserId: creatorUserId,
+          action: 'organization.created',
+          resourceType: 'organization',
+          resourceId: newlyCreatedOrg.id,
+          metadata: { name: newlyCreatedOrg.name },
         },
         transactionClient
       );
@@ -140,6 +155,15 @@ export class OrganizationService {
       throw new NotFoundError('Organization not found.');
     }
 
+    await this.audit.record({
+      organizationId,
+      actorUserId: userId,
+      action: 'organization.updated',
+      resourceType: 'organization',
+      resourceId: organizationId,
+      metadata: { newName: input.name },
+    });
+
     return updatedOrg;
   }
 
@@ -195,6 +219,19 @@ export class OrganizationService {
         transactionClient
       );
 
+      // 3. Record audit event
+      await this.audit.record(
+        {
+          organizationId,
+          actorUserId: currentOwnerId,
+          action: 'organization.ownership_transferred',
+          resourceType: 'organization',
+          resourceId: organizationId,
+          metadata: { previousOwnerId: currentOwnerId, newOwnerId: input.newOwnerUserId },
+        },
+        transactionClient
+      );
+
       const organization = await this.organizationRepo.findById(
         organizationId,
         transactionClient
@@ -234,6 +271,15 @@ export class OrganizationService {
     if (!organization) {
       throw new NotFoundError('Organization not found.');
     }
+
+    await this.audit.record({
+      organizationId,
+      actorUserId: userId,
+      action: 'organization.deleted',
+      resourceType: 'organization',
+      resourceId: organizationId,
+      metadata: { name: organization.name },
+    });
 
     await this.organizationRepo.deleteById(organizationId);
   }
@@ -298,6 +344,15 @@ export class OrganizationService {
 
     // DEC-019: Only remove membership — do NOT delete the user account
     await this.membershipRepo.deleteByUserAndOrg(targetUserId, organizationId);
+
+    await this.audit.record({
+      organizationId,
+      actorUserId: actingUserId,
+      action: 'member.removed',
+      resourceType: 'member',
+      resourceId: targetUserId,
+      metadata: { removedRole: targetMembership.role },
+    });
   }
 
   /**
@@ -373,6 +428,15 @@ export class OrganizationService {
 
     // Update the role
     await this.membershipRepo.updateRole(targetMembership.id, newRole);
+
+    await this.audit.record({
+      organizationId,
+      actorUserId: actingUserId,
+      action: 'member.role_updated',
+      resourceType: 'member',
+      resourceId: targetUserId,
+      metadata: { previousRole: targetMembership.role, newRole },
+    });
 
     // Return the updated member detail by fetching the user info
     const targetUser = await this.userRepo.findById(targetUserId);

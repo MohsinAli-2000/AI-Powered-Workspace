@@ -24,6 +24,7 @@ import type {
   CreateInvitationInput,
 } from './invitation.entity.js';
 import type { OrganizationMembership } from '../organizations/organization.entity.js';
+import { auditService, type AuditService } from '../audit/audit.service.js';
 import {
   BadRequestError,
   ConflictError,
@@ -40,7 +41,8 @@ export class InvitationService {
     private readonly organizationRepo: OrganizationRepository = organizationRepository,
     private readonly membershipRepo: OrganizationMembershipRepository = organizationMembershipRepository,
     private readonly userRepo: UserRepository = userRepository,
-    private readonly mailer: EmailService = emailService
+    private readonly mailer: EmailService = emailService,
+    private readonly audit: AuditService = auditService
   ) {}
 
   /**
@@ -147,6 +149,15 @@ export class InvitationService {
       invitationToken: rawInvitationToken,
     });
 
+    await this.audit.record({
+      organizationId,
+      actorUserId: inviterId,
+      action: 'member.invited',
+      resourceType: 'invitation',
+      resourceId: createdInvitation.id,
+      metadata: { email: input.email, role: input.role },
+    });
+
     const result = updatedInvitation ?? createdInvitation;
     return {
       ...result,
@@ -200,6 +211,14 @@ export class InvitationService {
     if (!revokedInvitation) {
       throw new NotFoundError('Invitation not found.');
     }
+
+    await this.audit.record({
+      organizationId,
+      action: 'invitation.revoked',
+      resourceType: 'invitation',
+      resourceId: invitationId,
+      metadata: { email: invitation.email, role: invitation.role },
+    });
 
     return revokedInvitation;
   }
@@ -266,6 +285,19 @@ export class InvitationService {
           organization_id: invitation.organization_id,
           user_id: authenticatedUserId,
           role: invitation.role,
+        },
+        transactionClient
+      );
+
+      // 3. Record audit event
+      await this.audit.record(
+        {
+          organizationId: invitation.organization_id,
+          actorUserId: authenticatedUserId,
+          action: 'member.joined',
+          resourceType: 'member',
+          resourceId: authenticatedUserId,
+          metadata: { role: invitation.role, invitationId: invitation.id },
         },
         transactionClient
       );

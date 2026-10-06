@@ -7,17 +7,19 @@
 
 ## Current Phase
 
-**Phase: Phase 15 Completed & RAG Pipeline Stabilized → Ready for Phase 16 (Audit Logging)**
+**Phase: Phase 16 Completed (Audit Logging) → Ready for Phase 17 (Deployment & Dockerization)**
 
-Phase 15 (Next.js Frontend) has been fully implemented in `apps/web`, providing a production-grade web application featuring modern dark-slate aesthetics, JWT token rotation with an automatic refresh mutex queue, full tenant and project context isolation, document management with real-time status polling, granular 6-step access rule configuration with `DENY` precedence, and a grounded conversational AI assistant with interactive source citation drawers.
+Phase 16 (Audit Logging) has been fully implemented across the stack:
+- **Backend Data Layer & Service (`apps/api/src/modules/audit/`)**:
+  - `AuditRepository`: Append-only, organization-scoped queries with joined actor details (`users` join), dynamic filtering (`action`, `resource_type`, `actor_user_id`, `search`, date ranges), and pagination.
+  - `AuditService`: Safe, non-fatal event dispatch (`auditService.record(...)`) protecting transactional integrity.
+  - `AuditController` & `organizationAuditRouter`: Protected endpoints (`GET /organizations/:id/audit-logs` and `/filters`), strictly restricted to `OWNER` and `ADMIN` roles.
+- **Instrumented Mutations**: Major mutations across organizations, members, invitations, projects, groups, documents, and granular access rules now automatically record immutable audit events.
+- **Frontend Audit Log Viewer (`apps/web/src/app/(dashboard)/settings/audit-logs/`)**:
+  - Modern dark-slate viewer with search bar, action & resource filters, pagination controls, real-time reload, and an interactive metadata JSON modal.
+  - Integrated into the organization sidebar with role-based restriction guards.
 
-In addition, the local RAG pipeline has been fully synchronized and stabilized:
-- **AI provider switched to the Gemini API** (`AI_PROVIDER=gemini`: `gemini-embedding-001` @ 768-dim + `gemini-3.8-flash`) to avoid local model cost; Ollama/mock providers remain selectable. Existing chunks must be re-embedded after switching (see DEC-030).
-- Previously standardized on **`nomic-embed-text`** (768-dimensional L2-normalized vectors with HNSW index) and **`qwen2.5:1.5b`** for responsive local CPU inference.
-- Re-embedded all active document chunks in PostgreSQL with real embeddings to prevent vector mismatch.
-- Added graceful fallback and a 90-second timeout with `num_predict: 512` in `conversation.service.ts` to ensure users always receive grounded answers with citations even during model prefill.
-
-The immediate next implementation phase is **Phase 16 — Audit Logging**.
+The immediate next implementation phase is **Phase 17 — Deployment & Dockerization**.
 
 
 ---
@@ -307,26 +309,34 @@ The following have been decided, designed, and documented / implemented:
    - Interactive off-canvas Source Citation Drawer (`SourceCitationDrawer`) displaying document title, chunk index, page number, confidence meter, and exact grounded chunk text excerpt (`FR-AI-006`).
  - [x] Production build validation: `npm run build` generates all 15 static/dynamic routes with zero TypeScript or Turbopack errors.
 
+### Phase 16 — Audit Logging (Completed)
+- [x] Immutable PostgreSQL append-only data layer (`apps/api/src/modules/audit/audit.repository.ts`)
+- [x] Non-fatal, transaction-safe audit recording service (`apps/api/src/modules/audit/audit.service.ts`)
+- [x] Instrument all major system mutations:
+  - Organization create, update, ownership transfer, delete
+  - Member invite, join, remove, role update, invitation revoke
+  - Project create, update, delete, member add/update/remove
+  - Group create, update, delete, member add/remove
+  - Document upload, update, delete, granular access rule mutations
+- [x] Protected audit log read endpoints (`GET /api/v1/organizations/:id/audit-logs`, `/filters`) restricted to OWNER and ADMIN
+- [x] Frontend Audit Log viewer page (`apps/web/src/app/(dashboard)/settings/audit-logs/page.tsx`) with search, filter dropdowns, pagination, and JSON inspector modal
+
 ---
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 15 completed. Ready to initiate Phase 16 (Audit Logging).
+Nothing currently in active implementation. Phase 16 completed. Ready to initiate Phase 17 (Deployment & Dockerization).
 
 ---
 
 ## ⏭️ Next — Immediate Implementation Phase
 
-### Phase 16 — Audit Logging
-- Audit log writes for all major operations (auth, org, member, project, document, and access rule mutations)
-- Audit log read API (scoped to OWNER and ADMIN roles)
-- Audit log frontend viewer with search, filtering, and timestamp pagination
-
-### Phase 17 — Deployment
+### Phase 17 — Deployment & Dockerization
 - Docker Compose (full local dev stack)
-- Dockerfile per service
+- Dockerfile per service (`apps/web`, `apps/api`, `apps/ai-service`, `apps/worker`)
+- Environment orchestration and healthcheck definitions
 - CI/CD pipeline (GitHub Actions)
-- Production deployment (TBD provider)
+- Production deployment configuration
 
 ### Phase 18 — Testing
 - Unit tests (backend business logic)

@@ -230,3 +230,36 @@ export interface Message {
   created_at: string;
   sources?: MessageSource[];
 }
+
+// ---------------------------------------------------------------------------
+// 7. Audit Log Types (Phase 16)
+// ---------------------------------------------------------------------------
+export interface AuditActor {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface AuditLog {
+  id: string;
+  organization_id: string;
+  actor_user_id: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  actor?: AuditActor | null;
+}
+
+export interface AuditPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface AuditLogFilterOptions {
+  actions: string[];
+  resourceTypes: string[];
+}

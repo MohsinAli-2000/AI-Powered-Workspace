@@ -13,6 +13,7 @@ import {
   FolderGit2,
   Mail,
   UsersRound,
+  ScrollText,
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -60,6 +61,11 @@ export const Sidebar: React.FC = () => {
       label: 'Invitations',
       href: '/settings/invitations',
       icon: Mail,
+    },
+    {
+      label: 'Audit Logs',
+      href: '/settings/audit-logs',
+      icon: ScrollText,
     },
   ];
 
