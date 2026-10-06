@@ -17,8 +17,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
+import { Notice } from '@/components/ui/notice';
 import {
-  ShieldAlert,
   Trash2,
   Plus,
   Lock,
@@ -237,6 +237,24 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
 
   const isRestricted = summary?.access_mode === 'RESTRICTED';
 
+  // Plain-language list of who is allowed / blocked, so the effect of the rules is visible at a glance.
+  const describeRules = (effect: DocumentEffect): string[] => [
+    ...(summary?.user_rules ?? [])
+      .filter((r) => r.effect === effect)
+      .map((r) => r.user?.full_name || r.user?.email || 'a person'),
+    ...(summary?.group_rules ?? [])
+      .filter((r) => r.effect === effect)
+      .map((r) => `group "${r.group?.name ?? 'unknown'}"`),
+    ...(summary?.org_role_rules ?? [])
+      .filter((r) => r.effect === effect)
+      .map((r) => `everyone with the organization role ${r.role}`),
+    ...(summary?.project_role_rules ?? [])
+      .filter((r) => r.effect === effect)
+      .map((r) => `everyone with the project role ${r.role.replace('PROJECT_', '')}`),
+  ];
+  const allowedList = describeRules('ALLOW');
+  const blockedList = describeRules('DENY');
+
   return (
     <Modal
       isOpen={!!documentItem}
@@ -246,8 +264,10 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
       maxWidth="xl"
     >
       <div className="space-y-6">
+        <p className="text-xs font-semibold text-slate-200 -mb-3">Step 1 — Who should be able to see this document?</p>
+
         {/* Mode Selector */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => handleToggleMode('PROJECT')}
@@ -293,18 +313,47 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
           </button>
         </div>
 
-        {/* DENY Precedence Banner */}
-        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-start gap-2.5">
-          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-          <div className="text-[11px] leading-relaxed">
-            <strong>Strict Invariant (DENY Precedence):</strong> If any applicable user, group, or role rule evaluates to <strong className="text-rose-400">DENY</strong>, access is immediately blocked at the database engine level, overriding any ALLOW rules.
-          </div>
-        </div>
+        {/* What the current setting means in practice */}
+        {!isLoading && summary && (
+          isRestricted ? (
+            allowedList.length === 0 ? (
+              <Notice variant="warning" title="Right now nobody can open this document">
+                It is restricted but no one has been allowed yet, so only the organization Owner can see it. Add an{' '}
+                <strong>ALLOW</strong> rule below for the people, groups or roles who should have access.
+              </Notice>
+            ) : (
+              <Notice variant="info" title="Who can see it right now">
+                <p>
+                  <strong className="text-emerald-300">Allowed:</strong> {allowedList.join(', ')}.
+                </p>
+                {blockedList.length > 0 && (
+                  <p className="mt-1">
+                    <strong className="text-rose-300">Blocked (overrides allow):</strong> {blockedList.join(', ')}.
+                  </p>
+                )}
+                <p className="mt-1 text-slate-400">
+                  Everyone else is blocked. The organization Owner can always see it. People must also be members of this
+                  project.
+                </p>
+              </Notice>
+            )
+          ) : (
+            <Notice variant="success" title="Visible to the whole project">
+              Everyone who is a member of this project can view, download and chat with this document.
+            </Notice>
+          )
+        )}
 
         {!isRestricted && !isLoading && (
           <p className="text-[11px] text-slate-400 leading-relaxed">
             Want to limit this document to specific people, groups or roles? Switch to{' '}
             <strong className="text-slate-200">RESTRICTED</strong> mode above, then add the rules that should allow access.
+          </p>
+        )}
+
+        {isRestricted && (
+          <p className="text-xs font-semibold text-slate-200 -mb-3">
+            Step 2 — Choose who is allowed (or blocked). A DENY always beats an ALLOW.
           </p>
         )}
 

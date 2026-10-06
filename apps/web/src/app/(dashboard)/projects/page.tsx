@@ -12,6 +12,7 @@ import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { PageHeader } from '@/components/ui/page-header';
+import { YourAccessCard } from '@/components/access/your-access-card';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state';
 import { useToast } from '@/components/ui/toast';
 import { FolderKanban, Plus, ArrowRight, ShieldCheck, Trash2, Search, Users, Bot } from 'lucide-react';
@@ -136,6 +137,7 @@ export default function ProjectsPage() {
       ) : loadError ? (
         <ErrorState title="Couldn't load projects" message={loadError} onRetry={() => void loadProjects()} />
       ) : projects.length === 0 ? (
+        <div className="space-y-6">
         <EmptyState
           icon={<FolderKanban className="w-12 h-12" />}
           title={isOrgAdminOrOwner ? 'No projects yet' : "You're not in any project yet"}
@@ -150,6 +152,9 @@ export default function ProjectsPage() {
             </Button>
           }
         />
+        {/* People without project access need to know who can add them */}
+        {activeOrg?.role !== 'OWNER' && <YourAccessCard showWhoToAsk />}
+        </div>
       ) : (
         <>
           {projects.length > 3 && (

@@ -11,6 +11,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ErrorState } from '@/components/ui/state';
+import { YourAccessCard } from '@/components/access/your-access-card';
 import {
   FolderKanban,
   FileText,
@@ -145,6 +146,11 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Role + what it allows; names who can add you when you have no project yet */}
+      {!isLoading && !error && (
+        <YourAccessCard showWhoToAsk={projects.length === 0 && activeOrg?.role !== 'OWNER'} />
+      )}
 
       {error && <ErrorState title="Couldn't load your dashboard" message={error} onRetry={() => void fetchData(() => false)} />}
 

@@ -18,6 +18,7 @@ import { Select } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { PageHeader } from '@/components/ui/page-header';
+import { Notice } from '@/components/ui/notice';
 import { ErrorState, LoadingState } from '@/components/ui/state';
 import { useToast } from '@/components/ui/toast';
 import {
@@ -86,6 +87,13 @@ export default function ProjectDetailsPage({
 
   const canManage = projectRole === 'PROJECT_MANAGER' || isOrgOwner;
   const canUpload = Boolean(projectRole || isOrgOwner);
+
+  // People who can grant access to this project (used in "ask X" hints)
+  const managers = useMemo(
+    () => members.filter((m) => m.role === 'PROJECT_MANAGER').map((m) => m.user?.full_name || m.user?.email),
+    [members]
+  );
+  const managerHint = managers.length > 0 ? `Ask ${managers.join(' or ')}.` : 'Ask the organization owner.';
 
   // Org members that aren't in the project yet
   const addableMembers = useMemo(() => {
@@ -347,6 +355,19 @@ export default function ProjectDetailsPage({
         }
       />
 
+      {/* Plain-language statement of what this person can do here, and why anything is locked */}
+      {canManage ? (
+        <Notice variant="info" title={isOrgOwner && !projectRole ? 'You see this project as the organization Owner' : 'You manage this project'}>
+          You can upload documents, add or remove people, and restrict who sees each document (shield icon). People must
+          already be in the organization — invite new colleagues from <Link href="/settings/members" className="underline hover:text-white">Members</Link> first.
+        </Notice>
+      ) : (
+        <Notice variant="lock" title="You are a Project Member">
+          You can upload documents and chat with the ones you are allowed to see. Adding people, changing who can see a
+          document, renaming and deleting are for project managers. {managerHint}
+        </Notice>
+      )}
+
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-white/5 pb-2 overflow-x-auto" role="tablist">
         <button
@@ -390,9 +411,9 @@ export default function ProjectDetailsPage({
               onUploadSuccess={loadProjectData}
             />
           ) : (
-            <p className="text-xs text-slate-400">
-              You can view documents here but don&apos;t have permission to upload to this project.
-            </p>
+            <Notice variant="lock" title="Uploading is not available to you">
+              Only members of this project can upload documents. {managerHint}
+            </Notice>
           )}
 
           <div className="flex items-center justify-between gap-3">
@@ -406,6 +427,12 @@ export default function ProjectDetailsPage({
               Refresh
             </Button>
           </div>
+
+          {!canManage && documents.length > 0 && (
+            <p className="text-[11px] text-slate-500">
+              Renaming, deleting, retrying and access settings are for project managers.
+            </p>
+          )}
 
           {/* Document Table */}
           <DocumentTable
@@ -440,6 +467,11 @@ export default function ProjectDetailsPage({
             </div>
           </CardHeader>
           <CardContent>
+            {!canManage && (
+              <Notice variant="lock" className="mb-4" title="Only project managers can change who is in this project">
+                {managerHint}
+              </Notice>
+            )}
             {members.length === 0 ? (
               <p className="py-6 text-center text-xs text-slate-400">No members to show.</p>
             ) : (
@@ -508,8 +540,8 @@ export default function ProjectDetailsPage({
             disabled={isLoadingOrgMembers}
             helperText={
               !isLoadingOrgMembers && addableMembers.length === 0
-                ? 'Everyone in your organization is already in this project. Invite more people from Members.'
-                : undefined
+                ? 'Everyone in your organization is already in this project. To add someone new, an organization Owner or Admin must first invite them (Settings → Members → Invite).'
+                : 'Only people who already belong to the organization are listed.'
             }
           >
             <option value="">{isLoadingOrgMembers ? 'Loading members…' : 'Select a person…'}</option>

@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { PageHeader } from '@/components/ui/page-header';
+import { Notice } from '@/components/ui/notice';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state';
 import { useToast } from '@/components/ui/toast';
 import { UsersRound, Plus, Trash2, UserPlus, X, Pencil } from 'lucide-react';
@@ -221,6 +222,17 @@ export default function GroupsPage() {
           ) : undefined
         }
       />
+
+      {!isPrivileged ? (
+        <Notice variant="lock" title="View only">
+          Groups are created and edited by Owners and Admins. You can see which groups exist and who is in them.
+        </Notice>
+      ) : (
+        <Notice variant="info" title="What groups are for">
+          Put people in a group once, then allow or deny the whole group on a document (project → shield icon on the
+          document → Group Rules). Group members still need to belong to the project.
+        </Notice>
+      )}
 
       {isLoading ? (
         <LoadingState message="Loading groups..." />

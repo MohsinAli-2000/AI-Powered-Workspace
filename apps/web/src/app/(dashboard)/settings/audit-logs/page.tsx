@@ -180,8 +180,8 @@ export default function AuditLogsPage() {
             </div>
             <CardTitle className="text-xl text-slate-100">Access Restricted</CardTitle>
             <CardDescription className="text-slate-400 max-w-md mx-auto mt-2">
-              Organization audit logs contain sensitive operational tracking and are restricted
-              exclusively to Organization <strong>OWNER</strong> and <strong>ADMIN</strong> roles.
+              The audit log records who did what in this organization, so it is limited to Organization{' '}
+              <strong>Owners</strong> and <strong>Admins</strong>. Ask one of them if you need something looked up.
             </CardDescription>
           </CardHeader>
         </Card>

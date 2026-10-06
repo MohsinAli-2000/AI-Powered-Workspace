@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { PageHeader } from '@/components/ui/page-header';
+import { Notice } from '@/components/ui/notice';
 import { useToast } from '@/components/ui/toast';
 import { Building2, ShieldAlert, Trash2, KeyRound, Copy, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -161,6 +162,17 @@ export default function OrganizationSettingsPage() {
         description="Manage general workspace settings and the organization lifecycle."
         badges={activeOrg.role ? <Badge variant="brand" size="sm">Your role: {activeOrg.role}</Badge> : undefined}
       />
+
+      {!isAdmin && (
+        <Notice variant="lock" title="View only">
+          Only Owners and Admins can change organization settings. Ask your organization Owner if something needs to change.
+        </Notice>
+      )}
+      {isAdmin && !isOwner && (
+        <Notice variant="info" title="Owner-only actions">
+          Transferring or deleting the organization (and removing members) can only be done by the Owner.
+        </Notice>
+      )}
 
       {/* General Settings */}
       <Card>

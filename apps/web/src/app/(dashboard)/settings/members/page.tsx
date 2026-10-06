@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
+import { Notice } from '@/components/ui/notice';
 import { ErrorState, LoadingState } from '@/components/ui/state';
 import { useToast } from '@/components/ui/toast';
 import { formatDate } from '@/lib/utils';
@@ -156,6 +157,20 @@ export default function MembersPage() {
           ) : undefined
         }
       />
+
+      {!isPrivileged && (
+        <Notice variant="lock" title="View only">
+          You can see who is in the organization. Only Owners and Admins can invite people or change roles — ask one of
+          the people marked OWNER or ADMIN below. Being in the organization does not give access to projects: a project
+          manager must add you to each project.
+        </Notice>
+      )}
+      {isPrivileged && (
+        <Notice variant="info" title="After inviting someone">
+          New members can only see what they are added to. Open a project → <strong>Project Members</strong> → Add Member
+          to give them access to its documents.
+        </Notice>
+      )}
 
       <Card>
         <CardHeader>

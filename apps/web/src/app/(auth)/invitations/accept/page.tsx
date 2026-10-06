@@ -111,6 +111,12 @@ function AcceptInvitationContent() {
         <p className="text-xs text-slate-300">
           The invitation was accepted. The organization is now available in your workspace.
         </p>
+        <div className="text-left rounded-xl border border-white/10 bg-slate-900/60 p-3.5 text-xs text-slate-300 leading-relaxed">
+          <p className="font-semibold text-white mb-1">What happens next</p>
+          Joining gives you a place in the organization, but you only see the <strong>projects you are added to</strong>.
+          Ask the person who invited you (or a project manager) to add you to the project that holds the documents you
+          need. Your dashboard lists who can do that.
+        </div>
         <Button className="w-full" onClick={() => router.push('/dashboard')}>
           Go to Dashboard
         </Button>

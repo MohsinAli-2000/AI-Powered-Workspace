@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useOrgStore } from '@/stores/org.store';
 import { apiClient } from '@/lib/api-client';
 import { Invitation, OrganizationRole } from '@/types/api.types';
@@ -147,10 +148,14 @@ export default function InvitationsPage() {
       <div className="max-w-xl mx-auto mt-8">
         <Card className="text-center py-12 px-6 border-rose-500/20">
           <ShieldAlert className="w-10 h-10 text-rose-400 mx-auto mb-3" />
-          <h2 className="text-base font-semibold text-slate-100">Administrators only</h2>
+          <h2 className="text-base font-semibold text-slate-100">Owners and Admins only</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Only organization OWNERs and ADMINs can send and manage invitations.
+            Inviting people to the organization is limited to Owners and Admins. Ask one of them to invite your
+            colleague, then ask a project manager to add the new person to the right project.
           </p>
+          <Link href="/settings/members" className="inline-block mt-4 text-xs text-indigo-400 hover:text-indigo-300">
+            See who the Owners and Admins are
+          </Link>
         </Card>
       </div>
     );

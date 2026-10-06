@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth.store';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
-import { LogOut, User, Shield, ChevronDown } from 'lucide-react';
+import { LogOut, User, Shield, ChevronDown, HelpCircle } from 'lucide-react';
 
 export const UserMenu: React.FC = () => {
   const router = useRouter();
@@ -97,6 +97,18 @@ export const UserMenu: React.FC = () => {
               >
                 <User className="w-3.5 h-3.5 text-slate-400" />
                 <span>My Account</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsOpen(false);
+                  router.push('/help');
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors cursor-pointer"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
+                <span>Help &amp; Roles</span>
               </button>
             </div>
 

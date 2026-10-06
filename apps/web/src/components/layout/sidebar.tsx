@@ -16,6 +16,8 @@ import {
   UsersRound,
   ScrollText,
   X,
+  Lock,
+  HelpCircle,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -43,9 +45,31 @@ const ADMIN_ITEMS: NavItem[] = [
   { label: 'Organization Settings', href: '/settings/organization', icon: Settings, hint: 'Name, ownership, deletion' },
 ];
 
-const NavLink: React.FC<{ item: NavItem; pathname: string }> = ({ item, pathname }) => {
+const NavLink: React.FC<{ item: NavItem; pathname: string; locked?: boolean }> = ({
+  item,
+  pathname,
+  locked = false,
+}) => {
   const isActive = item.matchExact ? pathname === item.href : pathname.startsWith(item.href);
   const Icon = item.icon;
+
+  // Locked items stay visible so people know the feature exists and what role it needs; the page itself
+  // explains who to ask.
+  if (locked) {
+    return (
+      <Link
+        href={item.href}
+        title={`${item.label}: Owners and Admins only. ${item.hint}`}
+        className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium border border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-900/40 transition-all"
+      >
+        <Icon className="w-4 h-4 shrink-0 text-slate-600" />
+        <span className="truncate flex-1">{item.label}</span>
+        <span className="flex items-center gap-1 text-[10px] text-slate-500 shrink-0">
+          <Lock className="w-3 h-3" /> Admin
+        </span>
+      </Link>
+    );
+  }
 
   return (
     <Link
@@ -69,7 +93,6 @@ const SidebarContent: React.FC = () => {
   const { activeOrg, activeProject } = useOrgStore();
 
   const isAdmin = activeOrg?.role === 'OWNER' || activeOrg?.role === 'ADMIN';
-  const adminItems = ADMIN_ITEMS.filter((item) => !item.adminOnly || isAdmin);
 
   // "Active project" only means something while you are looking at that project.
   const projectMatch = pathname.match(/^\/projects\/([^/]+)/);
@@ -97,9 +120,17 @@ const SidebarContent: React.FC = () => {
         <div className="pt-6 px-3 pb-2 text-[11px] font-medium text-slate-400 uppercase tracking-wider">
           Team &amp; Administration
         </div>
-        {adminItems.map((item) => (
-          <NavLink key={item.href} item={item} pathname={pathname} />
+        {ADMIN_ITEMS.map((item) => (
+          <NavLink key={item.href} item={item} pathname={pathname} locked={Boolean(item.adminOnly) && !isAdmin} />
         ))}
+
+        <div className="pt-6 px-3 pb-2 text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+          Help
+        </div>
+        <NavLink
+          item={{ label: 'Help & Roles', href: '/help', icon: HelpCircle, hint: 'How it works and who can do what' }}
+          pathname={pathname}
+        />
       </nav>
 
       {/* Tenant indicator */}
