@@ -56,10 +56,18 @@ export const requireGroupAccess = (paramKey = 'id') => {
       );
 
       if (!orgMembership) {
+        const org = await organizationRepository.findById(targetGroup.organization_id);
+        if (org?.status === 'SUSPENDED') {
+          throw new ForbiddenError(
+            'This organization has been suspended by the platform administrator. Its data is preserved, but it cannot be used until it is reactivated.',
+            { code: 'ORGANIZATION_SUSPENDED' }
+          );
+        }
         throw new ForbiddenError(
           'You do not have access to the organization that owns this group.'
         );
       }
+
 
       // 3. Attach organization context if not already loaded
       if (!incomingRequest.activeOrganization) {

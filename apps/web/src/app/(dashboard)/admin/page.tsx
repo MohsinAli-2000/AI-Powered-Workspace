@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth.store';
+import { useOrgStore } from '@/stores/org.store';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { useToast } from '@/components/ui/toast';
 import { PageHeader } from '@/components/ui/page-header';
@@ -60,6 +61,7 @@ function formatDate(iso: string): string {
 export default function PlatformAdminPage() {
   const { user } = useAuthStore();
   const { showToast } = useToast();
+  const { organizations: userOrgs, setOrganizations: setUserOrgs, activeOrg, setActiveOrg } = useOrgStore();
 
   const [stats, setStats] = useState<AdminPlatformStats | null>(null);
   const [organizations, setOrganizations] = useState<AdminOrganizationSummary[]>([]);
@@ -84,7 +86,6 @@ export default function PlatformAdminPage() {
   // Delete modal state
   const [deletingOrg, setDeletingOrg] = useState<AdminOrganizationSummary | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-
 
   const fetchStats = useCallback(async () => {
     try {
@@ -147,6 +148,18 @@ export default function PlatformAdminPage() {
         body: JSON.stringify({ reason: suspensionReason.trim() || undefined }),
       });
       showToast(`Suspended access for "${suspendingOrg.name}"`, 'success');
+
+      // Keep user's active org store in sync if they belong to this org
+      if (userOrgs.some((o) => o.id === suspendingOrg.id)) {
+        setUserOrgs(
+          userOrgs.map((o) =>
+            o.id === suspendingOrg.id
+              ? { ...o, status: 'SUSPENDED', suspension_reason: suspensionReason.trim() || null }
+              : o
+          )
+        );
+      }
+
       setSuspendingOrg(null);
       setSuspensionReason('');
       fetchOrganizations(true);
@@ -167,6 +180,18 @@ export default function PlatformAdminPage() {
         method: 'POST',
       });
       showToast(`Reactivated access for "${reactivatingOrg.name}"`, 'success');
+
+      // Keep user's active org store in sync if they belong to this org
+      if (userOrgs.some((o) => o.id === reactivatingOrg.id)) {
+        setUserOrgs(
+          userOrgs.map((o) =>
+            o.id === reactivatingOrg.id
+              ? { ...o, status: 'ACTIVE', suspension_reason: null }
+              : o
+          )
+        );
+      }
+
       setReactivatingOrg(null);
       fetchOrganizations(true);
       fetchStats();
@@ -189,6 +214,16 @@ export default function PlatformAdminPage() {
         `Permanently deleted "${deletingOrg.name}" and purged all associated data`,
         'success'
       );
+
+      // Keep user's active org store in sync if they belong to this org
+      if (userOrgs.some((o) => o.id === deletingOrg.id)) {
+        const remaining = userOrgs.filter((o) => o.id !== deletingOrg.id);
+        setUserOrgs(remaining);
+        if (activeOrg?.id === deletingOrg.id) {
+          setActiveOrg(remaining[0] || null);
+        }
+      }
+
       setDeletingOrg(null);
       setDeleteConfirmText('');
       fetchOrganizations(true);
@@ -200,6 +235,7 @@ export default function PlatformAdminPage() {
       setIsSubmittingAction(false);
     }
   };
+
 
 
   // If user is not platform admin, guard the view

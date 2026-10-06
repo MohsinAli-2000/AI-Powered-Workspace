@@ -136,9 +136,12 @@ async def search_authorized_chunks(
       JOIN document_versions dv ON c.document_version_id = dv.id
       JOIN documents d ON dv.document_id = d.id
       JOIN projects p ON d.project_id = p.id
+      JOIN organizations org ON p.organization_id = org.id
       WHERE p.organization_id = $2
+        AND org.status = 'ACTIVE'
         AND dv.status = 'READY'
         AND dv.is_current = true
+
         AND c.embedding IS NOT NULL
         AND p.id = ANY($3::uuid[])
         AND (1 - (c.embedding <=> $1)) >= $4

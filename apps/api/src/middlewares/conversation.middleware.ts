@@ -53,6 +53,13 @@ export const requireConversationAccess = (paramKey = 'id') => {
       if (!org) {
         throw new NotFoundError('Parent organization not found.');
       }
+      if (org.status === 'SUSPENDED') {
+        throw new ForbiddenError(
+          'This organization has been suspended by the platform administrator. Its data is preserved, but it cannot be used until it is reactivated.',
+          { code: 'ORGANIZATION_SUSPENDED' }
+        );
+      }
+
 
       const membership = await organizationMembershipRepository.findByUserAndOrg(
         req.authenticatedUser.id,

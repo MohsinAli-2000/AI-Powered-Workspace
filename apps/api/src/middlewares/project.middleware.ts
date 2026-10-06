@@ -62,10 +62,18 @@ export const requireProjectAccess = (paramKey = 'id') => {
         );
 
       if (!orgMembership) {
+        const organization = await organizationRepository.findById(project.organization_id);
+        if (organization?.status === 'SUSPENDED') {
+          throw new ForbiddenError(
+            'This organization has been suspended by the platform administrator. Its data is preserved, but it cannot be used until it is reactivated.',
+            { code: 'ORGANIZATION_SUSPENDED' }
+          );
+        }
         throw new ForbiddenError(
           'You do not have access to the organization that owns this project.'
         );
       }
+
 
       // Also attach organization details if not already attached
       if (!incomingRequest.activeOrganization) {
