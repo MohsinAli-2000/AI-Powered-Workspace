@@ -523,7 +523,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
                   onChange={(e) => setRenameTitle(e.target.value)}
                   maxLength={255}
                   aria-label="Conversation title"
-                  className="bg-slate-900 border border-indigo-500 rounded px-2 py-0.5 text-xs text-white focus:outline-none"
+                  className="bg-slate-900 border border-indigo-500 rounded px-2 py-0.5 text-xs text-slate-100 focus:outline-none"
                   autoFocus
                 />
                 <button type="submit" className="p-1 text-emerald-400 hover:bg-emerald-500/10 rounded cursor-pointer" aria-label="Save title">

@@ -16,6 +16,10 @@ export class ApiError extends Error {
     this.details = details;
     Object.setPrototypeOf(this, ApiError.prototype);
   }
+
+  public get code(): string | undefined {
+    return (this.details as { code?: string } | undefined)?.code;
+  }
 }
 
 // ---------------------------------------------------------------------------

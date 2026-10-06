@@ -126,14 +126,18 @@ def ensure_vector_schema(dimension: Optional[int] = None) -> None:
 
 
 def get_document_version(version_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch document version details by ID."""
+    """Fetch document version details by ID, including the parent organization status."""
     with get_db_cursor(commit=False) as cur:
         cur.execute(
             """
-            SELECT id, document_id, version_number, storage_key,
-                   original_filename, mime_type, file_size, status
-            FROM document_versions
-            WHERE id = %s
+            SELECT dv.id, dv.document_id, dv.version_number, dv.storage_key,
+                   dv.original_filename, dv.mime_type, dv.file_size, dv.status,
+                   o.status AS org_status
+            FROM document_versions dv
+            LEFT JOIN documents d ON d.id = dv.document_id
+            LEFT JOIN projects p ON p.id = d.project_id
+            LEFT JOIN organizations o ON o.id = p.organization_id
+            WHERE dv.id = %s
             """,
             (version_id,)
         )

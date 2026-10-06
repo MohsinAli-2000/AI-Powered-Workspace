@@ -59,6 +59,13 @@ class DocumentProcessor:
         if not version:
             raise ValueError(f"Document version {version_id} not found in database.")
 
+        # Guard: do not burn embedding quota if the tenant is suspended
+        if version.get("org_status") == "SUSPENDED":
+            logger.warning(
+                f"Version {version_id} belongs to suspended organization; skipping processing."
+            )
+            return {"success": True, "version_id": version_id, "skipped": True}
+
         # 2. Claim it (QUEUED/FAILED/READY -> PROCESSING). A concurrent duplicate run must not interfere.
         if not claim_version_for_processing(version_id):
             logger.warning(f"Version {version_id} is already being processed by another run; skipping.")

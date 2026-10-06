@@ -73,7 +73,11 @@ class QueueConsumer:
 
             # Process document version
             result = processor.process_version(version_id)
-            logger.info(f"Successfully processed version {version_id}: {result['chunks_count']} chunks.")
+            if result.get("skipped"):
+                logger.info(f"Version {version_id} was already being processed; skipped duplicate.")
+            else:
+                chunks_count = result.get("chunks_count", 0)
+                logger.info(f"Successfully processed version {version_id}: {chunks_count} chunks.")
 
             # Acknowledge success
             ch.basic_ack(delivery_tag=delivery_tag)
