@@ -109,11 +109,15 @@ export const OrgSwitcher: React.FC = () => {
             <p className="text-xs font-semibold text-slate-100 truncate">
               {activeOrg ? activeOrg.name : 'Select Organization'}
             </p>
-            {activeOrg?.role && (
+            {activeOrg?.status === 'SUSPENDED' ? (
+              <span className="text-[9px] px-1 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 uppercase font-semibold">
+                Suspended
+              </span>
+            ) : activeOrg?.role ? (
               <p className="text-[10px] text-slate-400 font-mono tracking-wider uppercase">
                 {activeOrg.role}
               </p>
-            )}
+            ) : null}
           </div>
           <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
         </button>
@@ -150,11 +154,15 @@ export const OrgSwitcher: React.FC = () => {
                         <div className="flex items-center gap-2 truncate">
                           <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                           <span className="truncate">{org.name}</span>
-                          {org.role && (
+                          {org.status === 'SUSPENDED' ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                              Suspended
+                            </span>
+                          ) : org.role ? (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-slate-400 border border-white/10">
                               {org.role}
                             </span>
-                          )}
+                          ) : null}
                         </div>
                         {isSelected && <Check className="w-3.5 h-3.5 text-indigo-400 shrink-0" />}
                       </button>

@@ -86,6 +86,20 @@ export const UserMenu: React.FC = () => {
             </div>
 
             <div className="py-1">
+              {user.is_platform_admin && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsOpen(false);
+                    router.push('/admin');
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/10 hover:text-amber-200 rounded-lg transition-colors cursor-pointer border-b border-white/5 mb-1"
+                >
+                  <Shield className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Platform Admin</span>
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"

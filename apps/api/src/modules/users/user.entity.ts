@@ -4,6 +4,8 @@ export interface User {
   password_hash: string;
   name: string;
   email_verified_at: Date | null;
+  /** Product-owner flag, granted only via `npm run platform-admin`. Not an organization role. */
+  is_platform_admin: boolean;
   created_at: Date;
   updated_at: Date;
 }

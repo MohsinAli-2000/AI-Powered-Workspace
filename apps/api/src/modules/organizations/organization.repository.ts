@@ -1,5 +1,5 @@
 import { BaseRepository } from '../../db/base.repository.js';
-import { type PoolClient } from '../../db/pool.js';
+import { pool, type PoolClient } from '../../db/pool.js';
 import type { Organization, OrganizationWithRole } from './organization.entity.js';
 
 export class OrganizationRepository extends BaseRepository<Organization> {
@@ -50,10 +50,15 @@ export class OrganizationRepository extends BaseRepository<Organization> {
     userId: string,
     databaseClient?: PoolClient
   ): Promise<OrganizationWithRole[]> {
+    // Suspended organizations stay in the list (with status and reason) so members are told why they are
+    // locked out instead of the organization silently disappearing.
     const sqlQuery = `
       SELECT 
         o.id,
         o.name,
+        o.status,
+        o.suspended_at,
+        o.suspension_reason,
         o.created_at,
         o.updated_at,
         om.role AS user_role,
@@ -62,7 +67,7 @@ export class OrganizationRepository extends BaseRepository<Organization> {
       INNER JOIN organization_memberships om ON om.organization_id = o.id
       LEFT JOIN organization_memberships all_m ON all_m.organization_id = o.id
       WHERE om.user_id = $1
-      GROUP BY o.id, o.name, o.created_at, o.updated_at, om.role
+      GROUP BY o.id, om.role
       ORDER BY o.created_at DESC;
     `;
     return this.query<OrganizationWithRole>(sqlQuery, [userId], databaseClient);
@@ -87,6 +92,30 @@ export class OrganizationRepository extends BaseRepository<Organization> {
     );
     return countRow?.total_members ?? 0;
   }
+
+  /**
+   * Deletes an organization and allows authorized audit_logs cascade deletion.
+   */
+  public override async deleteById(
+    organizationId: string,
+    databaseClient?: PoolClient
+  ): Promise<boolean> {
+    const client = databaseClient ?? (await pool.connect());
+    const isNewClient = !databaseClient;
+    try {
+      if (isNewClient) await client.query('BEGIN');
+      await client.query("SET LOCAL app.allow_audit_log_purge = 'on';");
+      const result = await client.query('DELETE FROM organizations WHERE id = $1;', [organizationId]);
+      if (isNewClient) await client.query('COMMIT');
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      if (isNewClient) await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      if (isNewClient) client.release();
+    }
+  }
 }
 
 export const organizationRepository = new OrganizationRepository();
+

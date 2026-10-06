@@ -50,6 +50,13 @@ export const requireOrgMembership = (paramKey = 'id') => {
         throw new NotFoundError('Organization not found.');
       }
 
+      if (targetOrganization.status === 'SUSPENDED') {
+        throw new ForbiddenError(
+          'This organization has been suspended by the platform administrator. Its data is preserved, but it cannot be used until it is reactivated.',
+          { code: 'ORGANIZATION_SUSPENDED' }
+        );
+      }
+
       // Check if user is a member of this organization
       const userMembership = await organizationMembershipRepository.findByUserAndOrg(
         incomingRequest.authenticatedUser.id,

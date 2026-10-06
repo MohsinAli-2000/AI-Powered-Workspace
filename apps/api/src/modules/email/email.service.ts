@@ -23,6 +23,19 @@ export interface SendInvitationEmailInput {
   invitationToken: string;
 }
 
+export interface SendOrganizationSuspendedEmailInput {
+  recipientEmail: string;
+  recipientName: string;
+  organizationName: string;
+  reason: string;
+}
+
+export interface SendOrganizationDeletedEmailInput {
+  recipientEmail: string;
+  recipientName: string;
+  organizationName: string;
+}
+
 /** Escapes user-controlled text before it is placed into an HTML email body. */
 const escapeHtml = (value: string): string =>
   value
@@ -281,7 +294,98 @@ export class EmailService {
       text,
     });
   }
+
+  /**
+   * Sends an email notification to the organization owner when their organization is suspended.
+   */
+  public async sendOrganizationSuspendedEmail(
+    input: SendOrganizationSuspendedEmailInput
+  ): Promise<void> {
+    const subject = `Your organization "${input.organizationName}" has been suspended — AI Powered Workspace`;
+    const text = `Hello ${input.recipientName},\n\nYour organization "${input.organizationName}" has been suspended by the platform administrator.\n\nReason: ${input.reason}\n\nWhile suspended, you and your organization members will not be able to access organization projects, documents, or AI chat services. Your organization data has been preserved.\n\nIf you believe this was done in error or wish to resolve this issue, please contact platform support.\n\nAI Powered Workspace Team`;
+
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #0b0f19; color: #f8fafc; padding: 40px 24px; border-radius: 16px; border: 1px solid #1e293b;">
+        <div style="margin-bottom: 24px; text-align: center;">
+          <h1 style="color: #6366f1; font-size: 24px; font-weight: 700; margin: 0;">AI Powered Workspace</h1>
+        </div>
+        <div style="background: #111827; padding: 32px; border-radius: 12px; border: 1px solid #1e293b;">
+          <div style="display: inline-block; padding: 4px 12px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 9999px; color: #f87171; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px;">
+            Access Suspended
+          </div>
+          <h2 style="font-size: 18px; color: #ffffff; margin-top: 0;">Organization Access Suspended</h2>
+          <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">
+            Hello <strong>${escapeHtml(input.recipientName)}</strong>,
+          </p>
+          <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">
+            Your organization <strong>${escapeHtml(input.organizationName)}</strong> has been suspended by the platform administration.
+          </p>
+          <div style="background: #1e1b4b; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 12px; font-weight: 600; color: #fca5a5; text-transform: uppercase; letter-spacing: 0.05em;">Suspension Reason</p>
+            <p style="margin: 6px 0 0 0; font-size: 14px; color: #e2e8f0; line-height: 1.5;">${escapeHtml(input.reason)}</p>
+          </div>
+          <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">
+            While suspended, access to all workspace projects, documents, and AI chat features is temporarily disabled for all organization members. Your organization data and files are safely preserved.
+          </p>
+          <p style="color: #64748b; font-size: 12px; margin-top: 24px; margin-bottom: 0;">
+            If you believe this action was taken in error or need to resolve compliance requirements, please contact the platform administration.
+          </p>
+        </div>
+      </div>
+    `;
+
+    await this.dispatchEmail({
+      to: input.recipientEmail,
+      subject,
+      html,
+      text,
+    });
+  }
+
+  /**
+   * Sends an email notification to the organization owner when their organization is permanently deleted.
+   */
+  public async sendOrganizationDeletedEmail(
+    input: SendOrganizationDeletedEmailInput
+  ): Promise<void> {
+    const subject = `Your organization "${input.organizationName}" has been permanently deleted — AI Powered Workspace`;
+    const text = `Hello ${input.recipientName},\n\nYour organization "${input.organizationName}" and all associated workspace data (documents, projects, conversations, vector embeddings, and storage files) have been permanently deleted by the platform administrator.\n\nThis action is irreversible.\n\nAI Powered Workspace Team`;
+
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #0b0f19; color: #f8fafc; padding: 40px 24px; border-radius: 16px; border: 1px solid #1e293b;">
+        <div style="margin-bottom: 24px; text-align: center;">
+          <h1 style="color: #6366f1; font-size: 24px; font-weight: 700; margin: 0;">AI Powered Workspace</h1>
+        </div>
+        <div style="background: #111827; padding: 32px; border-radius: 12px; border: 1px solid #1e293b;">
+          <div style="display: inline-block; padding: 4px 12px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 9999px; color: #f87171; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px;">
+            Organization Deleted
+          </div>
+          <h2 style="font-size: 18px; color: #ffffff; margin-top: 0;">Organization Permanently Deleted</h2>
+          <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">
+            Hello <strong>${escapeHtml(input.recipientName)}</strong>,
+          </p>
+          <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">
+            Your organization <strong>${escapeHtml(input.organizationName)}</strong> has been permanently deleted by the platform administrator.
+          </p>
+          <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">
+            All associated data including projects, documents, vector embeddings, conversations, and uploaded files have been permanently wiped from the platform. This action is irreversible.
+          </p>
+          <p style="color: #64748b; font-size: 12px; margin-top: 24px; margin-bottom: 0;">
+            If you have any questions, please contact the platform administration.
+          </p>
+        </div>
+      </div>
+    `;
+
+    await this.dispatchEmail({
+      to: input.recipientEmail,
+      subject,
+      html,
+      text,
+    });
+  }
 }
+
 
 // Export singleton instance for application-wide use
 export const emailService = new EmailService();

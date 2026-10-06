@@ -30,6 +30,7 @@ import {
   conversationRouter,
 } from './modules/conversations/conversation.router.js';
 import { organizationAuditRouter } from './modules/audit/audit.router.js';
+import { platformAdminRouter } from './modules/platform-admin/platform-admin.router.js';
 
 const app: Application = express();
 
@@ -66,6 +67,7 @@ app.use(`${env.API_PREFIX}/projects`, projectDocumentsRouter);
 app.use(`${env.API_PREFIX}/groups`, groupRouter);
 app.use(`${env.API_PREFIX}/documents`, documentRouter);
 app.use(`${env.API_PREFIX}/conversations`, conversationRouter);
+app.use(`${env.API_PREFIX}/admin`, platformAdminRouter);
 
 // Not found route handler
 app.use(notFoundHandler);

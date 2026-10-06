@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useOrgStore } from '@/stores/org.store';
+import { useAuthStore } from '@/stores/auth.store';
 import { useUiStore } from '@/stores/ui.store';
 import {
   LayoutDashboard,
@@ -18,6 +19,7 @@ import {
   X,
   Lock,
   HelpCircle,
+  Shield,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -91,6 +93,7 @@ const NavLink: React.FC<{ item: NavItem; pathname: string; locked?: boolean }> =
 const SidebarContent: React.FC = () => {
   const pathname = usePathname();
   const { activeOrg, activeProject } = useOrgStore();
+  const { user } = useAuthStore();
 
   const isAdmin = activeOrg?.role === 'OWNER' || activeOrg?.role === 'ADMIN';
 
@@ -131,6 +134,23 @@ const SidebarContent: React.FC = () => {
           item={{ label: 'Help & Roles', href: '/help', icon: HelpCircle, hint: 'How it works and who can do what' }}
           pathname={pathname}
         />
+
+        {user?.is_platform_admin && (
+          <>
+            <div className="pt-6 px-3 pb-2 text-[11px] font-medium text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Shield className="w-3 h-3 text-amber-400" /> Platform Owner
+            </div>
+            <NavLink
+              item={{
+                label: 'Platform Admin',
+                href: '/admin',
+                icon: Shield,
+                hint: 'Manage organizations and monitor platform',
+              }}
+              pathname={pathname}
+            />
+          </>
+        )}
       </nav>
 
       {/* Tenant indicator */}

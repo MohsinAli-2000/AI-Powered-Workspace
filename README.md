@@ -1145,6 +1145,7 @@ The architecture is intentionally designed so that infrastructure providers can 
 * [x] **Python AI Service (Phase 14)**: FastAPI microservice (`apps/ai-service`), asyncpg connection pooling, synchronous `/rag/query`, Server-Sent Events `/rag/stream`, Gemini and Ollama providers, internal auth token.
 * [x] **Next.js Frontend (Phase 15)**: Next.js 16 App Router, dark-mode design system with Tailwind CSS v4, full auth views, organization switcher, project & document management, drag-and-drop upload with status polling, granular access rule dialog, AI chat with SSE streaming, and off-canvas source citation drawer.
 * [x] **Audit Logging (Phase 16)**: Immutable PostgreSQL append-only audit log, non-fatal event dispatch across all system mutations, protected OWNER/ADMIN endpoints, interactive frontend audit log inspector.
+* [x] **Platform Owner Dashboard & Tenant Governance**: Dedicated `/admin` interface for product owners to monitor cross-organization telemetry, suspend or reactivate organizations violating compliance/terms, with air-gapped CLI provisioning (`npm run platform-admin`) and zero-knowledge privacy protection (no access to customer files or conversations).
 * [x] **Post-Phase 16 Hardening, UI/UX Polish & Cloud Readiness**:
   - Gemini API default provider (`gemini-3.8-flash`, `gemini-embedding-001`) with local Ollama fallback.
   - Neon Serverless PostgreSQL support with pgvector connection pooling.
@@ -1152,7 +1153,7 @@ The architecture is intentionally designed so that infrastructure providers can 
   - Interactive Help Center (`/help`), User Account Settings (`/settings/account`), Invitation Acceptance flow (`/invitations/accept`).
   - Contextual "Your Access" card, email verification banner, empty org view, accessible dialogs, and normalized API client.
   - Reconnect resilience for RabbitMQ and S3 storage error recovery.
-* [x] **31 architectural decisions confirmed and documented** (see `docs/decision-log.md`).
+* [x] **32 architectural decisions confirmed and documented** (see `docs/decision-log.md`).
 
 ### ⏭️ Next — Immediate Implementation Phase
 
@@ -1312,7 +1313,7 @@ License details will be added when the project reaches the appropriate stage.
 
 # 👨‍💻 Project Status
 
-This project has completed **Phase 16 (Audit Logging) + Post-Phase 16 Hardening & UI/UX Polish** and is ready to begin **Phase 17 (Deployment & Dockerization)**.
+This project has completed **Phase 16 (Audit Logging) + Platform Owner Dashboard & Governance** and is ready to begin **Phase 17 (Deployment & Dockerization)**.
 
 The system has been developed incrementally:
 
@@ -1351,14 +1352,15 @@ The system has been developed incrementally:
       ↓
 ✅ Audit Logging (Append-only PostgreSQL log, UI viewer)
       ↓
-✅ Post-Phase Polish (Gemini API default, Rate limiting, Help center, Account view)
+✅ Platform Owner Dashboard & Tenant Governance (Lockout, Privacy guarantee)
       ↓
 ⏭️ Production Containerization & CI/CD Deployment (Phase 17)  ← NEXT
 ```
 
 See [project-status.md](project-status.md) for the full progress tracker, open TODOs, and upcoming milestones.
 
-See [docs/decision-log.md](docs/decision-log.md) for all 31 confirmed architectural and product decisions.
+See [docs/decision-log.md](docs/decision-log.md) for all 32 confirmed architectural and product decisions.
+
 
 The objective is to build the system end-to-end while maintaining production-oriented engineering practices throughout the development process.
 

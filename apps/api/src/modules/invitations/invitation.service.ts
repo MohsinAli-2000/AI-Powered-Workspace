@@ -261,6 +261,12 @@ export class InvitationService {
     if (!organization) {
       throw new NotFoundError('The organization associated with this invitation no longer exists.');
     }
+    if (organization.status === 'SUSPENDED') {
+      throw new ForbiddenError(
+        'This organization is currently suspended, so its invitations cannot be accepted.',
+        { code: 'ORGANIZATION_SUSPENDED' }
+      );
+    }
 
     // FR-MEMBER-003: Prevent duplicate membership
     const existingMembership = await this.membershipRepo.findByUserAndOrg(

@@ -1,27 +1,32 @@
 # Project Status
 
-> **Last synchronized:** 2026-10-06  
+> **Last synchronized:** 2026-10-07  
 > **Purpose:** Single source of truth for project phase, completed work, in-progress work, and planned work.
 
 ---
 
 ## Current Phase
 
-**Phase: Phase 16 Completed (Audit Logging) + Post-Phase Polish & Security Hardening → Ready for Phase 17 (Deployment & Dockerization)**
+**Phase: Platform Owner Dashboard & Tenant Governance Completed → Ready for Phase 17 (Deployment & Dockerization)**
 
-All foundational, core business, AI processing, frontend, and audit features (Phases 1 through 16) are fully implemented and verified:
+All foundational, core business, AI processing, frontend, audit, and platform governance features (Phases 1 through 16 + Platform Admin) are fully implemented and verified:
 - **Phase 11 (Embedding Pipeline)**: pgvector `vector(768)` HNSW cosine index, Gemini (`gemini-embedding-001`) and Ollama (`nomic-embed-text`) clients, batch embedding in worker.
 - **Phase 12 (RAG & Conversations)**: Multi-turn conversations, XML prompt isolation, grounded answer generation, insufficient-information fallback, and source citations.
 - **Phase 13 (Document Access Control)**: Granular access control (`PROJECT` vs `RESTRICTED`), 6-step evaluation pipeline with strict `DENY` precedence, database-level subquery filtering during vector search.
 - **Phase 14 (Python AI Service)**: FastAPI microservice with asyncpg connection pooling, synchronous `/rag/query`, Server-Sent Events `/rag/stream`, and Gemini/Ollama provider abstraction.
 - **Phase 15 (Next.js Frontend)**: Next.js 16 App Router, dark-mode design system with Tailwind CSS v4, complete auth suite, organization & project management, drag-and-drop file upload with status polling, granular access rule dialog, and interactive citation drawer.
 - **Phase 16 (Audit Logging)**: Append-only PostgreSQL audit log, non-fatal event dispatch across all entity mutations, protected endpoints for OWNER/ADMIN, and frontend audit log inspector.
+- **Platform Owner Administration & Tenant Governance (Completed)**:
+  - **Zero-Knowledge Privacy Boundary**: Dedicated platform owner dashboard (`/admin`) displaying aggregated tenant telemetry (org name, owner contact, creation date, member/project/document counts, storage used) with zero exposure of tenant documents, file contents, vectors, or chat histories.
+  - **Organization Suspension & Reversible Lockout**: Immediate universal member lockout via database-level chokepoint (`organizations.status = 'ACTIVE'`) preserving 100% of tenant data while denying all workspace access.
+  - **Air-Gapped Admin Management**: Privileged platform admin roles (`users.is_platform_admin`) managed exclusively via CLI (`npm run platform-admin -- grant/revoke <email>`), preventing HTTP privilege escalation.
 - **Post-Phase 16 Hardening & UX Polish (Completed)**:
   - **API Rate Limiting & Security (`apps/api`)**: In-memory IP-based rate limiting on sensitive auth endpoints (`/login`, `/register`, etc.) and internal service token (`AI_SERVICE_TOKEN`) protection for the Python AI service.
   - **Frontend UI/UX Refinement (`apps/web`)**: Interactive Help Center (`/help`), User Account Settings (`/settings/account`), Invitation Acceptance page (`/invitations/accept`), "Your Access" permission cards, Email Verification banner, empty organization guards, accessible confirm dialogs & custom select inputs, and client-side response normalization.
   - **Service Resilience (`apps/worker`, `apps/api`, `apps/ai-service`)**: Reconnect resilience for RabbitMQ, S3/MinIO error handling, Neon Serverless Postgres support with pgvector, and Gemini provider as cost-effective default with Ollama fallback.
 
 The immediate next implementation phase is **Phase 17 — Deployment & Dockerization**.
+
 
 
 ---
@@ -345,6 +350,20 @@ The following have been decided, designed, and documented / implemented:
   - Empty organization fallback view (`NoOrganization`) guiding initial setup.
   - Custom themed accessible dialogs and dropdowns (`ConfirmDialog`, `Modal`, `Select`).
   - Client-side payload unwrapping, normalization, and error handling (`api-client.ts`, `normalize.ts`, `permissions.ts`).
+- [x] **Platform Owner Administration & Tenant Governance**:
+  - Schema migrations: `apps/api/migrations/001_platform_admin.sql` (adds `users.is_platform_admin`, `organizations.status` `['ACTIVE', 'SUSPENDED']`, `suspended_at`, `suspended_by`, `suspension_reason`) and `002_allow_audit_log_purge_on_org_delete.sql` (enables authorized cascade purge of audit logs during organization deletion).
+  - Secure CLI utility: `npm run platform-admin -- [migrate|grant|revoke|list]` in `apps/api/src/scripts/platform-admin.ts`.
+  - Zero-knowledge data access layer: `PlatformAdminRepository` calculates aggregate statistics (total organizations, active/suspended count, storage used, members, projects, documents) without querying content or chunk tables.
+  - Universal member lockout chokepoint: `OrganizationMembershipRepository.findByUserAndOrg` strictly joins on `o.status = 'ACTIVE'`, blocking all members of suspended organizations from all document, project, group, and chat services.
+  - Organization middleware guard: `organization.middleware.ts` returns `403 Forbidden` (`ORGANIZATION_SUSPENDED`) when an org is suspended.
+  - Automated owner email notifications: Dispatches formal emails to the primary owner on suspension (including reason) and on permanent deletion via `EmailService.sendOrganizationSuspendedEmail` and `sendOrganizationDeletedEmail`.
+  - Permanent deletion & 100% data purge: Platform admin endpoint `DELETE /api/v1/admin/organizations/:id` purges all database records (cascade down to chunks, vectors, projects, chats) and permanently removes all stored files from object storage (MinIO / S3).
+  - Invitation guard: `invitation.service.ts` rejects invitation acceptances for suspended organizations.
+  - Platform admin middleware: `platform-admin.middleware.ts` verifies `user.is_platform_admin === true`.
+  - Audit logging integration: Emits `organization.suspended` and `organization.reactivated` events into `audit_logs`.
+  - Frontend admin dashboard: Dedicated `/admin` route in `apps/web` with KPI metric cards, organization search & status filter, suspension reason modal, reactivation confirmation dialog, permanent deletion confirmation modal with double-confirmation name matching, and tenant privacy guarantee notice.
+  - Frontend layout indicators: Navigation item in sidebar, badge and menu button in user profile dropdown, `Suspended` badge in org switcher, and informational banner in workspace layout.
+
 - [x] **Service & Queue Resilience**:
   - Exponential backoff reconnect and recovery for RabbitMQ consumers and publishers.
   - Graceful connection pool teardown on SIGTERM/SIGINT across Node.js and FastAPI services.
@@ -354,7 +373,8 @@ The following have been decided, designed, and documented / implemented:
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Phase 16 completed. Ready to initiate Phase 17 (Deployment & Dockerization).
+Nothing currently in active implementation. Platform Owner Administration & Tenant Governance completed. Ready to initiate Phase 17 (Deployment & Dockerization).
+
 
 ---
 

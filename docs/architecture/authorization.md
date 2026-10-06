@@ -214,3 +214,27 @@ Changing a resource identifier in a request (e.g., manipulating UUIDs) must not 
 | Org membership required | User must belong to organization before joining a project |
 | Group scope | Group belongs to one organization; members must be org members |
 | Authorization before RAG | Document authorization resolved before any RAG retrieval |
+
+---
+
+## 11. Platform Owner Administration & Tenant Suspension
+
+### Platform Admin Flag: `users.is_platform_admin`
+
+A dedicated global flag separates **Product / Platform Ownership** from tenant-level organization roles:
+
+- **Strict CLI Provisioning**: Privilege escalation is completely air-gapped from HTTP API routes. Only authorized operators with server/database access can grant or revoke the platform admin role using `npm run platform-admin -- grant <email>`.
+- **Zero-Knowledge Privacy Boundary**: A platform admin **cannot** read tenant documents, uploaded files, vector chunks, prompt conversations, or full member rosters.
+- **Aggregated Telemetry**: Platform admins can only view operational metadata: organization name, primary owner contact, creation date, high-level counts (members, projects, documents), and storage consumed.
+
+### Organization Lifecycle: `organizations.status`
+
+| Status | Behavior |
+|--------|----------|
+| `ACTIVE` | Normal multi-tenant operations. All authorized members can access projects, documents, and AI chat. |
+| `SUSPENDED` | All organization members (including OWNER and ADMINs) are immediately locked out. Any attempt to access workspace resources returns `403 Forbidden` (`ORGANIZATION_SUSPENDED`). Invitations are blocked. All data, files, vector embeddings, and conversation histories are safely preserved until reactivated. |
+
+### Suspension Enforcement Chokepoint
+
+Authorization queries (e.g. `findByUserAndOrg` in `organization-membership.repository.ts`) enforce `organizations.status = 'ACTIVE'` at the database level. Because every downstream document, project, group, and conversation check requires valid active organization membership, suspending an organization universally severs access across all API endpoints with zero data loss.
+

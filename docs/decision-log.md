@@ -498,3 +498,45 @@ Status:    Confirmed & Implemented
 Phase:     Deployment & Cloud Migration
 Affected:  apps/api/.env, apps/worker/.env, apps/ai-service/.env, PostgreSQL schema & data
 ```
+
+---
+
+### DEC-032 — Platform Owner Administration, Tenant Suspension & Permanent Deletion
+
+```
+Decision:  Implement a dedicated Platform Owner role (`users.is_platform_admin: boolean`)
+           managed strictly via an offline/secure CLI tool (`npm run platform-admin -- grant/revoke <email>`),
+           paired with an organization status lifecycle (`organizations.status`: `'ACTIVE' | 'SUSPENDED'`),
+           and a privacy-preserving admin dashboard at `/admin`.
+           Lifecycle & Enforcement capabilities:
+           1. Suspension & Member Lockout:
+              - All members (including OWNER and ADMINs) are immediately locked out from workspace
+                resources (documents, projects, chat, groups) with 403 ORGANIZATION_SUSPENDED.
+              - Data is 100% preserved.
+              - The primary organization owner is automatically emailed a formal notice containing
+                the specified suspension reason.
+           2. Permanent Deletion & Full Data Purge:
+              - The platform owner can permanently delete any suspended organization.
+              - 100% data purge: All document records, chunks, vectors, projects, conversations,
+                and memberships are CASCADE deleted at the database level.
+              - Storage purge: All object storage files (S3/MinIO) are enumerated and purged.
+              - An email notification is automatically dispatched to the organization owner
+                confirming the irreversible deletion of their organization.
+           3. Zero-Knowledge Privacy Boundary:
+              - The platform owner dashboard only surfaces aggregate metadata (counts, storage bytes,
+                owner email, created date). Tenant document contents, file titles, vector chunks,
+                and conversation histories remain strictly inaccessible.
+Why:       Provides the product owner complete operational governance to suspend or permanently delete
+           violating organizations, maintains compliance and automated customer communications via email,
+           and guarantees clean storage/database reclamation without violating tenant privacy.
+Status:    Confirmed & Implemented
+Phase:     Platform Administration & Governance
+Affected:  apps/api/migrations/001_platform_admin.sql,
+           apps/api/migrations/002_allow_audit_log_purge_on_org_delete.sql,
+           apps/api/src/scripts/platform-admin.ts, apps/api/src/modules/platform-admin/*,
+           apps/api/src/modules/email/email.service.ts,
+           apps/api/src/modules/organizations/organization.repository.ts,
+           apps/web/src/app/(dashboard)/admin/page.tsx
+```
+
+

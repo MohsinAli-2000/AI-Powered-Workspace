@@ -14,6 +14,7 @@ export interface User {
   full_name: string;
   is_active: boolean;
   is_verified: boolean;
+  is_platform_admin?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -28,14 +29,42 @@ export interface AuthSession {
 // 2. Organization Types
 // ---------------------------------------------------------------------------
 export type OrganizationRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+export type OrganizationStatus = 'ACTIVE' | 'SUSPENDED';
 
 export interface Organization {
   id: string;
   name: string;
+  status?: OrganizationStatus;
+  suspended_at?: string | null;
+  suspension_reason?: string | null;
   created_at: string;
   updated_at: string;
   role?: OrganizationRole;
   user_role?: OrganizationRole;
+}
+
+export interface AdminOrganizationSummary {
+  id: string;
+  name: string;
+  status: OrganizationStatus;
+  created_at: string;
+  suspended_at: string | null;
+  suspension_reason: string | null;
+  owner_name: string | null;
+  owner_email: string | null;
+  member_count: number;
+  project_count: number;
+  document_count: number;
+  storage_bytes: number;
+}
+
+export interface AdminPlatformStats {
+  total_organizations: number;
+  active_organizations: number;
+  suspended_organizations: number;
+  total_users: number;
+  total_documents: number;
+  total_storage_bytes: number;
 }
 
 export interface OrganizationMember {

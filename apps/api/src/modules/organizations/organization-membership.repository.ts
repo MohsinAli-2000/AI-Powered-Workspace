@@ -41,9 +41,13 @@ export class OrganizationMembershipRepository extends BaseRepository<Organizatio
     organizationId: string,
     databaseClient?: PoolClient
   ): Promise<OrganizationMembership | null> {
+    // Every tenant access check (org, project, document, group and conversation middlewares and services)
+    // goes through this lookup, so filtering out SUSPENDED organizations here is what locks members out
+    // of a suspended organization everywhere at once.
     const sqlQuery = `
-      SELECT * FROM ${this.tableName}
-      WHERE user_id = $1 AND organization_id = $2
+      SELECT m.* FROM ${this.tableName} m
+      INNER JOIN organizations o ON o.id = m.organization_id
+      WHERE m.user_id = $1 AND m.organization_id = $2 AND o.status = 'ACTIVE'
       LIMIT 1;
     `;
     return this.queryOne<OrganizationMembership>(

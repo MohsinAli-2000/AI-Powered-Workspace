@@ -1,8 +1,15 @@
 export type OrganizationRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 
+/** Set by platform admins. A SUSPENDED organization keeps its data but no member can use it. */
+export type OrganizationStatus = 'ACTIVE' | 'SUSPENDED';
+
 export interface Organization {
   id: string;
   name: string;
+  status: OrganizationStatus;
+  suspended_at: Date | null;
+  suspended_by: string | null;
+  suspension_reason: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -15,7 +22,8 @@ export interface OrganizationMembership {
   created_at: Date;
 }
 
-export interface OrganizationWithRole extends Organization {
+export interface OrganizationWithRole
+  extends Omit<Organization, 'suspended_by'> {
   user_role: OrganizationRole;
   member_count?: number;
 }
