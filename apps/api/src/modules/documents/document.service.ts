@@ -229,7 +229,8 @@ export class DocumentService {
 
     const downloadUrl = await this.storage.getPresignedDownloadUrl(
       currentVersion.storage_key,
-      expiresInSeconds
+      expiresInSeconds,
+      currentVersion.original_filename
     );
 
     return {

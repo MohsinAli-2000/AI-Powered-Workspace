@@ -5,11 +5,13 @@ import {
   DeleteObjectCommand,
   HeadBucketCommand,
   CreateBucketCommand,
+  type BucketLocationConstraint,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Readable } from 'stream';
 import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
+import { NotFoundError } from '../../errors/app-error.js';
 
 export class StorageService {
   private readonly s3Client: S3Client;
@@ -17,19 +19,20 @@ export class StorageService {
   private bucketInitialized = false;
 
   constructor() {
-    this.bucketName = env.S3_BUCKET_NAME;
+    this.bucketName = env.S3_BUCKET_NAME.trim();
 
     const s3Config: ConstructorParameters<typeof S3Client>[0] = {
-      region: env.S3_REGION,
+      region: env.S3_REGION.trim(),
       forcePathStyle: env.S3_FORCE_PATH_STYLE,
       credentials: {
-        accessKeyId: env.S3_ACCESS_KEY_ID,
-        secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+        accessKeyId: env.S3_ACCESS_KEY_ID.trim(),
+        secretAccessKey: env.S3_SECRET_ACCESS_KEY.trim(),
       },
     };
 
-    if (env.S3_ENDPOINT) {
-      s3Config.endpoint = env.S3_ENDPOINT;
+    const endpoint = env.S3_ENDPOINT?.trim();
+    if (endpoint) {
+      s3Config.endpoint = endpoint;
     }
 
     this.s3Client = new S3Client(s3Config);
@@ -54,9 +57,30 @@ export class StorageService {
         error.Code === 'NoSuchBucket'
       ) {
         logger.info({ bucket: this.bucketName }, 'Bucket not found. Creating storage bucket...');
-        await this.s3Client.send(new CreateBucketCommand({ Bucket: this.bucketName }));
+        try {
+          const region = env.S3_REGION.trim();
+          const createBucketParams: ConstructorParameters<typeof CreateBucketCommand>[0] = {
+            Bucket: this.bucketName,
+          };
+          if (region && region !== 'us-east-1') {
+            createBucketParams.CreateBucketConfiguration = {
+              LocationConstraint: region as BucketLocationConstraint,
+            };
+          }
+          await this.s3Client.send(new CreateBucketCommand(createBucketParams));
+          this.bucketInitialized = true;
+          logger.info({ bucket: this.bucketName }, 'Storage bucket created successfully.');
+        } catch (createErr) {
+          logger.error({ error: createErr, bucket: this.bucketName }, 'Failed to create storage bucket.');
+          throw createErr;
+        }
+      } else if (error.$metadata?.httpStatusCode === 403 || error.name === 'Forbidden') {
+        // User has PutObject/GetObject permissions but not HeadBucket/ListBucket.
+        logger.warn(
+          { bucket: this.bucketName },
+          'Storage bucket HeadBucket returned 403 Forbidden. Proceeding under assumption bucket exists.'
+        );
         this.bucketInitialized = true;
-        logger.info({ bucket: this.bucketName }, 'Storage bucket created successfully.');
       } else {
         logger.warn({ error, bucket: this.bucketName }, 'Could not verify storage bucket.');
       }
@@ -78,7 +102,7 @@ export class StorageService {
       Bucket: this.bucketName,
       Key: storageKey,
       Body: fileBuffer,
-      ContentType: mimeType,
+      ContentType: mimeType || 'application/octet-stream',
       ContentLength: fileBuffer.length,
     });
 
@@ -105,13 +129,24 @@ export class StorageService {
       Key: storageKey,
     });
 
-    const response = await this.s3Client.send(command);
+    try {
+      const response = await this.s3Client.send(command);
 
-    return {
-      stream: response.Body as Readable,
-      contentType: response.ContentType,
-      contentLength: response.ContentLength,
-    };
+      return {
+        stream: response.Body as Readable,
+        contentType: response.ContentType,
+        contentLength: response.ContentLength,
+      };
+    } catch (error: any) {
+      if (
+        error.name === 'NoSuchKey' ||
+        error.$metadata?.httpStatusCode === 404 ||
+        error.Code === 'NoSuchKey'
+      ) {
+        throw new NotFoundError(`File '${storageKey}' not found in storage.`);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -119,11 +154,17 @@ export class StorageService {
    */
   public async getPresignedDownloadUrl(
     storageKey: string,
-    expiresInSeconds = 3600
+    expiresInSeconds = 3600,
+    originalFilename?: string
   ): Promise<string> {
     const command = new GetObjectCommand({
       Bucket: this.bucketName,
       Key: storageKey,
+      ...(originalFilename
+        ? {
+            ResponseContentDisposition: `attachment; filename="${encodeURIComponent(originalFilename)}"`,
+          }
+        : {}),
     });
 
     return getSignedUrl(this.s3Client, command, { expiresIn: expiresInSeconds });

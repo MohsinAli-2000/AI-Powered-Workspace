@@ -14,15 +14,19 @@ class StorageClient:
     def __init__(self):
         # Configure s3 client supporting path-style addressing for MinIO / LocalStack
         s3_config = Config(s3={"addressing_style": "path"}) if settings.S3_FORCE_PATH_STYLE else Config()
+        endpoint = settings.S3_ENDPOINT.strip() if settings.S3_ENDPOINT else None
+        if not endpoint:
+            endpoint = None
+
         self.s3 = boto3.client(
             "s3",
-            endpoint_url=settings.S3_ENDPOINT if settings.S3_ENDPOINT else None,
-            aws_access_key_id=settings.S3_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.S3_SECRET_ACCESS_KEY,
-            region_name=settings.S3_REGION,
+            endpoint_url=endpoint,
+            aws_access_key_id=settings.S3_ACCESS_KEY_ID.strip() if settings.S3_ACCESS_KEY_ID else None,
+            aws_secret_access_key=settings.S3_SECRET_ACCESS_KEY.strip() if settings.S3_SECRET_ACCESS_KEY else None,
+            region_name=settings.S3_REGION.strip() if settings.S3_REGION else None,
             config=s3_config
         )
-        self.bucket = settings.S3_BUCKET_NAME
+        self.bucket = settings.S3_BUCKET_NAME.strip()
 
     def download_file(self, storage_key: str) -> io.BytesIO:
         """

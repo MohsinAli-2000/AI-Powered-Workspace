@@ -137,6 +137,9 @@ export class DocumentController {
         outgoingResponse.setHeader('Content-Length', fileSize.toString());
       }
 
+      stream.on('error', (err) => {
+        nextMiddleware(err);
+      });
       stream.pipe(outgoingResponse);
     } catch (controllerError) {
       nextMiddleware(controllerError);
