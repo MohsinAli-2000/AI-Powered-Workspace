@@ -260,7 +260,7 @@ export default function DashboardPage() {
                 <Badge variant="success" size="sm">Port 8001</Badge>
               </div>
               <p className="text-[11px] text-slate-400">
-                Ollama embeddings, XML prompt isolation, and pgvector RAG streaming.
+                Gemini API embeddings, XML prompt isolation, and pgvector RAG streaming.
               </p>
             </div>
 
