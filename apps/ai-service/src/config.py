@@ -40,9 +40,26 @@ class Settings(BaseSettings):
         default="qwen2.5",
         validation_alias="LLM_MODEL"
     )
-    ai_provider: Literal["ollama", "mock"] = Field(
+    ai_provider: Literal["ollama", "mock", "gemini"] = Field(
         default="ollama",
         validation_alias="AI_PROVIDER"
+    )
+
+    gemini_api_key: Optional[str] = Field(
+        default=None,
+        validation_alias="GEMINI_API_KEY"
+    )
+    gemini_base_url: str = Field(
+        default="https://generativelanguage.googleapis.com/v1beta",
+        validation_alias="GEMINI_BASE_URL"
+    )
+    gemini_embedding_model: str = Field(
+        default="gemini-embedding-001",
+        validation_alias="GEMINI_EMBEDDING_MODEL"
+    )
+    gemini_llm_model: str = Field(
+        default="gemini-3.8-flash",
+        validation_alias="GEMINI_LLM_MODEL"
     )
 
     rag_similarity_threshold: float = Field(
