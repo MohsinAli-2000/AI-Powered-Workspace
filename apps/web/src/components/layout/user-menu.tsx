@@ -2,13 +2,15 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/auth.store';
+import { useThemeStore } from '@/stores/theme.store';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
-import { LogOut, User, Shield, ChevronDown, HelpCircle } from 'lucide-react';
+import { LogOut, User, Shield, ChevronDown, HelpCircle, Sun, Moon } from 'lucide-react';
 
 export const UserMenu: React.FC = () => {
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const { resolvedTheme, toggleTheme } = useThemeStore();
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
@@ -123,6 +125,24 @@ export const UserMenu: React.FC = () => {
               >
                 <HelpCircle className="w-3.5 h-3.5 text-slate-400" />
                 <span>Help &amp; Roles</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  toggleTheme();
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white rounded-lg transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  {resolvedTheme === 'dark' ? (
+                    <Sun className="w-3.5 h-3.5 text-amber-300" />
+                  ) : (
+                    <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                  )}
+                  <span>Theme</span>
+                </div>
+                <span className="text-[10px] text-slate-400 capitalize">{resolvedTheme}</span>
               </button>
             </div>
 

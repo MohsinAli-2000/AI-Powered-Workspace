@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
 @layer base {
-  :root {
+  :root, html.dark {
+    color-scheme: dark;
+
     --bg-primary: #0b0f19;
     --bg-surface: #111827;
     --bg-surface-hover: #1f2937;
@@ -22,6 +24,43 @@
     --status-queued: #f59e0b;
     --status-failed: #f43f5e;
   }
+
+  html.light {
+    color-scheme: light;
+
+    --bg-primary: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-surface-hover: #f1f5f9;
+    --bg-card: #ffffff;
+    --border-subtle: rgba(15, 23, 42, 0.08);
+    --border-highlight: rgba(99, 102, 241, 0.4);
+    
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+
+    --brand-indigo: #4f46e5;
+    --brand-indigo-glow: rgba(79, 70, 229, 0.12);
+    --brand-violet: #7c3aed;
+    
+    --status-ready: #059669;
+    --status-processing: #2563eb;
+    --status-queued: #d97706;
+    --status-failed: #e11d48;
+
+    /* Slate palette remap for light mode */
+    --color-slate-950: #ffffff;
+    --color-slate-900: #ffffff;
+    --color-slate-800: #f1f5f9;
+    --color-slate-700: #e2e8f0;
+    --color-slate-600: #94a3b8;
+    --color-slate-500: #64748b;
+    --color-slate-400: #64748b;
+    --color-slate-300: #334155;
+    --color-slate-200: #1e293b;
+    --color-slate-100: #0f172a;
+    --color-slate-50:  #020617;
+  }
 }
 
 body {
@@ -31,6 +70,7 @@ body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Glassmorphic panels and containers */
@@ -89,8 +129,121 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
-/* Rendered markdown (assistant answers). Tailwind's preflight strips default list/heading/table
-   styling and the typography plugin isn't installed, so style the elements explicitly. */
+html.light .gradient-text {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #9333ea 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Light mode specific refinements */
+html.light ::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.15);
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.28);
+}
+
+html.light .glass-panel {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.06);
+}
+
+html.light .glass-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.85) 100%);
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 15px -2px rgba(0, 0, 0, 0.04);
+}
+
+html.light .glass-card:hover {
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.08), 0 0 15px var(--brand-indigo-glow);
+}
+
+/* Light theme borders */
+html.light .border-white\/5 {
+  border-color: rgba(15, 23, 42, 0.06);
+}
+
+html.light .border-white\/10 {
+  border-color: rgba(15, 23, 42, 0.09);
+}
+
+html.light .border-white\/20 {
+  border-color: rgba(15, 23, 42, 0.16);
+}
+
+/* Light theme card surface */
+html.light .bg-slate-900\/60 {
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+}
+
+/* Light theme interactive states */
+html.light .hover\:bg-slate-800:hover,
+html.light .hover\:bg-slate-800\/60:hover,
+html.light .hover\:bg-slate-800\/80:hover {
+  background-color: #f1f5f9;
+}
+
+html.light .hover\:bg-slate-700:hover {
+  background-color: #e2e8f0;
+}
+
+html.light .hover\:text-white:hover {
+  color: #0f172a;
+}
+
+html.light .hover\:text-slate-100:hover {
+  color: #0f172a;
+}
+
+html.light .hover\:border-slate-700:hover {
+  border-color: #cbd5e1;
+}
+
+/* Active navigation items in light mode */
+html.light .text-indigo-300 {
+  color: #4f46e5;
+}
+
+html.light .bg-indigo-600\/20 {
+  background-color: rgba(79, 70, 229, 0.1);
+}
+
+html.light .border-indigo-500\/30 {
+  border-color: rgba(79, 70, 229, 0.25);
+}
+
+/* Headings and generic text that had text-white */
+html.light h1.text-white,
+html.light h2.text-white,
+html.light h3.text-white,
+html.light h4.text-white,
+html.light p.text-white,
+html.light strong.text-white {
+  color: #0f172a;
+}
+
+/* Ensure button and colored badge text stays crisp white */
+html.light .bg-indigo-600 .text-white,
+html.light .bg-indigo-600.text-white,
+html.light .bg-violet-600 .text-white,
+html.light .bg-violet-600.text-white,
+html.light .bg-rose-600 .text-white,
+html.light .bg-rose-600.text-white,
+html.light .bg-emerald-600 .text-white,
+html.light .bg-emerald-600.text-white,
+html.light [class*="bg-gradient-to"] .text-white,
+html.light [class*="bg-gradient-to"].text-white,
+html.light button.bg-indigo-600,
+html.light button.bg-rose-600,
+html.light button.bg-emerald-600 {
+  color: #ffffff !important;
+}
+
+/* Rendered markdown (assistant answers). */
 .markdown-body {
   font-size: 0.875rem;
   line-height: 1.65;
@@ -153,3 +306,35 @@ body {
 .markdown-body th,
 .markdown-body td { border: 1px solid var(--border-subtle); padding: 0.4rem 0.7rem; text-align: left; }
 .markdown-body th { background: rgba(255, 255, 255, 0.04); font-weight: 600; }
+
+/* Markdown light theme adjustments */
+html.light .markdown-body h1,
+html.light .markdown-body h2,
+html.light .markdown-body h3,
+html.light .markdown-body h4,
+html.light .markdown-body strong {
+  color: #0f172a;
+}
+
+html.light .markdown-body a {
+  color: #4f46e5;
+}
+
+html.light .markdown-body code {
+  background: rgba(15, 23, 42, 0.06);
+  color: #0f172a;
+}
+
+html.light .markdown-body pre {
+  background: #0f172a;
+  border-color: rgba(15, 23, 42, 0.1);
+  color: #f8fafc;
+}
+
+html.light .markdown-body pre code {
+  color: #f8fafc;
+}
+
+html.light .markdown-body th {
+  background: rgba(15, 23, 42, 0.03);
+}

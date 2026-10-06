@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
           <p className="text-xs text-slate-400">Loading your workspace...</p>
@@ -84,7 +84,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[#0b0f19] overflow-hidden">
+    <div className="h-screen flex flex-col bg-[var(--bg-primary)] overflow-hidden">
       <Navbar />
       <VerificationBanner />
       <div className="flex-1 min-h-0 flex">

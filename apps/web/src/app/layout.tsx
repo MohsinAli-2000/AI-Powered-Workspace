@@ -17,15 +17,21 @@ export const metadata: Metadata = {
   },
 };
 
-
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full dark">
-      <body className="min-h-full flex flex-col bg-[#0b0f19] text-slate-100 antialiased">
+    <html lang="en" className="h-full dark" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var m=localStorage.getItem('theme_mode');var d=window.matchMedia('(prefers-color-scheme: dark)').matches;var t=m==='light'||m==='dark'?m:(m==='system'?(d?'dark':'light'):'dark');var c=document.documentElement.classList;c.remove('dark','light');c.add(t);document.documentElement.style.colorScheme=t;}catch(e){}})();`,
+          }}
+        />
+      </head>
+      <body className="min-h-full flex flex-col bg-[var(--bg-primary)] text-slate-100 antialiased">
         <ToastProvider>
           <AppInitializer>{children}</AppInitializer>
         </ToastProvider>

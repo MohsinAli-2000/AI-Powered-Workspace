@@ -20,7 +20,7 @@ export default function RootPage() {
   }, [isAuthenticated, isLoading, router]);
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center">
+    <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
         <p className="text-xs text-slate-400">Loading AI Knowledge Workspace...</p>

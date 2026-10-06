@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { OrgSwitcher } from './org-switcher';
 import { UserMenu } from './user-menu';
+import { ThemeToggle } from './theme-toggle';
 import { useUiStore } from '@/stores/ui.store';
 import { Sparkles, Menu } from 'lucide-react';
 
@@ -27,7 +28,7 @@ export const Navbar: React.FC = () => {
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-indigo-600/30">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
-          <span className="text-sm font-bold tracking-tight text-white hidden md:inline-block">
+          <span className="text-sm font-bold tracking-tight text-slate-100 hidden md:inline-block">
             AI Knowledge Workspace
           </span>
         </Link>
@@ -41,6 +42,7 @@ export const Navbar: React.FC = () => {
 
       {/* Right controls */}
       <div className="flex items-center gap-3 shrink-0">
+        <ThemeToggle />
         <UserMenu />
       </div>
     </header>

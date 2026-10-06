@@ -1,9 +1,15 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
+import { ThemeToggle } from '@/components/layout/theme-toggle';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden bg-[#0b0f19]">
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 relative overflow-hidden bg-[var(--bg-primary)]">
+      {/* Top right theme toggle */}
+      <div className="absolute top-4 right-4 z-20">
+        <ThemeToggle />
+      </div>
+
       {/* Ambient background glow orbs */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-600/15 rounded-full blur-[128px] pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-violet-600/15 rounded-full blur-[128px] pointer-events-none" />
@@ -14,7 +20,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <Sparkles className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white">AI Knowledge Workspace</h1>
+          <h1 className="text-xl font-bold tracking-tight text-slate-100">AI Knowledge Workspace</h1>
           <p className="text-xs text-slate-400">Enterprise Multi-Tenant Intelligence</p>
         </div>
       </div>
