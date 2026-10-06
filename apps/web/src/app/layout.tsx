@@ -6,7 +6,17 @@ import { AppInitializer } from '@/components/layout/app-initializer';
 export const metadata: Metadata = {
   title: 'AI Knowledge Workspace | Grounded Intelligence',
   description: 'Enterprise AI Workspace with Multi-Tenant Access Control and Grounded RAG Assistant',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
 };
+
 
 export default function RootLayout({
   children,
