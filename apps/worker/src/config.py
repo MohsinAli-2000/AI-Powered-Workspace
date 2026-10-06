@@ -65,6 +65,18 @@ class Settings(BaseSettings):
         default="http://localhost:11434",
         description="Ollama API base URL"
     )
+    GEMINI_API_KEY: str = Field(
+        default="",
+        description="Gemini API key (used when EMBEDDING_PROVIDER=gemini)"
+    )
+    GEMINI_BASE_URL: str = Field(
+        default="https://generativelanguage.googleapis.com/v1beta",
+        description="Gemini API base URL"
+    )
+    GEMINI_EMBEDDING_MODEL: str = Field(
+        default="gemini-embedding-001",
+        description="Gemini embedding model (requested at EMBEDDING_DIMENSION dims)"
+    )
     EMBEDDING_MAX_RETRIES: int = Field(
         default=3,
         description="Max retries for embedding requests"

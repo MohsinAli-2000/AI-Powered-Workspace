@@ -12,7 +12,8 @@
 Phase 15 (Next.js Frontend) has been fully implemented in `apps/web`, providing a production-grade web application featuring modern dark-slate aesthetics, JWT token rotation with an automatic refresh mutex queue, full tenant and project context isolation, document management with real-time status polling, granular 6-step access rule configuration with `DENY` precedence, and a grounded conversational AI assistant with interactive source citation drawers.
 
 In addition, the local RAG pipeline has been fully synchronized and stabilized:
-- Standardized on **`nomic-embed-text`** (768-dimensional L2-normalized vectors with HNSW index) and **`qwen2.5:1.5b`** for responsive local CPU inference.
+- **AI provider switched to the Gemini API** (`AI_PROVIDER=gemini`: `gemini-embedding-001` @ 768-dim + `gemini-3.8-flash`) to avoid local model cost; Ollama/mock providers remain selectable. Existing chunks must be re-embedded after switching (see DEC-030).
+- Previously standardized on **`nomic-embed-text`** (768-dimensional L2-normalized vectors with HNSW index) and **`qwen2.5:1.5b`** for responsive local CPU inference.
 - Re-embedded all active document chunks in PostgreSQL with real embeddings to prevent vector mismatch.
 - Added graceful fallback and a 90-second timeout with `num_predict: 512` in `conversation.service.ts` to ensure users always receive grounded answers with citations even during model prefill.
 
@@ -264,7 +265,8 @@ The following have been decided, designed, and documented / implemented:
 - [x] `FR-AI-005` insufficient information fallback handling when similarity is below threshold or zero chunks match.
 - [x] Full database-level Phase 13 document access control enforcement with 6-step evaluation and `DENY` precedence.
 - [x] LLM completion endpoint (`POST /api/v1/llm/chat`) and semantic chunking endpoint (`POST /api/v1/utils/chunk`).
-- [x] Pluggable AI provider architecture (Ollama `nomic-embed-text` + `qwen2.5` and deterministic `MockProvider`).
+- [x] Gemini embedding client in `apps/worker` (`EMBEDDING_PROVIDER=gemini`) and `apps/api` routed through ai-service (`AI_PROVIDER=ai-service`), so ingestion and query embeddings share one model.
+- [x] Pluggable AI provider architecture (Gemini API, Ollama `nomic-embed-text` + `qwen2.5`, and deterministic `MockProvider`; selected via `AI_PROVIDER`).
 - [x] Node.js backend client (`FastApiAiServiceClient`) integrated into `apps/api`.
 - [x] 100% automated test verification across all 6 core functionality areas.
 
@@ -360,7 +362,7 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 |---|------|--------|-----------------------------------|
 | 1 | Exact embedding model name/version | ✅ **Resolved** | **`nomic-embed-text`** (768-dim L2-normalized vectors, HNSW index with m=16, ef_construction=64) |
 | 2 | Exact LLM model name/version | ✅ **Resolved** | **`qwen2.5:1.5b`** confirmed for fast local CPU development; `qwen2.5` (7.6B) supported for GPU/cloud environments |
-| 3 | Production LLM provider (Ollama vs OpenAI vs Anthropic) | ⏳ Pending | Architecture, cost (Phase 14) |
+| 3 | Production LLM provider (Ollama vs OpenAI vs Anthropic) | ✅ **Resolved (interim)** | **Gemini API** (`gemini-3.8-flash`, `gemini-embedding-001`) selected for cost; see DEC-030 |
 | 4 | Exact email provider | ✅ **Resolved** | **Resend** confirmed & implemented (`apps/api/src/modules/email/email.service.ts`) |
 | 5 | Maximum allowed file size | ✅ **Resolved** | **50MB** (`52,428,800` bytes) enforced in `env.ts` and `upload.middleware.ts` |
 | 6 | Exact JWT / session authentication strategy | ✅ **Resolved** | **Dual-token**: 15m Access Token + 7d Refresh Token with rotation in `auth.service.ts` |

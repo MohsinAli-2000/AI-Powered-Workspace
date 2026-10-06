@@ -455,5 +455,27 @@ Phase:     Backend RAG runtime optimization
 Affected:  apps/api/.env, conversation.service.ts, ai-client.ts
 ```
 
+---
+
+### DEC-030 — Gemini API as Switchable AI Provider (Cost Reduction)
+
+```
+Decision:  Add a `GeminiProvider` (apps/ai-service/src/providers/gemini.py) selectable via
+           `AI_PROVIDER=gemini`. Embeddings use `gemini-embedding-001` with
+           `outputDimensionality=768`; generation/streaming uses `gemini-3.8-flash`.
+           The Ollama and mock providers are retained and selectable via `AI_PROVIDER`
+Why:       Running local models is costly in hardware/compute; the Gemini API (free tier
+           available) removes that cost. Requesting 768-dim vectors keeps the existing
+           `vector(768)` schema and HNSW index unchanged
+Status:    Confirmed & Implemented
+Phase:     Backend RAG runtime optimization
+Affected:  apps/ai-service/src/providers/gemini.py, apps/ai-service/src/config.py,
+           apps/worker/src/embeddings/gemini.py, apps/worker/src/config.py,
+           apps/api/.env (AI_PROVIDER=ai-service), .env.example files
+Note:      Gemini and nomic-embed-text vectors are not comparable; existing document chunks
+           must be re-embedded after switching. `gemini-2.5-flash` returns 404 for new
+           users (retired), so use a current model such as `gemini-3.8-flash`
+```
+
 
 

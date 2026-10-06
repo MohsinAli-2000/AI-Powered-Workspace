@@ -1000,37 +1000,39 @@ User
 
 # 🧩 Project Structure
 
-The repository is intended to evolve toward a structure similar to:
+Current monorepo layout:
 
 ```text
-ai-knowledge-platform/
+AI Powered Workspace/
 │
-├── frontend/
-│   └── Next.js application
+├── apps/
+│   ├── web/                 Next.js + TypeScript frontend
+│   ├── api/                 Node.js + Express + TypeScript core backend
+│   │   └── src/modules/     auth, organizations, projects, groups, documents,
+│   │                        conversations, invitations, email, queue, storage
+│   ├── ai-service/          Python + FastAPI (real-time RAG, embeddings, LLM)
+│   │   └── src/providers/   gemini.py (default), ollama.py, mock.py
+│   └── worker/              Python background worker (document processing)
+│       └── src/embeddings/  gemini.py (default), ollama.py, mock.py
 │
-├── backend/
-│   └── Node.js + TypeScript application
-│
-├── ai-service/
-│   └── Python + FastAPI + Worker
-│
-├── docs/
-│   ├── product-idea.md
-│   ├── functional-requirements.md
-│   ├── architecture.md
-│   ├── database-design.md
-│   ├── api-design.md
-│   ├── security-design.md
-│   └── decisions/
-│
-├── docker/
-│
-├── docker-compose.yml
-│
-├── .env.example
-├── .gitignore
+├── docs/                    architecture/, decision-log.md, ...
+├── ERD/
+├── project-status.md
+├── pyproject.toml
 └── README.md
 ```
+
+### AI provider configuration
+
+The AI provider is selected per service via `.env`; **Gemini API is the default** (local Ollama code is kept and can be re-enabled):
+
+| Service | Variable | Value | Notes |
+| ------- | -------- | ----- | ----- |
+| `apps/api` | `AI_PROVIDER` | `ai-service` | Routes embeddings/chat through FastAPI (Gemini) instead of calling Ollama directly |
+| `apps/ai-service` | `AI_PROVIDER` | `gemini` | Also needs `GEMINI_API_KEY`, `GEMINI_LLM_MODEL` (`gemini-3.8-flash`), `GEMINI_EMBEDDING_MODEL` (`gemini-embedding-001`) |
+| `apps/worker` | `EMBEDDING_PROVIDER` | `gemini` | Also needs `GEMINI_API_KEY`, `GEMINI_EMBEDDING_MODEL`; must match ai-service so query and document vectors are comparable |
+
+Embeddings are requested at 768 dimensions, so the `vector(768)` schema is unchanged. Re-embed existing chunks after switching providers (`python -m src.batch_embedder` in `apps/worker`, after clearing old embeddings).
 
 ---
 
@@ -1048,8 +1050,9 @@ ai-knowledge-platform/
 | Vector Search     | pgvector (PostgreSQL extension)     |
 | Job Queue         | RabbitMQ                            |
 | Object Storage    | MinIO (dev) → AWS S3 (prod)         |
-| Local AI Runtime  | Ollama                              |
-| Initial LLM       | Qwen (via Ollama)                   |
+| AI Provider       | Gemini API (default); Ollama optional |
+| LLM               | gemini-3.8-flash (Qwen via Ollama optional) |
+| Embeddings        | gemini-embedding-001, 768-dim       |
 | Email             | Resend                              |
 | Monitoring        | Sentry                              |
 | Containerization  | Docker + Docker Compose             |

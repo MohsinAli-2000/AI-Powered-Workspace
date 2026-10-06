@@ -21,18 +21,20 @@ The RAG system is implemented as a **separate Python AI Service** (FastAPI) and 
 |-----------|-----------|---------------|
 | AI Service | Python + FastAPI | Real-time RAG orchestration and answer generation |
 | AI Worker | Python | Asynchronous document processing and embedding generation |
-| Embedding Model | Local via Ollama (initially) | Text-to-vector conversion |
-| LLM | Qwen via Ollama (initially), Cloud API later | Answer generation |
+| Embedding Model | Gemini API `gemini-embedding-001` (768-dim); Ollama optional | Text-to-vector conversion |
+| LLM | Gemini API `gemini-3.8-flash`; Qwen via Ollama optional | Answer generation |
 | Vector Store | pgvector (PostgreSQL) | Similarity search |
 
 ### Embedding Model Selection
 
-> **Confirmed Development Standard:** `nomic-embed-text` via Ollama (768 dimensions, L2 unit-normalized, HNSW index).  
+> **Current Default:** `gemini-embedding-001` via Gemini API (`AI_PROVIDER=gemini`, 768 dimensions, L2 unit-normalized, HNSW index). Switching providers requires re-embedding existing chunks.  
+> **Local Alternative:** `nomic-embed-text` via Ollama (`AI_PROVIDER=ollama`, 768 dimensions).  
 > **Production Consideration:** Can be swapped transparently for OpenAI `text-embedding-3-small` or cloud endpoints with matching 768 or re-indexed dimensions.
 
 ### LLM Selection
 
-> **Confirmed Development Standard:** `qwen2.5:1.5b` via Ollama for fast, lightweight local CPU execution (with `qwen2.5:latest` 7.6B supported on GPU/cloud instances).  
+> **Current Default:** `gemini-3.8-flash` via Gemini API (`AI_PROVIDER=gemini`, configured with `GEMINI_API_KEY`, `GEMINI_LLM_MODEL`).  
+> **Local Alternative:** `qwen2.5:1.5b` via Ollama for fast, lightweight local CPU execution (with `qwen2.5:latest` 7.6B supported on GPU/cloud instances).  
 > **Production Consideration:** Ollama self-hosted on GPU EC2 instance or cloud API provider (OpenAI GPT-4o-mini / Anthropic Claude 3.5 Haiku).
 
 ---
@@ -241,9 +243,9 @@ Documents support multiple versions.
 
 | Item | Status |
 |------|--------|
-| Exact embedding model | `TODO — DECISION REQUIRED` |
-| Exact LLM model | `TODO — DECISION REQUIRED` |
-| Production LLM provider (Ollama vs cloud API) | `TODO — DECISION REQUIRED` |
+| Exact embedding model | `gemini-embedding-001` (768-dim) |
+| Exact LLM model | `gemini-3.8-flash` |
+| Production LLM provider (Ollama vs cloud API) | Gemini API (see DEC-030) |
 | Chunking strategy (size, overlap) | `TODO — DECISION REQUIRED` |
 | Similarity threshold for "insufficient information" | `TODO — DECISION REQUIRED` |
 | Whether historical versions are searchable by default | `TODO — DECISION REQUIRED` |
