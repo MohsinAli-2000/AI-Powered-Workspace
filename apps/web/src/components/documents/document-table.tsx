@@ -1,12 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { DocumentItem } from '@/types/api.types';
 import { DocumentStatusBadge } from './document-status-badge';
 import { AccessRulesDialog } from './access-rules-dialog';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { formatBytes, formatDate } from '@/lib/utils';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, downloadFile } from '@/lib/api-client';
 import { useToast } from '@/components/ui/toast';
 import {
   FileText,
@@ -17,6 +21,8 @@ import {
   Lock,
   Globe,
   Shield,
+  Pencil,
+  Search,
 } from 'lucide-react';
 
 interface DocumentTableProps {
@@ -34,44 +40,90 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
 }) => {
   const { showToast } = useToast();
   const [selectedDocForRules, setSelectedDocForRules] = useState<DocumentItem | null>(null);
+  const [search, setSearch] = useState('');
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  const getFileIcon = (mimeType: string, name: string) => {
-    if (mimeType.includes('pdf') || name.endsWith('.pdf')) {
+  // Rename
+  const [docToRename, setDocToRename] = useState<DocumentItem | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+
+  // Delete
+  const [docToDelete, setDocToDelete] = useState<DocumentItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const filteredDocuments = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return documents;
+    return documents.filter((d) => d.name.toLowerCase().includes(query));
+  }, [documents, search]);
+
+  const getFileIcon = (mimeType: string | undefined, name: string) => {
+    const mime = mimeType || '';
+    const lowerName = name.toLowerCase();
+    if (mime.includes('pdf') || lowerName.endsWith('.pdf')) {
       return <FileText className="w-4 h-4 text-rose-400" />;
     }
-    if (mimeType.includes('sheet') || mimeType.includes('excel') || name.endsWith('.xlsx')) {
+    if (mime.includes('sheet') || mime.includes('excel') || lowerName.endsWith('.xlsx')) {
       return <FileSpreadsheet className="w-4 h-4 text-emerald-400" />;
     }
-    if (mimeType.includes('presentation') || name.endsWith('.pptx')) {
+    if (mime.includes('presentation') || lowerName.endsWith('.pptx')) {
       return <FileText className="w-4 h-4 text-amber-400" />;
     }
     return <FileCode className="w-4 h-4 text-indigo-400" />;
   };
 
   const handleDownload = async (doc: DocumentItem) => {
+    setDownloadingId(doc.id);
     try {
-      const data = await apiClient<{ download_url?: string }>(`/documents/${doc.id}/download`);
-      if (data.download_url) {
-        window.open(data.download_url, '_blank');
-      } else {
-        window.open(`http://localhost:5000/api/v1/documents/${doc.id}/download`, '_blank');
-      }
+      await downloadFile(`/documents/${doc.id}/download`, doc.name);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Download failed', 'error');
+    } finally {
+      setDownloadingId(null);
     }
   };
 
-  const handleDelete = async (doc: DocumentItem) => {
-    if (!confirm(`Are you sure you want to delete "${doc.name}"? Searchable vector chunks will be deleted.`)) {
+  const openRename = (doc: DocumentItem) => {
+    setDocToRename(doc);
+    setRenameValue(doc.name);
+  };
+
+  const handleRename = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!docToRename || !renameValue.trim()) return;
+    if (renameValue.trim() === docToRename.name) {
+      setDocToRename(null);
       return;
     }
-
+    setIsRenaming(true);
     try {
-      await apiClient(`/documents/${doc.id}`, { method: 'DELETE' });
-      showToast(`Document "${doc.name}" deleted.`, 'info');
+      await apiClient(`/documents/${docToRename.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: renameValue.trim() }),
+      });
+      showToast('Document renamed', 'success');
+      setDocToRename(null);
+      onRefresh();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Rename failed', 'error');
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!docToDelete) return;
+    setIsDeleting(true);
+    try {
+      await apiClient(`/documents/${docToDelete.id}`, { method: 'DELETE' });
+      showToast(`Document "${docToDelete.name}" deleted.`, 'info');
+      setDocToDelete(null);
       onRefresh();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Delete failed', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -89,21 +141,40 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
 
   return (
     <>
+      {documents.length > 5 && (
+        <div className="max-w-sm">
+          <Input
+            aria-label="Search documents"
+            placeholder="Search documents by name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            leftIcon={<Search className="w-4 h-4" />}
+          />
+        </div>
+      )}
+
       <div className="border border-white/5 rounded-2xl overflow-hidden bg-slate-900/40">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-white/5 text-slate-400 bg-white/[0.01]">
-                <th className="py-3 px-4 font-medium">Document Name</th>
+                <th className="py-3 px-4 font-medium">Document</th>
                 <th className="py-3 px-4 font-medium">Size</th>
                 <th className="py-3 px-4 font-medium">Processing Status</th>
-                <th className="py-3 px-4 font-medium">Access Mode</th>
+                <th className="py-3 px-4 font-medium">Who can see it</th>
                 <th className="py-3 px-4 font-medium">Uploaded</th>
                 <th className="py-3 px-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {documents.map((doc) => (
+              {filteredDocuments.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-400">
+                    No documents match &quot;{search}&quot;.
+                  </td>
+                </tr>
+              )}
+              {filteredDocuments.map((doc) => (
                 <tr key={doc.id} className="hover:bg-white/[0.02] transition-colors">
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-3">
@@ -111,12 +182,16 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
                         {getFileIcon(doc.mime_type, doc.name)}
                       </div>
                       <div className="truncate max-w-xs sm:max-w-md">
-                        <p className="font-semibold text-slate-100 truncate">{doc.name}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">ID: {doc.id.substring(0, 8)}...</p>
+                        <p className="font-semibold text-slate-100 truncate" title={doc.name}>{doc.name}</p>
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {doc.version_number ? `Version ${doc.version_number}` : ''}
+                          {doc.version_number && doc.creator_name ? ' · ' : ''}
+                          {doc.creator_name ? `by ${doc.creator_name}` : ''}
+                        </p>
                       </div>
                     </div>
                   </td>
-                  <td className="py-3.5 px-4 text-slate-400 font-mono text-[11px]">
+                  <td className="py-3.5 px-4 text-slate-400 font-mono text-[11px] whitespace-nowrap">
                     {doc.file_size ? formatBytes(doc.file_size) : '—'}
                   </td>
                   <td className="py-3.5 px-4">
@@ -124,31 +199,48 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
                   </td>
                   <td className="py-3.5 px-4">
                     {doc.access_mode === 'RESTRICTED' ? (
-                      <Badge variant="warning" className="gap-1">
-                        <Lock className="w-3 h-3 text-amber-400" /> RESTRICTED
+                      <Badge variant="warning" className="gap-1" title="Only people explicitly allowed by access rules">
+                        <Lock className="w-3 h-3 text-amber-400" /> Restricted
                       </Badge>
                     ) : (
-                      <Badge variant="brand" className="gap-1">
-                        <Globe className="w-3 h-3 text-indigo-400" /> PROJECT
+                      <Badge variant="brand" className="gap-1" title="Everyone with access to this project">
+                        <Globe className="w-3 h-3 text-indigo-400" /> Whole project
                       </Badge>
                     )}
                   </td>
-                  <td className="py-3.5 px-4 text-slate-400">{formatDate(doc.created_at)}</td>
+                  <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">{formatDate(doc.created_at)}</td>
                   <td className="py-3.5 px-4 text-right">
                     <div className="flex items-center justify-end gap-1.5">
                       <button
+                        type="button"
                         onClick={() => handleDownload(doc)}
-                        className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                        title="Download Document"
+                        disabled={downloadingId === doc.id}
+                        className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                        title="Download document"
+                        aria-label={`Download ${doc.name}`}
                       >
-                        <Download className="w-3.5 h-3.5" />
+                        <Download className={`w-3.5 h-3.5 ${downloadingId === doc.id ? 'animate-pulse' : ''}`} />
                       </button>
 
                       {canManage && (
                         <button
+                          type="button"
+                          onClick={() => openRename(doc)}
+                          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                          title="Rename document"
+                          aria-label={`Rename ${doc.name}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
+                      {canManage && (
+                        <button
+                          type="button"
                           onClick={() => setSelectedDocForRules(doc)}
                           className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-colors cursor-pointer"
-                          title="Manage Access Control Rules"
+                          title="Manage who can access this document"
+                          aria-label={`Manage access to ${doc.name}`}
                         >
                           <Shield className="w-3.5 h-3.5" />
                         </button>
@@ -156,9 +248,11 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
 
                       {canManage && (
                         <button
-                          onClick={() => handleDelete(doc)}
+                          type="button"
+                          onClick={() => setDocToDelete(doc)}
                           className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                          title="Delete Document"
+                          title="Delete document"
+                          aria-label={`Delete ${doc.name}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -176,6 +270,48 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
         documentItem={selectedDocForRules}
         onClose={() => setSelectedDocForRules(null)}
         onUpdated={onRefresh}
+      />
+
+      {/* Rename dialog */}
+      <Modal
+        isOpen={!!docToRename}
+        onClose={() => setDocToRename(null)}
+        title="Rename document"
+        description="Changes the display name only; the file content stays the same."
+      >
+        <form onSubmit={handleRename} className="space-y-4">
+          <Input
+            label="Document name"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            maxLength={255}
+            required
+            autoFocus
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={() => setDocToRename(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={isRenaming}>
+              Save
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        isOpen={!!docToDelete}
+        title="Delete document?"
+        message={
+          <>
+            <strong className="text-white break-all">{docToDelete?.name}</strong> and its searchable
+            vector chunks will be permanently deleted. The AI assistant will no longer cite it.
+          </>
+        }
+        confirmLabel="Delete document"
+        isLoading={isDeleting}
+        onConfirm={handleDelete}
+        onCancel={() => setDocToDelete(null)}
       />
     </>
   );

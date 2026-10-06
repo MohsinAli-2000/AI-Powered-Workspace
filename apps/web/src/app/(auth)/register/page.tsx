@@ -1,13 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { apiClient, ApiError } from '@/lib/api-client';
+import { getSafeRedirect } from '@/lib/utils';
 import { User, Lock, Mail, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 
-export default function RegisterPage() {
+function RegisterForm() {
+  const searchParams = useSearchParams();
+  const redirectParam = searchParams.get('redirect');
+  const loginHref = redirectParam
+    ? `/login?redirect=${encodeURIComponent(getSafeRedirect(redirectParam))}`
+    : '/login';
+
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -15,10 +23,17 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (fullName.trim().length < 2) {
+      setError('Please enter your full name (at least 2 characters).');
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
@@ -59,6 +74,22 @@ export default function RegisterPage() {
     }
   };
 
+  const handleResend = async () => {
+    setIsResending(true);
+    setResendMessage(null);
+    try {
+      await apiClient('/auth/resend-verification', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      setResendMessage('A new verification email has been sent.');
+    } catch (err) {
+      setResendMessage(err instanceof Error ? err.message : 'Could not resend the email. Please try again.');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   if (success) {
     return (
       <div className="text-center py-4 space-y-4">
@@ -69,12 +100,21 @@ export default function RegisterPage() {
         <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
           We have sent a verification link to <span className="font-semibold text-white">{email}</span>. Please click the link in your email to activate your account.
         </p>
-        <div className="pt-4">
-          <Link href="/login">
+        <div className="pt-2 space-y-2">
+          <Link href={loginHref} className="block">
             <Button variant="secondary" className="w-full">
               Proceed to Sign In
             </Button>
           </Link>
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={isResending}
+            className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 cursor-pointer"
+          >
+            {isResending ? 'Sending…' : "Didn't get it? Resend the email"}
+          </button>
+          {resendMessage && <p className="text-xs text-slate-400">{resendMessage}</p>}
         </div>
       </div>
     );
@@ -90,7 +130,7 @@ export default function RegisterPage() {
       </div>
 
       {error && (
-        <div className="mb-5 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-2.5 text-xs text-rose-300">
+        <div role="alert" className="mb-5 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-2.5 text-xs text-rose-300">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
           <span>{error}</span>
         </div>
@@ -104,6 +144,8 @@ export default function RegisterPage() {
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           required
+          autoComplete="name"
+          autoFocus
           leftIcon={<User className="w-4 h-4" />}
         />
 
@@ -120,11 +162,13 @@ export default function RegisterPage() {
 
         <Input
           type="password"
-          label="Password (min. 8 characters)"
+          label="Password"
           placeholder="••••••••"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          autoComplete="new-password"
+          helperText="At least 8 characters, including a letter and a number."
           leftIcon={<Lock className="w-4 h-4" />}
         />
 
@@ -135,6 +179,7 @@ export default function RegisterPage() {
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           required
+          autoComplete="new-password"
           leftIcon={<Lock className="w-4 h-4" />}
         />
 
@@ -150,10 +195,18 @@ export default function RegisterPage() {
 
       <div className="mt-6 text-center text-xs text-slate-400 border-t border-white/5 pt-4">
         Already have an account?{' '}
-        <Link href="/login" className="font-semibold text-indigo-400 hover:text-indigo-300">
+        <Link href={loginHref} className="font-semibold text-indigo-400 hover:text-indigo-300">
           Sign In
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="text-center text-xs text-slate-400">Loading...</div>}>
+      <RegisterForm />
+    </Suspense>
   );
 }

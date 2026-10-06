@@ -1,24 +1,32 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useOrgStore } from '@/stores/org.store';
+import { useAuthStore } from '@/stores/auth.store';
 import { apiClient } from '@/lib/api-client';
+import { useOrgMembers, memberLabel } from '@/hooks/use-org-data';
+import { formatDate } from '@/lib/utils';
 import { Organization } from '@/types/api.types';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
+import { PageHeader } from '@/components/ui/page-header';
 import { useToast } from '@/components/ui/toast';
-import { Building2, ShieldAlert, Trash2, KeyRound } from 'lucide-react';
+import { Building2, ShieldAlert, Trash2, KeyRound, Copy, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function OrganizationSettingsPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const currentUser = useAuthStore((state) => state.user);
   const { activeOrg, organizations, setOrganizations, setActiveOrg } = useOrgStore();
 
   const [orgName, setOrgName] = useState(activeOrg?.name || '');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isIdCopied, setIsIdCopied] = useState(false);
 
   // Transfer Ownership state
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
@@ -32,6 +40,18 @@ export default function OrganizationSettingsPage() {
 
   const isOwner = activeOrg?.role === 'OWNER';
   const isAdmin = activeOrg?.role === 'ADMIN' || isOwner;
+
+  const { items: orgMembers, isLoading: isLoadingMembers } = useOrgMembers(isOwner ? activeOrg?.id : null);
+  const transferCandidates = useMemo(
+    () => orgMembers.filter((m) => m.user_id !== currentUser?.id),
+    [orgMembers, currentUser?.id]
+  );
+
+  useEffect(() => {
+    if (activeOrg) {
+      setOrgName(activeOrg.name);
+    }
+  }, [activeOrg]);
 
   const handleUpdateName = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,19 +75,35 @@ export default function OrganizationSettingsPage() {
     }
   };
 
+  const handleCopyId = async () => {
+    if (!activeOrg) return;
+    try {
+      await navigator.clipboard.writeText(activeOrg.id);
+      setIsIdCopied(true);
+      setTimeout(() => setIsIdCopied(false), 2000);
+    } catch {
+      // Clipboard unavailable; the ID is still selectable.
+    }
+  };
+
+  const handleCloseTransfer = () => {
+    setIsTransferModalOpen(false);
+    setNewOwnerUserId('');
+  };
+
   const handleTransferOwnership = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeOrg || !newOwnerUserId.trim()) return;
+    if (!activeOrg || !newOwnerUserId) return;
     setIsTransferring(true);
 
     try {
       await apiClient(`/organizations/${activeOrg.id}/transfer-ownership`, {
         method: 'POST',
-        body: JSON.stringify({ new_owner_user_id: newOwnerUserId.trim() }),
+        body: JSON.stringify({ newOwnerUserId }),
       });
 
       showToast('Ownership transferred successfully.', 'success');
-      setIsTransferModalOpen(false);
+      handleCloseTransfer();
       // Reload page to reflect demotion to ADMIN
       window.location.reload();
     } catch (err) {
@@ -75,6 +111,11 @@ export default function OrganizationSettingsPage() {
     } finally {
       setIsTransferring(false);
     }
+  };
+
+  const handleCloseDelete = () => {
+    setIsDeleteModalOpen(false);
+    setDeleteConfirmationInput('');
   };
 
   const handleDeleteOrg = async (e: React.FormEvent) => {
@@ -88,11 +129,11 @@ export default function OrganizationSettingsPage() {
       });
 
       showToast(`Organization "${activeOrg.name}" deleted.`, 'info');
-      setIsDeleteModalOpen(false);
+      handleCloseDelete();
 
       const remaining = organizations.filter((o) => o.id !== activeOrg.id);
-      setOrganizations(remaining);
       setActiveOrg(remaining[0] || null);
+      setOrganizations(remaining);
       router.push('/dashboard');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to delete organization', 'error');
@@ -100,12 +141,6 @@ export default function OrganizationSettingsPage() {
       setIsDeleting(false);
     }
   };
-
-  useEffect(() => {
-    if (activeOrg) {
-      setOrgName(activeOrg.name);
-    }
-  }, [activeOrg]);
 
   if (!activeOrg) {
     return (
@@ -121,12 +156,11 @@ export default function OrganizationSettingsPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">Organization Settings</h1>
-        <p className="text-xs text-slate-400 mt-1">
-          Manage general workspace settings, tenant metadata, and organization lifecycle
-        </p>
-      </div>
+      <PageHeader
+        title="Organization Settings"
+        description="Manage general workspace settings and the organization lifecycle."
+        badges={activeOrg.role ? <Badge variant="brand" size="sm">Your role: {activeOrg.role}</Badge> : undefined}
+      />
 
       {/* General Settings */}
       <Card>
@@ -135,7 +169,11 @@ export default function OrganizationSettingsPage() {
             <Building2 className="w-4 h-4 text-indigo-400" />
             General Information
           </CardTitle>
-          <CardDescription>Update your company or workspace display details</CardDescription>
+          <CardDescription>
+            {isAdmin
+              ? 'Update your company or workspace display name'
+              : 'Only organization admins can change these details'}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleUpdateName} className="space-y-4 max-w-md">
@@ -144,18 +182,34 @@ export default function OrganizationSettingsPage() {
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
               disabled={!isAdmin}
+              minLength={2}
+              maxLength={100}
               required
             />
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Organization ID</label>
-              <div className="p-2.5 rounded-lg bg-slate-900 border border-white/5 font-mono text-xs text-slate-300 select-all">
-                {activeOrg.id}
+              <span className="block text-xs font-medium text-slate-400 mb-1">Organization ID</span>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0 p-2.5 rounded-lg bg-slate-900 border border-white/5 font-mono text-xs text-slate-300 select-all break-all">
+                  {activeOrg.id}
+                </div>
+                <Button type="button" variant="ghost" size="sm" onClick={handleCopyId} aria-label="Copy organization ID">
+                  {isIdCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                </Button>
               </div>
             </div>
 
+            {activeOrg.created_at && (
+              <p className="text-[11px] text-slate-400">Created {formatDate(activeOrg.created_at)}</p>
+            )}
+
             {isAdmin && (
-              <Button type="submit" size="sm" isLoading={isUpdating}>
+              <Button
+                type="submit"
+                size="sm"
+                isLoading={isUpdating}
+                disabled={orgName.trim() === activeOrg.name}
+              >
                 Save Changes
               </Button>
             )}
@@ -169,10 +223,10 @@ export default function OrganizationSettingsPage() {
           <CardHeader>
             <CardTitle className="text-sm font-semibold text-rose-300 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-rose-400" />
-              Administrative Danger Zone
+              Danger Zone
             </CardTitle>
             <CardDescription className="text-rose-400/70">
-              Irreversible actions that affect your entire organizational tenant
+              Irreversible actions that affect the whole organization
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -187,6 +241,7 @@ export default function OrganizationSettingsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setIsTransferModalOpen(true)}
+                className="shrink-0"
               >
                 <KeyRound className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
                 Transfer Ownership
@@ -204,6 +259,7 @@ export default function OrganizationSettingsPage() {
                 variant="danger"
                 size="sm"
                 onClick={() => setIsDeleteModalOpen(true)}
+                className="shrink-0"
               >
                 <Trash2 className="w-3.5 h-3.5 mr-1.5" />
                 Delete Organization
@@ -216,32 +272,40 @@ export default function OrganizationSettingsPage() {
       {/* Transfer Ownership Modal */}
       <Modal
         isOpen={isTransferModalOpen}
-        onClose={() => setIsTransferModalOpen(false)}
+        onClose={handleCloseTransfer}
         title="Transfer Organization Ownership"
-        description="Select the member ID to receive full ownership authority."
+        description="Choose the member who will receive full ownership authority."
       >
         <form onSubmit={handleTransferOwnership} className="space-y-4">
-          <Input
-            label="New Owner User ID"
-            placeholder="Paste member UUID here"
+          <Select
+            label="New owner"
             value={newOwnerUserId}
             onChange={(e) => setNewOwnerUserId(e.target.value)}
             required
-          />
+            disabled={isLoadingMembers}
+            helperText={
+              !isLoadingMembers && transferCandidates.length === 0
+                ? 'There is nobody else in this organization yet. Invite someone first.'
+                : undefined
+            }
+          >
+            <option value="">{isLoadingMembers ? 'Loading members…' : 'Select a member…'}</option>
+            {transferCandidates.map((m) => (
+              <option key={m.user_id} value={m.user_id}>
+                {memberLabel(m)} — {m.role}
+              </option>
+            ))}
+          </Select>
 
           <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300">
             <strong>Warning:</strong> Every organization has strictly one OWNER. Once transferred, you cannot regain ownership without the new owner re-transferring it to you.
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setIsTransferModalOpen(false)}
-            >
+            <Button type="button" variant="ghost" onClick={handleCloseTransfer}>
               Cancel
             </Button>
-            <Button type="submit" variant="danger" isLoading={isTransferring}>
+            <Button type="submit" variant="danger" isLoading={isTransferring} disabled={!newOwnerUserId}>
               Confirm Transfer
             </Button>
           </div>
@@ -251,7 +315,7 @@ export default function OrganizationSettingsPage() {
       {/* Delete Organization Modal */}
       <Modal
         isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
+        onClose={handleCloseDelete}
         title="Delete Organization"
         description="This action cannot be undone. All documents and embeddings will be wiped."
       >
@@ -261,6 +325,7 @@ export default function OrganizationSettingsPage() {
           </p>
 
           <Input
+            aria-label="Type the organization name to confirm"
             placeholder={activeOrg.name}
             value={deleteConfirmationInput}
             onChange={(e) => setDeleteConfirmationInput(e.target.value)}
@@ -268,11 +333,7 @@ export default function OrganizationSettingsPage() {
           />
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setIsDeleteModalOpen(false)}
-            >
+            <Button type="button" variant="ghost" onClick={handleCloseDelete}>
               Cancel
             </Button>
             <Button

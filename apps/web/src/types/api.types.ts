@@ -51,7 +51,7 @@ export interface OrganizationMember {
   };
 }
 
-export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'REVOKED';
+export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'REVOKED' | 'EXPIRED';
 
 export interface Invitation {
   id: string;
@@ -62,6 +62,8 @@ export interface Invitation {
   invited_by: string;
   created_at: string;
   expires_at: string;
+  inviter_name?: string;
+  inviter_email?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +147,9 @@ export interface DocumentItem {
   status?: DocumentVersionStatus;
   file_size?: number;
   processed_at?: string;
+  description?: string | null;
+  original_filename?: string;
+  creator_name?: string | null;
 }
 
 export interface DocumentUserRule {
@@ -202,7 +207,7 @@ export interface DocumentAccessRulesSummary {
 export interface Conversation {
   id: string;
   organization_id: string;
-  title: string;
+  title: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;

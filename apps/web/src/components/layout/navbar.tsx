@@ -4,18 +4,30 @@ import React from 'react';
 import Link from 'next/link';
 import { OrgSwitcher } from './org-switcher';
 import { UserMenu } from './user-menu';
-import { Sparkles, Terminal } from 'lucide-react';
+import { useUiStore } from '@/stores/ui.store';
+import { Sparkles, Menu } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
+  const toggleSidebar = useUiStore((state) => state.toggleSidebar);
+
   return (
-    <header className="h-16 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between">
+    <header className="h-16 shrink-0 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl z-30 px-3 sm:px-6 flex items-center justify-between gap-2">
       {/* Brand & Context */}
-      <div className="flex items-center gap-6">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2 sm:gap-6 min-w-0">
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label="Open navigation menu"
+          className="lg:hidden p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-md shadow-indigo-600/30">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
-          <span className="text-sm font-bold tracking-tight text-white hidden sm:inline-block">
+          <span className="text-sm font-bold tracking-tight text-white hidden md:inline-block">
             AI Knowledge Workspace
           </span>
         </Link>
@@ -28,12 +40,7 @@ export const Navbar: React.FC = () => {
       </div>
 
       {/* Right controls */}
-      <div className="flex items-center gap-3">
-        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-indigo-300 font-mono">
-          <Terminal className="w-3 h-3 text-indigo-400" />
-          <span>FastAPI + pgvector Ready</span>
-        </div>
-
+      <div className="flex items-center gap-3 shrink-0">
         <UserMenu />
       </div>
     </header>

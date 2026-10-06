@@ -6,11 +6,15 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { apiClient, ApiError } from '@/lib/api-client';
+import { useAuthStore } from '@/stores/auth.store';
 import { CheckCircle2, AlertCircle, Mail, Loader2 } from 'lucide-react';
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const tokenFromUrl = searchParams.get('token');
+
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const refreshUser = useAuthStore((state) => state.refreshUser);
 
   const [token, setToken] = useState(tokenFromUrl || '');
   const [resendEmail, setResendEmail] = useState('');
@@ -30,6 +34,8 @@ function VerifyEmailContent() {
         body: JSON.stringify({ token: tokenToVerify.trim() }),
       });
       setStatus('success');
+      // If the user is signed in on this device, clear the "verification pending" state right away.
+      void refreshUser();
     } catch (err: unknown) {
       setStatus('error');
       if (err instanceof ApiError) {
@@ -38,7 +44,7 @@ function VerifyEmailContent() {
         setMessage('Verification failed. The token may be expired or invalid.');
       }
     }
-  }, []);
+  }, [refreshUser]);
 
   useEffect(() => {
     if (tokenFromUrl) {
@@ -80,8 +86,8 @@ function VerifyEmailContent() {
           Your email has been verified successfully. You can now access your workspace.
         </p>
         <div className="pt-3">
-          <Link href="/login">
-            <Button className="w-full">Sign In</Button>
+          <Link href={isAuthenticated ? '/dashboard' : '/login'}>
+            <Button className="w-full">{isAuthenticated ? 'Go to Dashboard' : 'Sign In'}</Button>
           </Link>
         </div>
       </div>

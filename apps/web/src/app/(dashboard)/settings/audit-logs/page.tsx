@@ -172,7 +172,7 @@ export default function AuditLogsPage() {
 
   if (!isPrivileged) {
     return (
-      <div className="p-8 max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6">
         <Card className="border-rose-500/20 bg-rose-950/10 backdrop-blur-xl">
           <CardHeader className="text-center py-12">
             <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto mb-4 text-rose-400">
@@ -190,7 +190,7 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

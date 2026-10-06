@@ -1,21 +1,28 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth.store';
+import { useOrgStore } from '@/stores/org.store';
 import { Navbar } from '@/components/layout/navbar';
 import { Sidebar } from '@/components/layout/sidebar';
+import { NoOrganization } from '@/components/layout/no-organization';
+import { VerificationBanner } from '@/components/layout/verification-banner';
 import { Loader2 } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { isAuthenticated, isLoading } = useAuthStore();
+  const { activeOrg, isLoadingOrgs } = useOrgStore();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.push('/login');
+      // Remember where the user was heading so login can send them back.
+      const target = pathname && pathname !== '/' ? `?redirect=${encodeURIComponent(pathname)}` : '';
+      router.push(`/login${target}`);
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [isLoading, isAuthenticated, router, pathname]);
 
   if (isLoading) {
     return (
@@ -32,13 +39,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return null;
   }
 
+  // Every page here is organization-scoped: wait for the org list, and guide brand-new users.
+  let content: React.ReactNode = children;
+  // (The account page is the one screen that makes sense without an organization.)
+  if (!activeOrg && !pathname?.startsWith('/settings/account')) {
+    content = isLoadingOrgs ? (
+      <div className="py-24 flex flex-col items-center gap-3 text-xs text-slate-400" role="status">
+        <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+        Loading your organizations...
+      </div>
+    ) : (
+      <NoOrganization />
+    );
+  }
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#0b0f19]">
+    <div className="h-screen flex flex-col bg-[#0b0f19] overflow-hidden">
       <Navbar />
-      <div className="flex-1 flex overflow-hidden">
+      <VerificationBanner />
+      <div className="flex-1 min-h-0 flex">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          {children}
+        <main className="flex-1 min-w-0 overflow-y-auto">
+          <div className="p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">{content}</div>
         </main>
       </div>
     </div>

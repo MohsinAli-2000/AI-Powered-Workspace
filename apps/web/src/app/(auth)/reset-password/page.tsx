@@ -67,6 +67,28 @@ function ResetPasswordForm() {
     }
   };
 
+  if (!token && !success) {
+    return (
+      <div className="text-center py-4 space-y-4">
+        <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 mx-auto flex items-center justify-center">
+          <AlertCircle className="w-6 h-6" />
+        </div>
+        <h2 className="text-xl font-bold text-white">Reset link is invalid</h2>
+        <p className="text-xs text-slate-300 max-w-sm mx-auto">
+          This password reset link is missing its token or was copied incompletely. Request a new link and open it directly from your email.
+        </p>
+        <div className="pt-3 space-y-2">
+          <Link href="/forgot-password" className="block">
+            <Button className="w-full">Request a new link</Button>
+          </Link>
+          <Link href="/login" className="block text-xs text-indigo-400 hover:text-indigo-300">
+            Back to Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (success) {
     return (
       <div className="text-center py-4 space-y-4">
@@ -110,6 +132,9 @@ function ResetPasswordForm() {
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           required
+          autoComplete="new-password"
+          autoFocus
+          helperText="At least 8 characters, including a letter and a number."
           leftIcon={<Lock className="w-4 h-4" />}
         />
 
@@ -120,6 +145,7 @@ function ResetPasswordForm() {
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
           required
+          autoComplete="new-password"
           leftIcon={<Lock className="w-4 h-4" />}
         />
 
@@ -127,6 +153,12 @@ function ResetPasswordForm() {
           Reset Password
         </Button>
       </form>
+
+      <div className="mt-6 text-center text-xs text-slate-400 border-t border-white/5 pt-4">
+        <Link href="/login" className="font-semibold text-indigo-400 hover:text-indigo-300">
+          Back to Sign In
+        </Link>
+      </div>
     </div>
   );
 }

@@ -24,17 +24,21 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
     (message.content.includes('could not find sufficient information') ||
       message.content.includes('Please ensure the relevant documents have been uploaded'));
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard access can be blocked (insecure context / permissions); nothing else to do.
+    }
   };
 
   if (isUser) {
     return (
-      <div className="flex justify-end mb-4 animate-in fade-in">
-        <div className="flex items-start gap-2.5 max-w-xl">
-          <div className="p-4 rounded-2xl rounded-tr-sm bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">
+      <div className="flex justify-end mb-4">
+        <div className="flex items-start gap-2.5 max-w-xl min-w-0">
+          <div className="p-4 rounded-2xl rounded-tr-sm bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words min-w-0">
             {message.content}
           </div>
           <div className="w-8 h-8 rounded-xl bg-slate-800 border border-white/10 flex items-center justify-center text-slate-300 shrink-0">
@@ -46,7 +50,7 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
   }
 
   return (
-    <div className="flex justify-start mb-6 animate-in fade-in">
+    <div className="flex justify-start mb-6">
       <div className="flex items-start gap-3 max-w-3xl w-full">
         {/* Assistant Avatar */}
         <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shrink-0 shadow-md shadow-indigo-500/20">
@@ -54,13 +58,15 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
         </div>
 
         {/* Message Container */}
-        <div className="flex-1 space-y-3">
+        <div className="flex-1 min-w-0 space-y-3">
           <div className="glass-card rounded-2xl rounded-tl-sm p-5 border border-white/10 text-xs sm:text-sm text-slate-100 leading-relaxed relative group">
             {/* Copy button */}
             <button
+              type="button"
               onClick={handleCopy}
-              className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 opacity-100 sm:opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer"
               title="Copy message"
+              aria-label="Copy message"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
@@ -75,7 +81,7 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="prose prose-invert prose-xs sm:prose-sm max-w-none prose-pre:bg-slate-950 prose-pre:border prose-pre:border-white/10">
+              <div className="markdown-body pr-6">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {message.content}
                 </ReactMarkdown>

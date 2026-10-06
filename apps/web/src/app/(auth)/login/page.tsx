@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/auth.store';
 import { apiClient, ApiError } from '@/lib/api-client';
+import { getSafeRedirect } from '@/lib/utils';
 import { AuthSession } from '@/types/api.types';
 import { Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react';
 
@@ -14,6 +15,8 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isExpired = searchParams.get('expired') === 'true';
+  const redirectParam = searchParams.get('redirect');
+  const redirectTo = getSafeRedirect(redirectParam);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +25,15 @@ function LoginForm() {
   );
   const [isLoading, setIsLoading] = useState(false);
   const setSession = useAuthStore((state) => state.setSession);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isAuthLoading = useAuthStore((state) => state.isLoading);
+
+  // Already signed in (e.g. opened /login in a second tab): skip the form.
+  useEffect(() => {
+    if (!isAuthLoading && isAuthenticated && !isLoading) {
+      router.replace(redirectTo);
+    }
+  }, [isAuthLoading, isAuthenticated, isLoading, router, redirectTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +47,7 @@ function LoginForm() {
       });
 
       setSession(response);
-      router.push('/dashboard');
+      router.push(redirectTo);
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -47,6 +59,8 @@ function LoginForm() {
     }
   };
 
+  const registerHref = redirectParam ? `/register?redirect=${encodeURIComponent(redirectTo)}` : '/register';
+
   return (
     <div>
       <div className="text-center mb-6">
@@ -57,7 +71,7 @@ function LoginForm() {
       </div>
 
       {error && (
-        <div className="mb-5 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-2.5 text-xs text-rose-300">
+        <div role="alert" className="mb-5 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-2.5 text-xs text-rose-300">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
           <span>{error}</span>
         </div>
@@ -72,30 +86,28 @@ function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
           autoComplete="email"
+          autoFocus
           leftIcon={<Mail className="w-4 h-4" />}
         />
 
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <span />
+        <Input
+          type="password"
+          label="Password"
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoComplete="current-password"
+          leftIcon={<Lock className="w-4 h-4" />}
+          labelAction={
             <Link
               href="/forgot-password"
               className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
             >
               Forgot password?
             </Link>
-          </div>
-          <Input
-            type="password"
-            label="Password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="current-password"
-            leftIcon={<Lock className="w-4 h-4" />}
-          />
-        </div>
+          }
+        />
 
         <Button
           type="submit"
@@ -109,7 +121,7 @@ function LoginForm() {
 
       <div className="mt-6 text-center text-xs text-slate-400 border-t border-white/5 pt-4">
         Don&apos;t have an account yet?{' '}
-        <Link href="/register" className="font-semibold text-indigo-400 hover:text-indigo-300">
+        <Link href={registerHref} className="font-semibold text-indigo-400 hover:text-indigo-300">
           Create account
         </Link>
       </div>

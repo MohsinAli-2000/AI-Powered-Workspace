@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { useOrgStore } from '@/stores/org.store';
+import { useOrgMembers, useOrgGroups, memberLabel } from '@/hooks/use-org-data';
 import {
   DocumentItem,
   DocumentAccessRulesSummary,
@@ -13,7 +15,7 @@ import {
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
 import {
   ShieldAlert,
@@ -36,6 +38,9 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
   onUpdated,
 }) => {
   const { showToast } = useToast();
+  const activeOrgId = useOrgStore((state) => state.activeOrg?.id);
+  const { items: orgMembers, isLoading: isLoadingMembers } = useOrgMembers(documentItem ? activeOrgId : null);
+  const { items: orgGroups, isLoading: isLoadingGroups } = useOrgGroups(documentItem ? activeOrgId : null);
   const [activeTab, setActiveTab] = useState<'users' | 'groups' | 'orgRoles' | 'projectRoles'>('users');
   const [summary, setSummary] = useState<DocumentAccessRulesSummary | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -296,11 +301,19 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
           </div>
         </div>
 
+        {!isRestricted && !isLoading && (
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            Want to limit this document to specific people, groups or roles? Switch to{' '}
+            <strong className="text-slate-200">RESTRICTED</strong> mode above, then add the rules that should allow access.
+          </p>
+        )}
+
         {/* Tab Navigation if Restricted */}
         {isRestricted && (
           <div className="space-y-4">
             <div className="flex items-center gap-1 border-b border-white/5 pb-2 text-xs">
               <button
+                type="button"
                 onClick={() => setActiveTab('users')}
                 className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                   activeTab === 'users' ? 'bg-indigo-600/20 text-indigo-300 font-medium' : 'text-slate-400 hover:text-white'
@@ -309,6 +322,7 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
                 User Rules ({summary?.user_rules?.length || 0})
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('groups')}
                 className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                   activeTab === 'groups' ? 'bg-indigo-600/20 text-indigo-300 font-medium' : 'text-slate-400 hover:text-white'
@@ -317,6 +331,7 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
                 Group Rules ({summary?.group_rules?.length || 0})
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('orgRoles')}
                 className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                   activeTab === 'orgRoles' ? 'bg-indigo-600/20 text-indigo-300 font-medium' : 'text-slate-400 hover:text-white'
@@ -325,6 +340,7 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
                 Org Roles ({summary?.org_role_rules?.length || 0})
               </button>
               <button
+                type="button"
                 onClick={() => setActiveTab('projectRoles')}
                 className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
                   activeTab === 'projectRoles' ? 'bg-indigo-600/20 text-indigo-300 font-medium' : 'text-slate-400 hover:text-white'
@@ -337,15 +353,24 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
             {/* TAB 1: User Rules */}
             {activeTab === 'users' && (
               <div className="space-y-3">
-                <form onSubmit={handleAddUserRule} className="flex gap-2">
-                  <Input
-                    placeholder="User ID (UUID)"
+                <form onSubmit={handleAddUserRule} className="flex flex-col sm:flex-row gap-2">
+                  <Select
+                    aria-label="Person"
                     value={userIdInput}
                     onChange={(e) => setUserIdInput(e.target.value)}
                     required
-                    className="flex-1"
-                  />
+                    disabled={isLoadingMembers}
+                    className="flex-1 !text-xs"
+                  >
+                    <option value="">{isLoadingMembers ? 'Loading people…' : 'Select a person…'}</option>
+                    {orgMembers.map((m) => (
+                      <option key={m.user_id} value={m.user_id}>
+                        {memberLabel(m)}
+                      </option>
+                    ))}
+                  </Select>
                   <select
+                    aria-label="Effect"
                     value={userEffectInput}
                     onChange={(e) => setUserEffectInput(e.target.value as DocumentEffect)}
                     className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200"
@@ -353,7 +378,7 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
                     <option value="ALLOW">ALLOW</option>
                     <option value="DENY">DENY</option>
                   </select>
-                  <Button type="submit" size="sm" isLoading={isSubmitting}>
+                  <Button type="submit" size="sm" isLoading={isSubmitting} disabled={!userIdInput}>
                     <Plus className="w-3.5 h-3.5 mr-1" /> Add Rule
                   </Button>
                 </form>
@@ -364,12 +389,22 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
                   ) : (
                     summary?.user_rules?.map((rule) => (
                       <div key={rule.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-white/[0.02]">
-                        <span className="font-mono text-slate-300 text-[11px] truncate max-w-xs">{rule.user_id}</span>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-200 text-xs truncate">
+                            {rule.user?.full_name || rule.user_id}
+                          </p>
+                          {rule.user?.email && (
+                            <p className="text-[10px] text-slate-400 font-mono truncate">{rule.user.email}</p>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                           <Badge variant={rule.effect === 'ALLOW' ? 'success' : 'danger'}>{rule.effect}</Badge>
                           <button
+                            type="button"
                             onClick={() => handleDeleteUserRule(rule.user_id)}
-                            className="p-1 text-slate-400 hover:text-rose-400"
+                            className="p-1 text-slate-400 hover:text-rose-400 cursor-pointer"
+                            title="Remove rule"
+                            aria-label="Remove rule"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -384,15 +419,30 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
             {/* TAB 2: Group Rules */}
             {activeTab === 'groups' && (
               <div className="space-y-3">
-                <form onSubmit={handleAddGroupRule} className="flex gap-2">
-                  <Input
-                    placeholder="Group ID (UUID)"
+                <form onSubmit={handleAddGroupRule} className="flex flex-col sm:flex-row gap-2">
+                  <Select
+                    aria-label="Group"
                     value={groupIdInput}
                     onChange={(e) => setGroupIdInput(e.target.value)}
                     required
-                    className="flex-1"
-                  />
+                    disabled={isLoadingGroups}
+                    className="flex-1 !text-xs"
+                  >
+                    <option value="">
+                      {isLoadingGroups
+                        ? 'Loading groups…'
+                        : orgGroups.length === 0
+                        ? 'No groups in this organization yet'
+                        : 'Select a group…'}
+                    </option>
+                    {orgGroups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </Select>
                   <select
+                    aria-label="Effect"
                     value={groupEffectInput}
                     onChange={(e) => setGroupEffectInput(e.target.value as DocumentEffect)}
                     className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200"
@@ -400,7 +450,7 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
                     <option value="ALLOW">ALLOW</option>
                     <option value="DENY">DENY</option>
                   </select>
-                  <Button type="submit" size="sm" isLoading={isSubmitting}>
+                  <Button type="submit" size="sm" isLoading={isSubmitting} disabled={!groupIdInput}>
                     <Plus className="w-3.5 h-3.5 mr-1" /> Add Rule
                   </Button>
                 </form>
@@ -411,12 +461,17 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
                   ) : (
                     summary?.group_rules?.map((rule) => (
                       <div key={rule.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-white/[0.02]">
-                        <span className="font-mono text-slate-300 text-[11px] truncate max-w-xs">{rule.group_id}</span>
+                        <span className="font-semibold text-slate-200 text-xs truncate max-w-xs">
+                          {rule.group?.name || rule.group_id}
+                        </span>
                         <div className="flex items-center gap-2">
                           <Badge variant={rule.effect === 'ALLOW' ? 'success' : 'danger'}>{rule.effect}</Badge>
                           <button
+                            type="button"
                             onClick={() => handleDeleteGroupRule(rule.group_id)}
-                            className="p-1 text-slate-400 hover:text-rose-400"
+                            className="p-1 text-slate-400 hover:text-rose-400 cursor-pointer"
+                            title="Remove rule"
+                            aria-label="Remove rule"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -463,8 +518,11 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
                         <div className="flex items-center gap-2">
                           <Badge variant={rule.effect === 'ALLOW' ? 'success' : 'danger'}>{rule.effect}</Badge>
                           <button
+                            type="button"
                             onClick={() => handleDeleteOrgRoleRule(rule.role)}
-                            className="p-1 text-slate-400 hover:text-rose-400"
+                            className="p-1 text-slate-400 hover:text-rose-400 cursor-pointer"
+                            title="Remove rule"
+                            aria-label="Remove rule"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -511,8 +569,11 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
                         <div className="flex items-center gap-2">
                           <Badge variant={rule.effect === 'ALLOW' ? 'success' : 'danger'}>{rule.effect}</Badge>
                           <button
+                            type="button"
                             onClick={() => handleDeleteProjectRoleRule(rule.role)}
-                            className="p-1 text-slate-400 hover:text-rose-400"
+                            className="p-1 text-slate-400 hover:text-rose-400 cursor-pointer"
+                            title="Remove rule"
+                            aria-label="Remove rule"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

@@ -9,10 +9,11 @@ interface CitationPillProps {
 }
 
 export const CitationPill: React.FC<CitationPillProps> = ({ source, index, onClick }) => {
-  const confidencePercent = Math.round(source.similarity * 100);
+  const confidencePercent = Math.round((source.similarity ?? 0) * 100);
 
   return (
     <button
+      type="button"
       onClick={() => onClick(source)}
       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 hover:border-indigo-500/50 text-[11px] text-indigo-300 transition-all cursor-pointer shadow-sm hover:shadow-indigo-500/10 group"
       title={`Click to inspect source chunk (${confidencePercent}% match)`}

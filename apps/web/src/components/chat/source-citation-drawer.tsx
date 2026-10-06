@@ -25,12 +25,16 @@ export const SourceCitationDrawer: React.FC<SourceCitationDrawerProps> = ({ sour
 
   if (!source) return null;
 
-  const confidencePercent = Math.round(source.similarity * 100);
+  const confidencePercent = Math.round((source.similarity ?? 0) * 100);
 
-  const handleCopyExcerpt = () => {
-    navigator.clipboard.writeText(source.content_excerpt);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopyExcerpt = async () => {
+    try {
+      await navigator.clipboard.writeText(source.content_excerpt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard access can be blocked; ignore.
+    }
   };
 
   return (
@@ -42,7 +46,12 @@ export const SourceCitationDrawer: React.FC<SourceCitationDrawerProps> = ({ sour
       />
 
       {/* Drawer Container */}
-      <div className="relative w-full max-w-md bg-slate-900 border-l border-white/10 shadow-2xl h-full flex flex-col z-10 animate-in slide-in-from-right duration-200">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Source citation details"
+        className="relative w-full max-w-md bg-slate-900 border-l border-white/10 shadow-2xl h-full flex flex-col z-10"
+      >
         {/* Header */}
         <div className="p-5 border-b border-white/5 flex items-start justify-between">
           <div className="flex items-center gap-2.5">
@@ -50,12 +59,14 @@ export const SourceCitationDrawer: React.FC<SourceCitationDrawerProps> = ({ sour
               <FileText className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Source Citation Details</h3>
-              <p className="text-[11px] text-slate-400">pgvector cosine match</p>
+              <h3 className="text-sm font-bold text-white">Where this came from</h3>
+              <p className="text-[11px] text-slate-400">Passage the answer was based on</p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Close source details"
             className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -73,16 +84,17 @@ export const SourceCitationDrawer: React.FC<SourceCitationDrawerProps> = ({ sour
               {source.document_title}
             </h4>
             <div className="flex flex-wrap items-center gap-2 pt-1 font-mono text-[10px] text-slate-400">
-              <span>Doc ID: {source.document_id.substring(0, 8)}...</span>
-              {source.chunk_index !== undefined && <span>• Chunk #{source.chunk_index}</span>}
-              {source.page_number && <span>• Page {source.page_number}</span>}
+              {source.page_number ? <span>Page {source.page_number}</span> : null}
+              {source.chunk_index !== undefined && (
+                <span>{source.page_number ? '• ' : ''}Passage #{source.chunk_index + 1}</span>
+              )}
             </div>
           </div>
 
           {/* Similarity Score Meter */}
           <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-200">Semantic Relevance Score</span>
+              <span className="text-xs font-semibold text-slate-200">Relevance to your question</span>
               <span className="text-xs font-bold text-indigo-400 font-mono">
                 {confidencePercent}%
               </span>
@@ -102,15 +114,16 @@ export const SourceCitationDrawer: React.FC<SourceCitationDrawerProps> = ({ sour
               />
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Cosine similarity computed with 768-dimensional normalized embeddings via HNSW vector index.
+              How closely this passage matches the meaning of your question (higher is better).
             </p>
           </div>
 
           {/* Chunk Text Excerpt */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-200">Grounded Text Excerpt</span>
+              <span className="text-xs font-semibold text-slate-200">Excerpt</span>
               <button
+                type="button"
                 onClick={handleCopyExcerpt}
                 className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
               >
@@ -128,7 +141,7 @@ export const SourceCitationDrawer: React.FC<SourceCitationDrawerProps> = ({ sour
           <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-300 flex items-start gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
             <span>
-              This excerpt was verified against your active organization credentials before retrieval.
+              You can only see excerpts from documents you have permission to access.
             </span>
           </div>
         </div>

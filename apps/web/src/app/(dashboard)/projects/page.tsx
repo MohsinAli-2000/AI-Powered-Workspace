@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useOrgStore } from '@/stores/org.store';
 import { apiClient } from '@/lib/api-client';
@@ -10,15 +10,21 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/state';
 import { useToast } from '@/components/ui/toast';
-import { FolderKanban, Plus, ArrowRight, ShieldCheck, Trash2 } from 'lucide-react';
+import { FolderKanban, Plus, ArrowRight, ShieldCheck, Trash2, Search, Users, Bot } from 'lucide-react';
 
 export default function ProjectsPage() {
   const { showToast } = useToast();
   const { activeOrg, setProjects } = useOrgStore();
+  const orgId = activeOrg?.id;
 
   const [projects, setLocalProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   // Create Project Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -26,32 +32,51 @@ export default function ProjectsPage() {
   const [projectDescription, setProjectDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
+  // Delete confirmation
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const loadProjects = useCallback(async () => {
-    if (!activeOrg) return;
+    if (!orgId) return;
     setIsLoading(true);
+    setLoadError(null);
     try {
-      const data = await apiClient<Project[]>(`/organizations/${activeOrg.id}/projects`);
+      const data = await apiClient<Project[]>(`/organizations/${orgId}/projects`);
       const projs = Array.isArray(data) ? data : [];
       setLocalProjects(projs);
       setProjects(projs);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to load projects', 'error');
+      setLoadError(err instanceof Error ? err.message : 'Failed to load projects');
     } finally {
       setIsLoading(false);
     }
-  }, [activeOrg, setProjects, showToast]);
+  }, [orgId, setProjects]);
 
   useEffect(() => {
-    loadProjects();
+    void loadProjects();
   }, [loadProjects]);
+
+  const filteredProjects = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return projects;
+    return projects.filter(
+      (p) => p.name.toLowerCase().includes(query) || (p.description || '').toLowerCase().includes(query)
+    );
+  }, [projects, search]);
+
+  const handleCloseCreate = () => {
+    setIsCreateModalOpen(false);
+    setProjectName('');
+    setProjectDescription('');
+  };
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeOrg || !projectName.trim()) return;
+    if (!orgId || !projectName.trim()) return;
     setIsCreating(true);
 
     try {
-      const newProj = await apiClient<Project>(`/organizations/${activeOrg.id}/projects`, {
+      const newProj = await apiClient<Project>(`/organizations/${orgId}/projects`, {
         method: 'POST',
         body: JSON.stringify({
           name: projectName.trim(),
@@ -59,13 +84,13 @@ export default function ProjectsPage() {
         }),
       });
 
-      const updated = [newProj, ...projects];
+      // The creator is the initial PROJECT_MANAGER (so the card shows the right actions).
+      const created: Project = { ...newProj, role: newProj.role ?? 'PROJECT_MANAGER' };
+      const updated = [created, ...projects];
       setLocalProjects(updated);
       setProjects(updated);
-      showToast(`Project "${newProj.name}" created`, 'success');
-      setIsCreateModalOpen(false);
-      setProjectName('');
-      setProjectDescription('');
+      showToast(`Project "${created.name}" created`, 'success');
+      handleCloseCreate();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to create project', 'error');
     } finally {
@@ -73,111 +98,149 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleDeleteProject = async (projectId: string, projectName: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!confirm(`Are you sure you want to delete "${projectName}"? All documents and vector chunks will be erased.`)) {
-      return;
-    }
-
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return;
+    setIsDeleting(true);
     try {
-      await apiClient(`/projects/${projectId}`, { method: 'DELETE' });
-      const remaining = projects.filter((p) => p.id !== projectId);
+      await apiClient(`/projects/${projectToDelete.id}`, { method: 'DELETE' });
+      const remaining = projects.filter((p) => p.id !== projectToDelete.id);
       setLocalProjects(remaining);
       setProjects(remaining);
-      showToast(`Project "${projectName}" deleted.`, 'info');
+      showToast(`Project "${projectToDelete.name}" deleted.`, 'info');
+      setProjectToDelete(null);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to delete project', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
-  return (
-    <div className="space-y-6 max-w-6xl">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Organization Projects</h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Projects segment your documents, vector indexes, and AI assistant query context
-          </p>
-        </div>
+  const orgRole = activeOrg?.role || activeOrg?.user_role;
 
-        <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
-          <Plus className="w-4 h-4 mr-1.5" />
-          Create Project
-        </Button>
-      </div>
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Projects & Documents"
+        description="A project is a folder of related documents with its own members. Open a project to upload files, manage access, or chat with its documents."
+        actions={
+          <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-1.5" />
+            New Project
+          </Button>
+        }
+      />
 
       {isLoading ? (
-        <div className="p-8 text-center text-xs text-slate-400">Loading projects...</div>
+        <LoadingState message="Loading projects..." />
+      ) : loadError ? (
+        <ErrorState title="Couldn't load projects" message={loadError} onRetry={() => void loadProjects()} />
       ) : projects.length === 0 ? (
-        <Card className="text-center py-16">
-          <FolderKanban className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-          <h3 className="text-base font-semibold text-slate-200">No projects yet</h3>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1 mb-5 leading-relaxed">
-            Create your first project to begin uploading organizational documents and scoping AI assistance.
-          </p>
-          <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-1.5" /> Create Project
-          </Button>
-        </Card>
+        <EmptyState
+          icon={<FolderKanban className="w-12 h-12" />}
+          title="No projects yet"
+          description="Create your first project to begin uploading organizational documents and scoping AI assistance."
+          action={
+            <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
+              <Plus className="w-4 h-4 mr-1.5" /> Create Project
+            </Button>
+          }
+        />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((project) => {
-            const orgRole = activeOrg?.role || activeOrg?.user_role;
-            const projectRole = project.role || project.user_role;
-            const isManager =
-              projectRole === 'PROJECT_MANAGER' ||
-              orgRole === 'OWNER' ||
-              orgRole === 'ADMIN';
+        <>
+          {projects.length > 3 && (
+            <div className="max-w-sm">
+              <Input
+                aria-label="Search projects"
+                placeholder="Search projects..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                leftIcon={<Search className="w-4 h-4" />}
+              />
+            </div>
+          )}
 
-            return (
-              <Link key={project.id} href={`/projects/${project.id}`}>
-                <Card hoverEffect className="h-full flex flex-col justify-between cursor-pointer">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-sm font-semibold text-slate-100 truncate">
-                        {project.name}
-                      </CardTitle>
-                      {projectRole && (
-                        <Badge
-                          variant={projectRole === 'PROJECT_MANAGER' ? 'brand' : 'default'}
-                          size="sm"
-                        >
-                          {projectRole === 'PROJECT_MANAGER' ? 'Manager' : 'Member'}
-                        </Badge>
+          {filteredProjects.length === 0 ? (
+            <p className="py-8 text-center text-xs text-slate-400">No projects match &quot;{search}&quot;.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProjects.map((project) => {
+                const projectRole = project.role || project.user_role;
+                const isManager =
+                  projectRole === 'PROJECT_MANAGER' || orgRole === 'OWNER' || orgRole === 'ADMIN';
+
+                return (
+                  <Card key={project.id} hoverEffect className="relative h-full flex flex-col justify-between">
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-2">
+                        <CardTitle className="text-sm font-semibold text-slate-100 truncate">
+                          <Link
+                            href={`/projects/${project.id}`}
+                            className="hover:text-indigo-300 transition-colors after:absolute after:inset-0"
+                          >
+                            {project.name}
+                          </Link>
+                        </CardTitle>
+                        {projectRole && (
+                          <Badge
+                            variant={projectRole === 'PROJECT_MANAGER' ? 'brand' : 'default'}
+                            size="sm"
+                          >
+                            {projectRole === 'PROJECT_MANAGER' ? 'Manager' : 'Member'}
+                          </Badge>
+                        )}
+                      </div>
+                      <CardDescription className="line-clamp-2 mt-1.5">
+                        {project.description || 'No project description provided.'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0 space-y-3">
+                      {typeof project.member_count === 'number' && (
+                        <p className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                          <Users className="w-3.5 h-3.5" />
+                          {project.member_count} {project.member_count === 1 ? 'member' : 'members'}
+                        </p>
                       )}
-                    </div>
-                    <CardDescription className="line-clamp-2 mt-1.5">
-                      {project.description || 'No project description provided.'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0 flex items-center justify-between text-xs text-slate-400">
-                    <span className="flex items-center gap-1 text-[11px] text-indigo-400 font-medium">
-                      Upload & View Documents <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
+                      <div className="flex items-center justify-between text-xs text-slate-400">
+                        <span className="flex items-center gap-1 text-[11px] text-indigo-400 font-medium">
+                          Upload & view documents <ArrowRight className="w-3.5 h-3.5" />
+                        </span>
 
-                    {isManager && (
-                      <button
-                        onClick={(e) => handleDeleteProject(project.id, project.name, e)}
-                        className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                        title="Delete project"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
+                        {/* Sit above the card-wide link so these stay independently clickable. */}
+                        <div className="relative z-10 flex items-center gap-1">
+                          <Link
+                            href={`/chat?project=${project.id}`}
+                            className="p-1.5 text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors"
+                            title="Chat with this project's documents"
+                            aria-label={`Chat with ${project.name}`}
+                          >
+                            <Bot className="w-3.5 h-3.5" />
+                          </Link>
+                          {isManager && (
+                            <button
+                              type="button"
+                              onClick={() => setProjectToDelete(project)}
+                              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                              title="Delete project"
+                              aria-label={`Delete ${project.name}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {/* Create Project Modal */}
       <Modal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={handleCloseCreate}
         title="Create New Project"
         description="Establish a document knowledge domain within this organization."
       >
@@ -187,6 +250,7 @@ export default function ProjectsPage() {
             placeholder="e.g. Q4 Financial Audits"
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
+            maxLength={100}
             required
             autoFocus
           />
@@ -196,6 +260,7 @@ export default function ProjectsPage() {
             placeholder="e.g. Balance sheets, tax disclosures, and SEC filings"
             value={projectDescription}
             onChange={(e) => setProjectDescription(e.target.value)}
+            maxLength={1000}
           />
 
           <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300 flex items-start gap-2">
@@ -206,11 +271,7 @@ export default function ProjectsPage() {
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setIsCreateModalOpen(false)}
-            >
+            <Button type="button" variant="ghost" onClick={handleCloseCreate}>
               Cancel
             </Button>
             <Button type="submit" isLoading={isCreating}>
@@ -219,6 +280,21 @@ export default function ProjectsPage() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!projectToDelete}
+        title="Delete project?"
+        message={
+          <>
+            <strong className="text-white">{projectToDelete?.name}</strong> and all of its documents and
+            searchable vector chunks will be permanently erased. This cannot be undone.
+          </>
+        }
+        confirmLabel="Delete project"
+        isLoading={isDeleting}
+        onConfirm={handleDeleteProject}
+        onCancel={() => setProjectToDelete(null)}
+      />
     </div>
   );
 }
