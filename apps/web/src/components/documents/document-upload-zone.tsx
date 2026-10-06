@@ -5,7 +5,7 @@ import { apiClient, ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { formatBytes } from '@/lib/utils';
-import { UploadCloud, File, AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react';
+import { UploadCloud, File, AlertCircle, X } from 'lucide-react';
 
 interface DocumentUploadZoneProps {
   projectId: string;

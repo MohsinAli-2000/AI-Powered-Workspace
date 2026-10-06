@@ -2,9 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { MessageSource } from '@/types/api.types';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { X, FileText, Check, Copy, ExternalLink, ShieldCheck } from 'lucide-react';
+import { X, FileText, Check, Copy, ShieldCheck } from 'lucide-react';
 
 interface SourceCitationDrawerProps {
   source: MessageSource | null;

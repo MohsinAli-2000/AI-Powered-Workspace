@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/auth.store';
 import { useOrgStore } from '@/stores/org.store';
@@ -30,46 +30,54 @@ export default function DashboardPage() {
   const [conversationCount, setConversationCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadDashboardData = useCallback(async () => {
+  useEffect(() => {
+    let cancelled = false;
     if (!activeOrg) {
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-    try {
-      // 1. Fetch projects
-      const projs = await apiClient<Project[]>(`/organizations/${activeOrg.id}/projects`);
-      const projsList = Array.isArray(projs) ? projs : [];
-      setLocalProjects(projsList);
-      setProjects(projsList);
+    const fetchData = async () => {
+      try {
+        // 1. Fetch projects
+        const projs = await apiClient<Project[]>(`/organizations/${activeOrg.id}/projects`);
+        if (cancelled) return;
+        const projsList = Array.isArray(projs) ? projs : [];
+        setLocalProjects(projsList);
+        setProjects(projsList);
 
-      // 2. Fetch conversations
-      const convs = await apiClient<Conversation[]>(`/organizations/${activeOrg.id}/conversations`);
-      setConversationCount(Array.isArray(convs) ? convs.length : 0);
+        // 2. Fetch conversations
+        const convs = await apiClient<Conversation[]>(`/organizations/${activeOrg.id}/conversations`);
+        if (cancelled) return;
+        setConversationCount(Array.isArray(convs) ? convs.length : 0);
 
-      // 3. Count documents across projects
-      let totalDocs = 0;
-      for (const p of projsList.slice(0, 5)) {
-        try {
-          const docs = await apiClient<DocumentItem[]>(`/projects/${p.id}/documents`);
-          const docsList = Array.isArray(docs) ? docs : [];
-          totalDocs += docsList.length;
-        } catch {
-          // ignore error for single project docs
+        // 3. Count documents across projects
+        let totalDocs = 0;
+        for (const p of projsList.slice(0, 5)) {
+          try {
+            const docs = await apiClient<DocumentItem[]>(`/projects/${p.id}/documents`);
+            const docsList = Array.isArray(docs) ? docs : [];
+            totalDocs += docsList.length;
+          } catch {
+            // ignore error for single project docs
+          }
+        }
+        if (cancelled) return;
+        setDocumentCount(totalDocs);
+      } catch (err) {
+        console.error('Failed to load dashboard data', err);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
         }
       }
-      setDocumentCount(totalDocs);
-    } catch (err) {
-      console.error('Failed to load dashboard data', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeOrg, setProjects]);
+    };
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+    fetchData();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrg, setProjects]);
 
   return (
     <div className="space-y-8 animate-in fade-in">

@@ -17,15 +17,11 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import {
   ShieldAlert,
-  User,
-  UsersRound,
-  Shield,
   Trash2,
   Plus,
   Lock,
   Globe,
   CheckCircle2,
-  Ban,
 } from 'lucide-react';
 
 interface AccessRulesDialogProps {
@@ -240,7 +236,7 @@ export const AccessRulesDialog: React.FC<AccessRulesDialogProps> = ({
     <Modal
       isOpen={!!documentItem}
       onClose={onClose}
-      title={`Access Control: ${documentItem.name}`}
+      title={`Access Control: ${documentItem.name}${isLoading ? ' (Updating...)' : ''}`}
       description="Configure granular document permissions and RAG retrieval boundaries."
       maxWidth="xl"
     >

@@ -24,9 +24,10 @@ export const useOrgStore = create<OrgState>((set, get) => ({
   isLoadingProjects: false,
 
   setOrganizations: (organizations: Organization[]) => {
+    const raw = organizations as unknown as { organizations?: Organization[] };
     const list = Array.isArray(organizations)
       ? organizations
-      : (organizations as any)?.organizations || [];
+      : raw?.organizations || [];
     set({ organizations: list });
     const currentActive = get().activeOrg;
     if (!currentActive && list.length > 0) {
@@ -47,9 +48,10 @@ export const useOrgStore = create<OrgState>((set, get) => ({
   },
 
   setProjects: (projects: Project[]) => {
+    const raw = projects as unknown as { projects?: Project[] };
     const list = Array.isArray(projects)
       ? projects
-      : (projects as any)?.projects || [];
+      : raw?.projects || [];
     set({ projects: list });
     const currentActive = get().activeProject;
     if (!currentActive && list.length > 0) {

@@ -5,7 +5,6 @@ import { DocumentItem } from '@/types/api.types';
 import { DocumentStatusBadge } from './document-status-badge';
 import { AccessRulesDialog } from './access-rules-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { formatBytes, formatDate } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/components/ui/toast';

@@ -8,12 +8,10 @@ import {
   Conversation,
   Message,
   MessageSource,
-  Project,
 } from '@/types/api.types';
 import { ChatMessageBubble } from './chat-message-bubble';
 import { SourceCitationDrawer } from './source-citation-drawer';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import {
   MessageSquare,

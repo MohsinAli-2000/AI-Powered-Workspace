@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
-import { UsersRound, Plus, Trash2, UserPlus, Shield, X } from 'lucide-react';
+import { UsersRound, Plus, Trash2, UserPlus, X } from 'lucide-react';
 
 export default function GroupsPage() {
   const { showToast } = useToast();

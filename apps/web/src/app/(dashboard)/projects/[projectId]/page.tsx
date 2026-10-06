@@ -14,14 +14,12 @@ import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast';
 import {
-  FolderKanban,
   FileText,
   Users,
   Bot,
   ArrowLeft,
   UserPlus,
   Trash2,
-  Settings,
   UploadCloud,
 } from 'lucide-react';
 
