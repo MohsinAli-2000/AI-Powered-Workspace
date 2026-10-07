@@ -64,7 +64,7 @@ The MVP will be considered functionally successful when the following complete f
 
 ## 6. MVP Constraints (Out of Scope for Initial Version)
 
-- Image OCR and image understanding
+- Image OCR and image understanding (Initial MVP constraint — now implemented via Multimodal Gemini Vision OCR)
 - Automatic deletion of old documents
 - Automatic AI decisions about which documents are valuable
 - Full document versioning (versioning design exists but not MVP implementation)

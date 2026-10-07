@@ -38,8 +38,9 @@
 | Vector Store | pgvector | 768-dim embeddings and HNSW similarity search |
 | Job Queue | RabbitMQ | Reliable background job delivery with DLQ |
 | Object Storage | MinIO (Local Dev Only) → AWS S3 (Production) | Original uploaded documents |
-| Embedding Runtime | Google Gemini API default (`gemini-embedding-001`); Ollama for local dev | Text-to-vector conversion (768-dim) |
-| LLM Runtime | Google Gemini API default (`gemini-3.8-flash`); Ollama for local dev | Grounded answer generation and streaming |
+| Multimodal Vision OCR | Google Gemini Vision API (`gemini-3.6-flash`, fallback chain) | Image OCR, table extraction, and workflow / diagram transcription |
+| Embedding Runtime | Google Gemini API default (`gemini-embedding-001`); Ollama code kept for local reference | Text-to-vector conversion (768-dim) |
+| LLM Runtime | Google Gemini API default (`gemini-3.8-flash`); Ollama code kept for local reference | Grounded answer generation and streaming |
 | Email | Nodemailer (Gmail SMTP) / Resend | Transactional emails |
 | Monitoring | Sentry | Errors, performance, and tracing |
 
@@ -178,11 +179,13 @@ EXTERNAL MANAGED SERVICES
 1. Pick up job from RabbitMQ queue (`document-processing`) with Dead Letter Queue protection
 2. Get document version metadata from PostgreSQL using `ThreadedConnectionPool`
 3. Download original file from object storage (MinIO or AWS S3) with 50MB file size safeguard
-4. Extract text from document (PDF, DOCX, XLSX, PPTX, TXT extractors with safe stream handling)
+4. Extract text from document or image:
+   - **Office & Text:** PDF (`pypdf`), DOCX (`python-docx`), XLSX (`openpyxl`), PPTX (`python-pptx`), TXT with safe stream handling
+   - **Raster Images & Diagrams:** `.png`, `.jpg`, `.jpeg`, `.jfif`, `.webp`, `.bmp`, `.tiff`, `.tif`, `.gif` via `ImageExtractor` using Google Gemini Vision (`gemini-3.6-flash` with fallback sequence across `gemini-3-flash-preview`, `gemini-flash-lite-latest`, and `gemini-3.1-flash-lite`) and Pillow in-memory normalization
 5. Normalize and clean content (NFKC Unicode normalization, null-byte stripping)
 6. Split into chunks (1000 characters with 200 characters overlap and boundary snapping)
-7. Generate embeddings in batches (Gemini `gemini-embedding-001` default, Ollama `nomic-embed-text` alternative)
-8. Store chunks + 768-dim embeddings in PostgreSQL (pgvector)
+7. Generate embeddings in batches (Gemini `gemini-embedding-001` default, 768 dimensions)
+8. Store chunks + 768-dim embeddings in PostgreSQL (pgvector) with image metadata flags
 9. Update document status to `READY` (with `processed_at`) or `FAILED`
 
 ---

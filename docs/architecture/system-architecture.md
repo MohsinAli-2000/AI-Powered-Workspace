@@ -108,9 +108,11 @@ flowchart TB
 
     subgraph MODELS["🧠 AI MODELS"]
 
-        EMBEDDING_MODEL["Embedding Model (768-dim)<br/><br/>Production: Google Gemini API<br/>Development: Local Ollama"]
+        EMBEDDING_MODEL["Embedding Model (768-dim)<br/><br/>Google Gemini API (gemini-embedding-001)"]
 
-        LLM["LLM (Grounded Generation)<br/><br/>Production: Google Gemini API (gemini-3.8-flash)<br/>Development: Local Ollama (qwen2.5)"]
+        LLM["LLM (Grounded Generation)<br/><br/>Google Gemini API (gemini-3.8-flash)"]
+
+        VISION["Vision OCR Model (Multimodal)<br/><br/>Google Gemini Vision API (gemini-3.6-flash)"]
 
     end
 
@@ -385,8 +387,9 @@ document is accessible to the current user
 | Vector Store        | pgvector             | 768-dim embeddings and similarity search |
 | Job Queue           | RabbitMQ             | Reliable background job delivery      |
 | Object Storage      | MinIO (Local Dev Only) → AWS S3 (Production) | Original uploaded documents           |
-| Embedding Runtime   | Google Gemini API default (`gemini-embedding-001`, 768-dim); Ollama for local dev | Text-to-vector conversion (768-dim)   |
-| LLM Runtime         | Google Gemini API default (`gemini-3.8-flash`); Ollama for local dev | Grounded answer generation and streaming |
+| Multimodal Vision OCR | Google Gemini Vision API (`gemini-3.6-flash`) | Image OCR, table extraction, workflow & diagram transcription |
+| Embedding Runtime   | Google Gemini API default (`gemini-embedding-001`, 768-dim); Ollama code kept for local reference | Text-to-vector conversion (768-dim)   |
+| LLM Runtime         | Google Gemini API default (`gemini-3.8-flash`); Ollama code kept for local reference | Grounded answer generation and streaming |
 | Email               | Nodemailer (Gmail SMTP) / Resend | Transactional emails                  |
 | Monitoring          | Sentry               | Errors, performance, and tracing      |
 

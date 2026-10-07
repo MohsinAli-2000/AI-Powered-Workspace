@@ -22,19 +22,19 @@ The RAG system is implemented as a **separate Python AI Service** (FastAPI) and 
 | AI Service | Python + FastAPI | Real-time RAG orchestration and answer generation |
 | AI Worker | Python | Asynchronous document processing and embedding generation |
 | Vision Model | Google Gemini API (`gemini-3.6-flash`, with `gemini-3-flash-preview` / `gemini-flash-lite-latest` fallback) | Multimodal OCR, table transcription, and visual diagram/workflow understanding |
-| Embedding Model | Google Gemini API `gemini-embedding-001` (768-dim, production standard); Ollama for local dev | Text-to-vector conversion |
-| LLM | Google Gemini API `gemini-3.6-flash` (production standard); Qwen via Ollama for local dev | Answer generation |
+| Embedding Model | Google Gemini API `gemini-embedding-001` (768-dim, primary cloud provider); Ollama code kept for local reference | Text-to-vector conversion |
+| LLM | Google Gemini API `gemini-3.6-flash` (primary cloud provider); Qwen via Ollama kept for local reference | Answer generation |
 | Vector Store | pgvector (PostgreSQL) | Similarity search |
 
 ### Embedding Model Selection
 
-> **Production Standard:** `gemini-embedding-001` via Google Gemini API (`AI_PROVIDER=gemini`, 768 dimensions, L2 unit-normalized, HNSW index). Delivers high-throughput cloud vectorization with zero self-hosted infrastructure.  
-> **Development Runtime:** `nomic-embed-text` via Ollama (`AI_PROVIDER=ollama`, 768 dimensions) for offline local development without external API calls.  
+> **Cloud Standard (Active):** `gemini-embedding-001` via Google Gemini API (`AI_PROVIDER=gemini`, 768 dimensions, L2 unit-normalized, HNSW index). Delivers high-throughput cloud vectorization with zero self-hosted infrastructure.  
+> **Local Model Reference:** `nomic-embed-text` via Ollama (768 dimensions) code is preserved in commented form in `apps/worker/src/embeddings/ollama.py` and `apps/ai-service/src/providers/ollama.py` as a reference for local/offline execution.  
 
 ### LLM Selection
 
-> **Production Standard:** `gemini-3.6-flash` via Google Gemini API (`AI_PROVIDER=gemini`, configured with `GEMINI_API_KEY`). Provides high-speed enterprise-grade grounded reasoning, low latency token streaming, and resilient fallback sequence across `gemini-3-flash-preview`, `gemini-flash-lite-latest`, and `gemini-3.1-flash-lite`.  
-> **Development Runtime:** `qwen2.5:1.5b` via Ollama for fast, lightweight local CPU execution on developer laptops.  
+> **Cloud Standard (Active):** `gemini-3.6-flash` via Google Gemini API (`AI_PROVIDER=gemini`, configured with `GEMINI_API_KEY`). Provides high-speed enterprise-grade grounded reasoning, low latency token streaming, and resilient fallback sequence across `gemini-3-flash-preview`, `gemini-flash-lite-latest`, and `gemini-3.1-flash-lite`.  
+> **Local Model Reference:** `qwen2.5` via Ollama code is preserved in commented form in `apps/ai-service/src/providers/ollama.py` and `apps/api/src/modules/conversations/ai-client.ts` as a guide for local CPU inference.  
 
 ### Multimodal Vision Model Selection
 
@@ -71,7 +71,7 @@ Content normalization & cleaning
         ↓
 Chunking (1000-char window, 200-char overlap, boundary snapping)
         ↓
-Embedding generation (via Embedding Model / Ollama)
+Embedding generation (Google Gemini API gemini-embedding-001, 768-dim)
         ↓
 Store chunks + embeddings in PostgreSQL (pgvector)
         ↓
@@ -221,14 +221,14 @@ This behavior must be enforced through:
 
 ## 9. Supported Document Formats
 
-| Format | MVP Support |
-|--------|------------|
-| PDF | ✅ |
-| DOCX | ✅ |
-| XLSX | ✅ |
-| TXT | ✅ |
-| PPTX | ✅ |
-| Image-only files | ❌ (not MVP — no OCR) |
+| Format | Status | Extraction Method |
+|--------|--------|-------------------|
+| PDF (`.pdf`) | ✅ Supported | `PdfExtractor` (pypdf) |
+| DOCX (`.docx`) | ✅ Supported | `DocxExtractor` (python-docx) |
+| XLSX (`.xlsx`) | ✅ Supported | `XlsxExtractor` (openpyxl) |
+| TXT (`.txt`) | ✅ Supported | `TxtExtractor` (UTF-8 safe decoding) |
+| PPTX (`.pptx`) | ✅ Supported | `PptxExtractor` (python-pptx) |
+| Raster Images (`.png`, `.jpg`, `.jpeg`, `.jfif`, `.webp`, `.bmp`, `.tiff`, `.tif`, `.gif`) | ✅ Supported | `ImageExtractor` (Google Gemini Vision API `gemini-3.6-flash`, Pillow format normalization, diagram transcription) |
 
 ---
 

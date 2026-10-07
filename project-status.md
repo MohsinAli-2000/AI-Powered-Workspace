@@ -23,7 +23,11 @@ All foundational, core business, AI processing, frontend, audit, and platform go
 - **Post-Phase 16 Hardening & UX Polish (Completed)**:
   - **API Rate Limiting & Security (`apps/api`)**: In-memory IP-based rate limiting on sensitive auth endpoints (`/login`, `/register`, etc.) and internal service token (`AI_SERVICE_TOKEN`) protection for the Python AI service.
   - **Frontend UI/UX Refinement (`apps/web`)**: Interactive Help Center (`/help`), User Account Settings (`/settings/account`), Invitation Acceptance page (`/invitations/accept`), "Your Access" permission cards, Email Verification banner, empty organization guards, accessible confirm dialogs & custom select inputs, and client-side response normalization.
-  - **Service Resilience (`apps/worker`, `apps/api`, `apps/ai-service`)**: Reconnect resilience for RabbitMQ, S3/MinIO error handling, Neon Serverless Postgres support with pgvector, and Gemini provider as cost-effective default with Ollama fallback.
+  - **Service Resilience (`apps/worker`, `apps/api`, `apps/ai-service`)**: Reconnect resilience for RabbitMQ, S3/MinIO error handling, Neon Serverless Postgres support with pgvector, and Gemini provider as cost-effective default.
+- **Local AI / Ollama Code Overview & Commenting (Completed)**:
+  - Preserved complete Ollama provider and client code in commented form across `apps/ai-service`, `apps/worker`, and `apps/api` for code overview and local AI model reference.
+  - Added instructional headers explaining local model installation, model pulling (`nomic-embed-text`, `qwen2.5`), endpoint usage (`/api/embed`, `/api/chat`), and configuration steps.
+  - Set default provider configurations to `gemini` / `ai-service`, ensuring the application runs smoothly in cloud mode without local daemon requirements.
 - **Multimodal AI Vision & Image RAG Pipeline (Completed)**:
   - **Multimodal AI Vision OCR**: Implemented `ImageExtractor` in `apps/worker` using Google Gemini Vision (`gemini-3.6-flash` with automatic fallback sequence across `gemini-3-flash-preview`, `gemini-flash-lite-latest`, and `gemini-3.1-flash-lite`).
   - **Broad Image Format Whitelist**: End-to-end ingestion and extraction for raster formats (`.png`, `.jpg`, `.jpeg`, `.jfif`, `.webp`, `.bmp`, `.tiff`, `.tif`, `.gif`) with in-memory Pillow format normalization.

@@ -1012,9 +1012,9 @@ AI Powered Workspace/
 │   │   └── src/modules/     auth, organizations, projects, groups, documents,
 │   │                        conversations, invitations, email, queue, storage
 │   ├── ai-service/          Python + FastAPI (real-time RAG, embeddings, LLM)
-│   │   └── src/providers/   gemini.py (default), ollama.py, mock.py
+│   │   └── src/providers/   gemini.py (default), ollama.py (local reference), mock.py
 │   └── worker/              Python background worker (document processing)
-│       └── src/embeddings/  gemini.py (default), ollama.py, mock.py
+│       └── src/embeddings/  gemini.py (default), ollama.py (local reference), mock.py
 │
 ├── docs/                    architecture/, decision-log.md, ...
 ├── ERD/
@@ -1025,13 +1025,15 @@ AI Powered Workspace/
 
 ### AI provider configuration
 
-The AI provider is selected per service via `.env`; **Gemini API is the default** (local Ollama code is kept and can be re-enabled):
+The AI provider is selected per service via `.env`; **Google Gemini API is the active cloud provider**. Local Ollama code is preserved in commented form in each service as an educational code overview for running local models:
 
 | Service | Variable | Value | Notes |
 | ------- | -------- | ----- | ----- |
-| `apps/api` | `AI_PROVIDER` | `ai-service` | Routes embeddings/chat through FastAPI (Gemini) instead of calling Ollama directly |
-| `apps/ai-service` | `AI_PROVIDER` | `gemini` | Also needs `GEMINI_API_KEY`, `GEMINI_LLM_MODEL` (`gemini-3.8-flash`), `GEMINI_EMBEDDING_MODEL` (`gemini-embedding-001`) |
-| `apps/worker` | `EMBEDDING_PROVIDER` | `gemini` | Also needs `GEMINI_API_KEY`, `GEMINI_EMBEDDING_MODEL`; must match ai-service so query and document vectors are comparable |
+| `apps/api` | `AI_PROVIDER` | `ai-service` | Routes chat & RAG through FastAPI (`apps/ai-service`) running Gemini |
+| `apps/ai-service` | `AI_PROVIDER` | `gemini` | Configured with `GEMINI_API_KEY`, `GEMINI_PRIMARY_MODEL` (`gemini-3.6-flash`), and `GEMINI_EMBEDDING_MODEL` (`gemini-embedding-001`) |
+| `apps/worker` | `EMBEDDING_PROVIDER` | `gemini` | Configured with `GEMINI_API_KEY`, `GEMINI_EMBEDDING_MODEL`; vectors match ai-service in 768 dimensions |
+
+> **Note on Local AI:** To run models locally instead of cloud Gemini, refer to the step-by-step instructions and uncommented templates in `apps/ai-service/src/providers/ollama.py`, `apps/worker/src/embeddings/ollama.py`, and `apps/api/src/modules/conversations/ai-client.ts`.
 
 Embeddings are requested at 768 dimensions, so the `vector(768)` schema is unchanged. Re-embed existing chunks after switching providers (`python -m src.batch_embedder` in `apps/worker`, after clearing old embeddings).
 
@@ -1170,27 +1172,21 @@ The initial architecture intentionally leaves room for future capabilities.
 
 Potential future features include:
 
-* Image/document understanding
-* OCR
-* Additional document formats
 * User-facing document version management (upload new versions; design already in schema)
-* Advanced organization permissions
+* Additional document formats (e.g. audio transcripts, markdown import)
+* Advanced organization permissions & fine-grained team spaces
 * Multiple organizations per user
-* Advanced search
-* Knowledge collections
-* AI-generated summaries
+* Advanced search & hybrid BM25 + dense vector ranking
+* Knowledge collections & workspace tagging
+* AI-generated summaries & key takeaways
 * Automatic document classification
-* Document comparison
-* Usage analytics
-* AI model selection
-* Streaming AI responses
-* Advanced audit logs
-* Billing and subscriptions
-* Usage limits
-* Team-level permissions
-* Enterprise SSO
-* Advanced observability
-* Dedicated vector database when scale requires it
+* Document comparison & diff analysis
+* Usage analytics & tenant token metering
+* Billing and subscriptions (Stripe integration)
+* Usage limits & tier quotas
+* Enterprise SSO (SAML / Okta)
+* Advanced observability & distributed OpenTelemetry tracing
+* Dedicated vector database when scale requires it (e.g., Qdrant / Pinecone)
 
 The architecture should evolve incrementally rather than prematurely introducing unnecessary complexity.
 
