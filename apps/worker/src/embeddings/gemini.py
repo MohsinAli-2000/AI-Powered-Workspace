@@ -1,10 +1,11 @@
 import logging
 import random
 import time
-from typing import List
+from typing import List, Optional
 
 import httpx
 
+from src.config import settings
 from src.embeddings.base import BaseEmbeddingClient
 
 logger = logging.getLogger(__name__)
@@ -51,35 +52,79 @@ class GeminiEmbeddingClient(BaseEmbeddingClient):
             logger.debug(f"Gemini health check failed: {e}")
             return False
 
+    def _calculate_retry_delay(self, attempt: int, resp: Optional[httpx.Response] = None) -> float:
+        initial_delay = getattr(settings, "GEMINI_INITIAL_RETRY_DELAY", 1.0)
+        max_delay = getattr(settings, "GEMINI_MAX_RETRY_DELAY", 10.0)
+        if resp is not None:
+            header = resp.headers.get("retry-after")
+            if header:
+                try:
+                    parsed = float(header)
+                    return min(parsed, max_delay) + random.uniform(0.0, 0.5)
+                except ValueError:
+                    pass
+        base = min(initial_delay * (2 ** (attempt - 1)), max_delay)
+        return min(base + random.uniform(0.0, 0.5), max_delay + 0.5)
+
     def _post(self, endpoint: str, payload: dict) -> httpx.Response:
         """POST with exponential backoff (honoring Retry-After) for 429/5xx and transport errors."""
-        last_error = None
+        last_status = "unknown"
         for attempt in range(1, self.max_retries + 1):
-            retry_after = None
+            resp: Optional[httpx.Response] = None
             try:
                 resp = self._client.post(endpoint, json=payload)
-                if resp.status_code == 200:
-                    return resp
-                if resp.status_code in (429, 500, 502, 503, 504):
-                    last_error = f"HTTP {resp.status_code}: {resp.text[:200]}"
-                    header = resp.headers.get("retry-after")
-                    if header:
-                        try:
-                            retry_after = min(float(header), 60.0)
-                        except ValueError:
-                            retry_after = None
-                    logger.warning(f"Gemini {last_error} (attempt {attempt}/{self.max_retries})")
-                else:
-                    # 4xx other than 429: retrying cannot help (bad key, bad request...)
-                    raise RuntimeError(f"Gemini rejected the embedding request: HTTP {resp.status_code}: {resp.text[:200]}")
-            except httpx.TransportError as e:  # timeouts, resets, DNS, protocol errors
-                last_error = f"{type(e).__name__}: {e}"
-                logger.warning(f"Gemini connection error (attempt {attempt}/{self.max_retries}): {e}")
-            if attempt < self.max_retries:
-                delay = retry_after if retry_after is not None else min(2 ** attempt, 30) + random.uniform(0.1, 0.9)
-                time.sleep(delay)
+            except httpx.TransportError as e:
+                last_status = type(e).__name__
+                if attempt == self.max_retries:
+                    logger.error(
+                        f"Gemini request failed permanently: status={last_status}, model={self.model_name}, attempts={attempt}/{self.max_retries}. All retries exhausted."
+                    )
+                    break
+                wait_seconds = self._calculate_retry_delay(attempt, None)
+                logger.warning(
+                    f"Gemini request failed: status={last_status}, model={self.model_name}, attempt={attempt}/{self.max_retries}, retry_in={wait_seconds:.1f}s"
+                )
+                time.sleep(wait_seconds)
+                continue
+
+            status = resp.status_code
+            last_status = str(status)
+
+            if status == 200:
+                return resp
+
+            if status in (401, 403):
+                logger.error(
+                    f"Gemini request rejected permanently: status={status}, model={self.model_name}, error=The Gemini API key was rejected."
+                )
+                raise RuntimeError("The Gemini API key was rejected (check GEMINI_API_KEY and permissions).")
+
+            if status in (400, 404, 422):
+                logger.warning(
+                    f"Gemini request rejected permanently: status={status}, model={self.model_name}, error=HTTP {status}"
+                )
+                raise RuntimeError(f"Gemini rejected the embedding request: HTTP {status}: {resp.text[:200]}")
+
+            is_rate_limit = (status == 429)
+            if attempt == self.max_retries:
+                logger.error(
+                    f"Gemini request failed permanently: status={status}, model={self.model_name}, attempts={attempt}/{self.max_retries}. All retries exhausted."
+                )
+                break
+
+            wait_seconds = self._calculate_retry_delay(attempt, resp)
+            if is_rate_limit:
+                logger.warning(
+                    f"Gemini request rate limited (quota/rate limit): status=429, model={self.model_name}, attempt={attempt}/{self.max_retries}, retry_in={wait_seconds:.1f}s"
+                )
+            else:
+                logger.warning(
+                    f"Gemini request failed: status={status}, model={self.model_name}, attempt={attempt}/{self.max_retries}, retry_in={wait_seconds:.1f}s"
+                )
+            time.sleep(wait_seconds)
+
         raise RuntimeError(
-            f"Gemini embedding request failed after {self.max_retries} attempts: {last_error}"
+            f"Gemini embedding request failed after {self.max_retries} attempts: {last_status}"
         )
 
     def embed_text(self, text: str) -> List[float]:

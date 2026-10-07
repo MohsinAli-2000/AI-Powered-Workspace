@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Literal, Optional
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -60,15 +60,38 @@ class Settings(BaseSettings):
         default="gemini-embedding-001",
         validation_alias="GEMINI_EMBEDDING_MODEL"
     )
-    gemini_llm_model: str = Field(
-        default="gemini-3.8-flash",
-        validation_alias="GEMINI_LLM_MODEL"
+    gemini_primary_model: str = Field(
+        default="gemini-3.6-flash",
+        validation_alias=AliasChoices("GEMINI_PRIMARY_MODEL", "GEMINI_LLM_MODEL")
     )
-    # Optional second model tried when the primary one stays overloaded / rate limited.
-    gemini_llm_fallback_model: Optional[str] = Field(
-        default=None,
-        validation_alias="GEMINI_LLM_FALLBACK_MODEL"
+    gemini_fallback_model: Optional[str] = Field(
+        default="gemini-3-flash-preview",
+        validation_alias=AliasChoices("GEMINI_FALLBACK_MODEL", "GEMINI_LLM_FALLBACK_MODEL")
     )
+    gemini_max_retries: int = Field(
+        default=4,
+        validation_alias="GEMINI_MAX_RETRIES"
+    )
+    gemini_initial_retry_delay: float = Field(
+        default=1.0,
+        validation_alias="GEMINI_INITIAL_RETRY_DELAY"
+    )
+    gemini_max_retry_delay: float = Field(
+        default=10.0,
+        validation_alias="GEMINI_MAX_RETRY_DELAY"
+    )
+    gemini_timeout_seconds: float = Field(
+        default=60.0,
+        validation_alias="GEMINI_TIMEOUT_SECONDS"
+    )
+
+    @property
+    def gemini_llm_model(self) -> str:
+        return self.gemini_primary_model
+
+    @property
+    def gemini_llm_fallback_model(self) -> Optional[str]:
+        return self.gemini_fallback_model
 
     rag_similarity_threshold: float = Field(
         default=0.35,
@@ -94,4 +117,4 @@ class Settings(BaseSettings):
     )
 
 
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]

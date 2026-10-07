@@ -84,7 +84,7 @@ class Settings(BaseSettings):
         description="Gemini vision model for image data extraction"
     )
     EMBEDDING_MAX_RETRIES: int = Field(
-        default=6,
+        default=4,
         description="Max retries for embedding requests"
     )
     EMBEDDING_BATCH_DELAY_SECONDS: float = Field(
@@ -94,6 +94,22 @@ class Settings(BaseSettings):
     EMBEDDING_TIMEOUT_SECONDS: float = Field(
         default=30.0,
         description="Timeout per embedding API call in seconds"
+    )
+    GEMINI_MAX_RETRIES: int = Field(
+        default=4,
+        description="Max retries for Gemini API calls"
+    )
+    GEMINI_INITIAL_RETRY_DELAY: float = Field(
+        default=1.0,
+        description="Initial retry delay in seconds for Gemini backoff"
+    )
+    GEMINI_MAX_RETRY_DELAY: float = Field(
+        default=10.0,
+        description="Maximum retry delay in seconds for Gemini backoff"
+    )
+    GEMINI_TIMEOUT_SECONDS: float = Field(
+        default=30.0,
+        description="Timeout per Gemini API call in seconds"
     )
 
     @property
