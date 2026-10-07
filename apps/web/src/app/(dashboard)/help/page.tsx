@@ -55,9 +55,9 @@ const WORKFLOW = [
   },
   {
     icon: UploadCloud,
-    title: '5. Upload documents (and restrict if needed)',
+    title: '5. Upload documents & images (and restrict if needed)',
     who: 'Project members',
-    text: 'Upload PDF, DOCX, XLSX, PPTX or TXT. Wait for the status to become Ready. Managers can restrict a document to specific people.',
+    text: 'Upload PDF, DOCX, XLSX, PPTX, TXT, or images (PNG, JPG, WEBP). Wait for the status to become Ready. Managers can restrict a document to specific people.',
     href: '/projects',
   },
   {

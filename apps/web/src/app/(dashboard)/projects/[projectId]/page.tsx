@@ -336,7 +336,7 @@ export default function ProjectDetailsPage({
                 }}
               >
                 <UploadCloud className="w-4 h-4 mr-1.5" />
-                Upload Document
+                Upload Files
               </Button>
             )}
             <Link href={`/chat?project=${project.id}`}>
@@ -358,12 +358,12 @@ export default function ProjectDetailsPage({
       {/* Plain-language statement of what this person can do here, and why anything is locked */}
       {canManage ? (
         <Notice variant="info" title={isOrgOwner && !projectRole ? 'You see this project as the organization Owner' : 'You manage this project'}>
-          You can upload documents, add or remove people, and restrict who sees each document (shield icon). People must
+          You can upload documents & images, add or remove people, and restrict who sees each document (shield icon). People must
           already be in the organization — invite new colleagues from <Link href="/settings/members" className="underline hover:text-white">Members</Link> first.
         </Notice>
       ) : (
         <Notice variant="lock" title="You are a Project Member">
-          You can upload documents and chat with the ones you are allowed to see. Adding people, changing who can see a
+          You can upload documents & images and chat with the ones you are allowed to see. Adding people, changing who can see a
           document, renaming and deleting are for project managers. {managerHint}
         </Notice>
       )}

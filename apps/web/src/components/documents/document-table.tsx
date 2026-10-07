@@ -16,6 +16,7 @@ import {
   FileText,
   FileSpreadsheet,
   FileCode,
+  ImageIcon,
   Download,
   Trash2,
   Lock,
@@ -71,6 +72,20 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
     }
     if (mime.includes('presentation') || lowerName.endsWith('.pptx')) {
       return <FileText className="w-4 h-4 text-amber-400" />;
+    }
+    if (
+      mime.startsWith('image/') ||
+      lowerName.endsWith('.png') ||
+      lowerName.endsWith('.jpg') ||
+      lowerName.endsWith('.jpeg') ||
+      lowerName.endsWith('.jfif') ||
+      lowerName.endsWith('.webp') ||
+      lowerName.endsWith('.bmp') ||
+      lowerName.endsWith('.tiff') ||
+      lowerName.endsWith('.tif') ||
+      lowerName.endsWith('.gif')
+    ) {
+      return <ImageIcon className="w-4 h-4 text-violet-400" />;
     }
     return <FileCode className="w-4 h-4 text-indigo-400" />;
   };
@@ -149,7 +164,7 @@ export const DocumentTable: React.FC<DocumentTableProps> = ({
   if (documents.length === 0) {
     return (
       <div className="p-8 text-center text-xs text-slate-400 border border-white/5 rounded-2xl bg-slate-900/30">
-        No documents uploaded to this project yet. Use the upload area above to get started.
+        No documents or images uploaded to this project yet. Use the upload area above to add PDF, Office files, or images.
       </div>
     );
   }

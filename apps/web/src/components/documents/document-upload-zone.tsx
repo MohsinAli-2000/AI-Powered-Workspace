@@ -1,18 +1,33 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { formatBytes } from '@/lib/utils';
-import { UploadCloud, File, AlertCircle, X } from 'lucide-react';
+import { UploadCloud, File, AlertCircle, X, ImageIcon } from 'lucide-react';
 
 interface DocumentUploadZoneProps {
   projectId: string;
   onUploadSuccess: () => void;
 }
 
-const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.xlsx', '.txt', '.pptx'];
+const ALLOWED_EXTENSIONS = [
+  '.pdf',
+  '.docx',
+  '.xlsx',
+  '.txt',
+  '.pptx',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.jfif',
+  '.webp',
+  '.bmp',
+  '.tiff',
+  '.tif',
+  '.gif',
+];
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
@@ -24,8 +39,18 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
 
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedFile && selectedFile.type.startsWith('image/')) {
+      const url = URL.createObjectURL(selectedFile);
+      setPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setPreviewUrl(null);
+  }, [selectedFile]);
 
   const validateFile = (file: File): boolean => {
     setValidationError(null);
@@ -86,7 +111,13 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
         body: formData,
       });
 
-      showToast(`Document "${selectedFile.name}" uploaded. Processing queued.`, 'success');
+      const isImage = selectedFile.type.startsWith('image/') || /\.(png|jpe?g|webp|jfif|bmp|gif|tiff?)$/i.test(selectedFile.name);
+      showToast(
+        isImage
+          ? `Image "${selectedFile.name}" uploaded. AI Vision & OCR extraction queued.`
+          : `Document "${selectedFile.name}" uploaded. Processing queued.`,
+        'success'
+      );
       setSelectedFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -125,7 +156,7 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.docx,.xlsx,.txt,.pptx"
+          accept=".pdf,.docx,.xlsx,.txt,.pptx,.png,.jpg,.jpeg,.webp,image/*"
           className="hidden"
           onChange={(e) => handleFilesSelected(e.target.files)}
         />
@@ -136,16 +167,19 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
               <UploadCloud className="w-6 h-6" />
             </div>
             <h4 className="text-sm font-semibold text-slate-200">
-              Drag & Drop your corporate documents here
+              Drag & Drop your corporate documents & images here
             </h4>
             <p className="text-xs text-slate-400 mt-1">
               or click to browse from your device
             </p>
             <div className="flex items-center gap-2 mt-3 text-[11px] text-slate-400 font-mono">
-              <span>PDF, DOCX, XLSX, TXT, PPTX</span>
+              <span>PDF, DOCX, XLSX, TXT, PPTX, PNG, JPG, WEBP</span>
               <span>•</span>
               <span>Max 50MB</span>
             </div>
+            <p className="text-[11px] text-indigo-300/80 mt-1.5 flex items-center justify-center gap-1">
+              <span>✨ AI Vision OCR automatically extracts text, tables & diagrams from images</span>
+            </p>
           </>
         ) : (
           <div
@@ -153,9 +187,20 @@ export const DocumentUploadZone: React.FC<DocumentUploadZoneProps> = ({
             className="w-full flex items-center justify-between p-3.5 rounded-xl bg-slate-800/80 border border-white/10"
           >
             <div className="flex items-center gap-3 text-left truncate">
-              <div className="w-9 h-9 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0">
-                <File className="w-4 h-4" />
-              </div>
+              {previewUrl ? (
+                <div className="w-10 h-10 rounded-lg border border-white/10 overflow-hidden shrink-0 bg-slate-900 shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={previewUrl}
+                    alt={selectedFile.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-9 h-9 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0">
+                  <File className="w-4 h-4" />
+                </div>
+              )}
               <div className="truncate">
                 <p className="text-xs font-semibold text-white truncate">{selectedFile.name}</p>
                 <p className="text-[11px] text-slate-400 font-mono">{formatBytes(selectedFile.size)}</p>

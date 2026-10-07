@@ -10,9 +10,23 @@ export const SUPPORTED_FILE_EXTENSIONS: Record<string, string> = {
   '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   '.txt': 'text/plain',
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.jfif': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.tiff': 'image/tiff',
+  '.tif': 'image/tiff',
+  '.gif': 'image/gif',
 };
 
-export const SUPPORTED_MIME_TYPES = new Set(Object.values(SUPPORTED_FILE_EXTENSIONS));
+export const SUPPORTED_MIME_TYPES = new Set([
+  ...Object.values(SUPPORTED_FILE_EXTENSIONS),
+  'image/jpg',
+  'image/pjpeg',
+  'image/x-png',
+]);
 
 /**
  * Validates whether a file is supported based on both its extension and MIME type.
@@ -28,11 +42,18 @@ export const isSupportedDocumentFile = (
     return false;
   }
 
-  // Accept if expected MIME type matches or standard text/plain or binary octet-stream for valid extensions
+  const cleanMime = (mimeType || '').split(';')[0].trim().toLowerCase();
+
+  // Accept if expected MIME type matches, or octet-stream fallback, or image/text prefixes
   return (
-    mimeType === expectedMime ||
-    mimeType === 'application/octet-stream' ||
-    (ext === '.txt' && mimeType.startsWith('text/'))
+    cleanMime === expectedMime ||
+    cleanMime === 'application/octet-stream' ||
+    (ext === '.txt' && cleanMime.startsWith('text/')) ||
+    ((ext === '.jpg' || ext === '.jpeg') &&
+      (cleanMime === 'image/jpeg' || cleanMime === 'image/jpg' || cleanMime === 'image/pjpeg')) ||
+    (ext === '.png' && (cleanMime === 'image/png' || cleanMime === 'image/x-png')) ||
+    (ext === '.webp' && cleanMime === 'image/webp') ||
+    cleanMime.startsWith('image/')
   );
 };
 

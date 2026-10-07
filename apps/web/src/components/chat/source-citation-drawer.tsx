@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { MessageSource } from '@/types/api.types';
 import { Button } from '@/components/ui/button';
-import { X, FileText, Check, Copy, ShieldCheck } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { X, FileText, Check, Copy, ShieldCheck, ImageIcon } from 'lucide-react';
 
 interface SourceCitationDrawerProps {
   source: MessageSource | null;
@@ -25,6 +26,7 @@ export const SourceCitationDrawer: React.FC<SourceCitationDrawerProps> = ({ sour
 
   if (!source) return null;
 
+  const isImageSource = /\.(png|jpe?g|webp|jfif|bmp|gif|tiff?)$/i.test(source.document_title || '');
   const confidencePercent = Math.round((source.similarity ?? 0) * 100);
 
   const handleCopyExcerpt = async () => {
@@ -55,8 +57,12 @@ export const SourceCitationDrawer: React.FC<SourceCitationDrawerProps> = ({ sour
         {/* Header */}
         <div className="p-5 border-b border-white/5 flex items-start justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
-              <FileText className="w-4 h-4" />
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+              isImageSource
+                ? 'bg-violet-500/10 border border-violet-500/20 text-violet-400'
+                : 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-400'
+            }`}>
+              {isImageSource ? <ImageIcon className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
             </div>
             <div>
               <h3 className="text-sm font-bold text-white">Where this came from</h3>
@@ -77,9 +83,16 @@ export const SourceCitationDrawer: React.FC<SourceCitationDrawerProps> = ({ sour
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           {/* Document Reference Card */}
           <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-2">
-            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
-              Source Document
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                Source Document
+              </p>
+              {isImageSource && (
+                <Badge variant="brand" size="sm">
+                  Image OCR
+                </Badge>
+              )}
+            </div>
             <h4 className="text-sm font-semibold text-slate-100 break-words">
               {source.document_title}
             </h4>

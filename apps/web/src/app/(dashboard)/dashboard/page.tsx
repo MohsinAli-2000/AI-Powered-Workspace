@@ -101,8 +101,8 @@ export default function DashboardPage() {
     },
     {
       done: hasDocuments,
-      title: 'Upload your documents',
-      description: 'Open a project and drop in PDF, DOCX, XLSX, PPTX or TXT files.',
+      title: 'Upload your documents & images',
+      description: 'Open a project and drop in PDF, DOCX, XLSX, PPTX, TXT, or image files (PNG, JPG, WEBP).',
       href: hasProjects ? `/projects/${projects[0].id}` : '/projects',
       cta: 'Upload documents',
     },

@@ -49,11 +49,11 @@ export const handleDocumentUpload = (
       return nextMiddleware(new BadRequestError('Uploaded file is empty (0 bytes).'));
     }
 
-    // Validate supported file format (PDF, DOCX, XLSX, TXT, PPTX)
+    // Validate supported file format (PDF, DOCX, XLSX, TXT, PPTX, PNG, JPG, WEBP)
     if (!isSupportedDocumentFile(uploadedFile.originalname, uploadedFile.mimetype)) {
       return nextMiddleware(
         new BadRequestError(
-          'Unsupported file format. The system accepts: PDF, DOCX, XLSX, TXT, and PPTX.'
+          'Unsupported file format. The system accepts: PDF, DOCX, XLSX, TXT, PPTX, and Images (PNG, JPG, WEBP).'
         )
       );
     }

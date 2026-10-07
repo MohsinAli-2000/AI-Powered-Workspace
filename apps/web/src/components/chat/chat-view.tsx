@@ -48,7 +48,8 @@ function conversationIdFromPath(pathname: string | null): string | null {
 }
 
 const SAMPLE_PROMPTS = [
-  'What are the key findings in our latest uploaded documents?',
+  'What are the key findings in our latest uploaded documents & images?',
+  'Explain the architecture or workflow from our uploaded diagrams.',
   'Summarize the compliance and security policies.',
   'Extract the main financial metrics reported for this quarter.',
 ];
@@ -621,7 +622,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
               </div>
               <h3 className="text-base font-bold text-white">Ask your knowledge base</h3>
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                Answers are grounded in the documents you are allowed to see, with clickable source citations.
+                Answers are grounded in the documents, diagrams & images you are allowed to see, with clickable source citations.
                 {isDraft && ' Choose where to search at the top right, then type your question below.'}
               </p>
 
@@ -658,7 +659,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
                     <Loader2 className="w-4 h-4 animate-spin" />
                   </div>
                   <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/10 text-xs text-slate-300 flex items-center gap-2">
-                    <span>Searching your documents and preparing a grounded answer...</span>
+                    <span>Searching your documents, charts & images to prepare a grounded answer...</span>
                   </div>
                 </div>
               )}

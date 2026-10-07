@@ -79,6 +79,10 @@ class Settings(BaseSettings):
         default="gemini-embedding-001",
         description="Gemini embedding model (requested at EMBEDDING_DIMENSION dims)"
     )
+    GEMINI_VISION_MODEL: str = Field(
+        default="gemini-3.6-flash",
+        description="Gemini vision model for image data extraction"
+    )
     EMBEDDING_MAX_RETRIES: int = Field(
         default=6,
         description="Max retries for embedding requests"

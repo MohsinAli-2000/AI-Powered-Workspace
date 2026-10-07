@@ -1,5 +1,10 @@
 from fastapi import APIRouter
-from ..schemas import ChunkTextRequest, ChunkTextResponse
+from ..schemas import (
+    ChunkTextRequest,
+    ChunkTextResponse,
+    ImageExtractRequest,
+    ImageExtractResponse,
+)
 from ..services.utility_service import utility_service
 
 router = APIRouter(prefix="/api/v1/utils", tags=["Utilities"])
@@ -16,3 +21,21 @@ async def chunk_text_endpoint(body: ChunkTextRequest) -> ChunkTextResponse:
         chunk_overlap=body.chunk_overlap,
     )
     return ChunkTextResponse(chunks=chunks, total_chunks=len(chunks))
+
+
+@router.post("/extract/image", response_model=ImageExtractResponse)
+async def extract_image_endpoint(body: ImageExtractRequest) -> ImageExtractResponse:
+    """
+    Extracts text, structured data, and visual descriptions from an image file.
+    """
+    result = await utility_service.extract_image_data(
+        image_base64=body.image_base64,
+        mime_type=body.mime_type,
+        instruction=body.instruction,
+    )
+    return ImageExtractResponse(
+        extracted_text=result["extracted_text"],
+        format=result.get("format"),
+        width=result.get("width"),
+        height=result.get("height"),
+    )

@@ -89,3 +89,16 @@ class ChunkTextRequest(BaseModel):
 class ChunkTextResponse(BaseModel):
     chunks: list[str]
     total_chunks: int
+
+
+class ImageExtractRequest(BaseModel):
+    image_base64: str = Field(..., min_length=1, description="Base64 encoded image data")
+    mime_type: str = Field(default="image/png", description="Image MIME type (e.g. image/png, image/jpeg, image/webp)")
+    instruction: Optional[str] = Field(default=None, description="Optional custom extraction prompt")
+
+
+class ImageExtractResponse(BaseModel):
+    extracted_text: str
+    format: Optional[str] = None
+    width: Optional[int] = None
+    height: Optional[int] = None

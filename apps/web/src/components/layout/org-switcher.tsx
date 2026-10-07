@@ -9,11 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { Building2, ChevronDown, Plus, Check, Shield } from 'lucide-react';
+import { useAuthStore } from '@/stores/auth.store';
 import { useRouter } from 'next/navigation';
 
 export const OrgSwitcher: React.FC = () => {
   const router = useRouter();
   const { showToast } = useToast();
+  const { isAuthenticated } = useAuthStore();
   const {
     organizations,
     activeOrg,
@@ -29,20 +31,23 @@ export const OrgSwitcher: React.FC = () => {
   const [newOrgName, setNewOrgName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
-  // Fetch organizations on mount
+  // Fetch organizations on mount (only when authenticated)
   useEffect(() => {
+    if (!isAuthenticated) {
+      setLoadingOrgs(false);
+      return;
+    }
     const fetchOrgs = async () => {
       try {
         const orgs = await apiClient<Organization[]>('/organizations');
         setOrganizations(orgs);
       } catch (err) {
-        console.error('Failed to load organizations', err);
-        showToast('Could not load your organizations. Please refresh the page.', 'error');
+        console.warn('Could not load organizations:', err);
         setLoadingOrgs(false);
       }
     };
     fetchOrgs();
-  }, [setOrganizations, setLoadingOrgs, showToast]);
+  }, [isAuthenticated, setOrganizations, setLoadingOrgs]);
 
   useEffect(() => {
     if (!isOpen) return;

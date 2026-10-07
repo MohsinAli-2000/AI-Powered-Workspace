@@ -210,7 +210,18 @@ async function authorizedFetch(path: string, init: RequestInit): Promise<Respons
  */
 export async function apiClient<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
   const isAuthRoute = isCredentialRoute(path);
-  const response = await authorizedFetch(path, init);
+  let response: Response;
+  try {
+    response = await authorizedFetch(path, init);
+  } catch (err: any) {
+    if (err instanceof TypeError && err.message.includes('fetch')) {
+      throw new ApiError(
+        'Unable to connect to the backend server. Please ensure the API service is running on port 5000.',
+        503
+      );
+    }
+    throw err;
+  }
   const body = await parseBody(response);
 
   if (!response.ok) {

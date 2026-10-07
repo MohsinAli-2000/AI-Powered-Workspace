@@ -123,7 +123,7 @@ export default function ProjectsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Projects & Documents"
-        description="A project is a folder of related documents with its own members. Open a project to upload files, manage access, or chat with its documents."
+        description="A project is a workspace of related documents and images with its own members. Open a project to upload files, manage access, or chat with its contents."
         actions={
           <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
             <Plus className="w-4 h-4 mr-1.5" />
@@ -212,7 +212,7 @@ export default function ProjectsPage() {
                       )}
                       <div className="flex items-center justify-between text-xs text-slate-400">
                         <span className="flex items-center gap-1 text-[11px] text-indigo-400 font-medium">
-                          Upload & view documents <ArrowRight className="w-3.5 h-3.5" />
+                          Upload & view files <ArrowRight className="w-3.5 h-3.5" />
                         </span>
 
                         {/* Sit above the card-wide link so these stay independently clickable. */}
