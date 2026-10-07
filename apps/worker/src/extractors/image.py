@@ -153,25 +153,20 @@ class ImageExtractor(BaseExtractor):
         }
 
         # Prioritize configured vision model first, then fallbacks
-        configured_model = getattr(settings, "GEMINI_VISION_MODEL", "gemini-3.8-flash")
+        configured_model = getattr(settings, "GEMINI_VISION_MODEL", "gemini-3.6-flash")
         models_to_try = [configured_model] + [
             m for m in GEMINI_VISION_MODELS if m != configured_model
         ]
 
-        consecutive_429 = 0
-
         for model in models_to_try:
-            # If two models hit quota rate limit (429), break early to avoid delaying the worker
-            if consecutive_429 >= 2:
-                logger.warning(
-                    f"Gemini API quota exhausted across multiple models for '{filename}'. Falling back to metadata."
-                )
-                break
-
             url = f"{base_url}/models/{model}:generateContent"
-            for attempt in range(1, 3):
+            max_attempts = getattr(settings, "GEMINI_MAX_RETRIES", 4)
+            initial_delay = getattr(settings, "GEMINI_INITIAL_RETRY_DELAY", 1.0)
+            max_delay = getattr(settings, "GEMINI_MAX_RETRY_DELAY", 10.0)
+
+            for attempt in range(1, max_attempts + 1):
                 try:
-                    with httpx.Client(timeout=45.0) as client:
+                    with httpx.Client(timeout=60.0) as client:
                         resp = client.post(url, json=payload, headers=headers)
 
                     if resp.status_code == 200:
@@ -186,31 +181,51 @@ class ImageExtractor(BaseExtractor):
                                 )
                                 return text
 
-                    elif resp.status_code == 429:
-                        consecutive_429 += 1
-                        logger.warning(
-                            f"Gemini {model} rate limited (429) for '{filename}'. Attempt {attempt}/2."
+                    status = resp.status_code
+                    if status in (401, 403):
+                        logger.error(
+                            f"Gemini API key rejected permanently ({status}) for vision model {model}."
                         )
-                        if attempt < 2:
-                            time.sleep(1.0)
+                        return ""
+
+                    if status in (400, 404, 422):
+                        logger.debug(f"Gemini model {model} rejected request ({status}), skipping to next model.")
                         break
 
-                    elif resp.status_code in (500, 502, 503, 504):
-                        logger.warning(
-                            f"Gemini {model} temporary error ({resp.status_code}) for '{filename}'. Attempt {attempt}/2."
-                        )
-                        if attempt < 2:
-                            time.sleep(1.5)
-                            continue
-                        break
+                    # Transient errors: 429 or 5xx
+                    delay = min(initial_delay * (2 ** (attempt - 1)), max_delay)
+                    retry_after = resp.headers.get("retry-after")
+                    if retry_after:
+                        try:
+                            delay = min(float(retry_after), max_delay)
+                        except ValueError:
+                            pass
+                    import random
+                    jitter = random.uniform(0.0, 0.5)
+                    wait_time = delay + jitter
 
-                    elif resp.status_code == 404:
-                        logger.debug(f"Gemini model {model} not found (404), skipping to next.")
-                        break
+                    if status == 429:
+                        logger.warning(
+                            f"Gemini vision {model} rate limited (429) for '{filename}'. Attempt {attempt}/{max_attempts}, retry_in={wait_time:.1f}s."
+                        )
                     else:
                         logger.warning(
-                            f"Gemini {model} responded with {resp.status_code} for '{filename}': {resp.text[:150]}"
+                            f"Gemini vision {model} temporary error ({status}) for '{filename}'. Attempt {attempt}/{max_attempts}, retry_in={wait_time:.1f}s."
                         )
+
+                    if attempt < max_attempts:
+                        time.sleep(wait_time)
+                    else:
+                        logger.warning(f"All retries exhausted for vision model {model}; trying next fallback model.")
+                        break
+
+                except Exception as err:
+                    logger.warning(
+                        f"Connection error calling Gemini vision {model} for '{filename}': {err}"
+                    )
+                    if attempt < max_attempts:
+                        time.sleep(2.0)
+                    else:
                         break
 
                 except Exception as err:
