@@ -412,21 +412,24 @@ Authorized users shall be able to upload supported documents to an organization 
 
 ### FR-DOC-002 — Supported File Types
 
-The MVP shall initially support:
+The platform supports structured text documents, office presentations, spreadsheets, and raster image files:
 
-- PDF
-- DOCX
-- XLSX
-- TXT
-- PPTX
+- PDF (`.pdf`)
+- DOCX (`.docx`)
+- XLSX (`.xlsx`)
+- TXT (`.txt`)
+- PPTX (`.pptx`)
+- Images: PNG (`.png`), JPEG (`.jpg`, `.jpeg`, `.jfif`), WebP (`.webp`), Bitmap (`.bmp`), TIFF (`.tiff`, `.tif`), GIF (`.gif`)
 
 The system shall reject unsupported file types.
 
-### FR-DOC-003 — Images Not Supported in MVP
+### FR-DOC-003 — Multimodal AI Vision OCR & Image Processing
 
-The MVP shall not support image-only files.
+The system processes uploaded image files using multimodal AI vision (`gemini-3.6-flash` with automatic fallback sequence):
 
-OCR and image understanding are outside the initial project scope.
+- Optical character recognition (OCR) of all text, numerical data, tables, and labels.
+- Structural comprehension and transcription of infographics, architectural workflow diagrams, and flowcharts into clean Markdown.
+- Semantic sliding-window chunking, 768-dim vector embedding, and citation grounding identical to text documents.
 
 ### FR-DOC-004 — File Validation
 

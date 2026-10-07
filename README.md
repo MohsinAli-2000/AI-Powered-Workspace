@@ -212,21 +212,20 @@ This isolation applies to:
 
 ---
 
-## 6. Document Upload
+## 6. Document Upload & Multimodal Vision
 
-Supported initial document types:
+Supported document and raster image formats:
 
 ```text
-PDF
-DOCX
-XLSX
-TXT
-PPT / PPTX
+PDF (.pdf)
+DOCX (.docx)
+XLSX (.xlsx)
+TXT (.txt)
+PPTX (.pptx)
+Images: PNG (.png), JPG/JPEG (.jpg, .jpeg, .jfif), WEBP (.webp), BMP (.bmp), TIFF (.tiff, .tif), GIF (.gif)
 ```
 
-Images are intentionally excluded from the initial version.
-
-Image processing can be added later without redesigning the entire system.
+Images, infographics, system architecture flowcharts, and diagrams are processed using **Multimodal AI Vision OCR** (`gemini-3.6-flash` with fallback sequence across `gemini-3-flash-preview` and `gemini-flash-lite-latest`), transcribing visual hierarchies and tables directly into structured Markdown for semantic chunking and RAG retrieval.
 
 ---
 
@@ -1142,14 +1141,15 @@ The unified `@aws-sdk/client-s3` and pluggable AI provider abstractions ensure z
 * [x] **Next.js Frontend (Phase 15)**: Next.js 16 App Router, dark-mode design system with Tailwind CSS v4, full auth views, organization switcher, project & document management, drag-and-drop upload with status polling, granular access rule dialog, AI chat with SSE streaming, and off-canvas source citation drawer.
 * [x] **Audit Logging (Phase 16)**: Immutable PostgreSQL append-only audit log, non-fatal event dispatch across all system mutations, protected OWNER/ADMIN endpoints, interactive frontend audit log inspector.
 * [x] **Platform Owner Dashboard & Tenant Governance**: Dedicated `/admin` interface for product owners to monitor cross-organization telemetry, suspend or reactivate organizations violating compliance/terms, with air-gapped CLI provisioning (`npm run platform-admin`) and zero-knowledge privacy protection (no access to customer files or conversations).
+* [x] **Multimodal AI Vision & Image RAG Pipeline**: End-to-end ingestion and extraction for raster images (PNG, JPG, WEBP, BMP, TIFF, GIF) with in-memory normalization, multimodal Gemini Vision OCR (`gemini-3.6-flash` with fallback sequence), flowchart/architecture diagram transcription into structured Markdown, client-side thumbnail previews, and dedicated violet `ImageIcon` source citation drawer badges.
 * [x] **Post-Phase 16 Hardening, UI/UX Polish & Cloud Readiness**:
-  - Gemini API default provider (`gemini-3.8-flash`, `gemini-embedding-001`) with local Ollama fallback.
+  - Gemini API default provider (`gemini-3.6-flash`, `gemini-embedding-001`) with local Ollama fallback.
   - Neon Serverless PostgreSQL support with pgvector connection pooling.
   - In-memory fixed-window IP rate limiter (`rate-limit.middleware.ts`) on credential routes.
   - Interactive Help Center (`/help`), User Account Settings (`/settings/account`), Invitation Acceptance flow (`/invitations/accept`).
   - Contextual "Your Access" card, email verification banner, empty org view, accessible dialogs, and normalized API client.
   - Reconnect resilience for RabbitMQ and S3 storage error recovery.
-* [x] **32 architectural decisions confirmed and documented** (see `docs/decision-log.md`).
+* [x] **33 architectural decisions confirmed and documented** (see `docs/decision-log.md`).
 
 ### ⏭️ Next — Immediate Implementation Phase
 

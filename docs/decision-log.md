@@ -536,4 +536,48 @@ Affected:  apps/api/migrations/001_platform_admin.sql,
            apps/web/src/app/(dashboard)/admin/page.tsx
 ```
 
+---
+
+### DEC-033 — Multimodal AI Vision OCR & Document Image Extraction Pipeline
+
+```
+Decision:  Expand supported document formats to include raster images (.png, .jpg, .jpeg, .jfif, .webp, .bmp, .tiff, .tif, .gif)
+           processed via multimodal AI Vision OCR (Google Gemini Vision API `gemini-3.6-flash`, with seamless fallback
+           sequence across `gemini-3-flash-preview`, `gemini-flash-lite-latest`, and `gemini-3.1-flash-lite`).
+           Architecture & Pipeline Capabilities:
+           1. In-Memory Image Format Normalization:
+              - Python background worker (`ImageExtractor`) utilizes Pillow (PIL) to inspect image geometry, dimensions,
+                and color modes.
+              - Standard formats (PNG, JPEG, WEBP) stream directly to Gemini inlineData; legacy/unsupported image formats
+                (BMP, TIFF, GIF) are dynamically converted in-memory to PNG before transmission.
+           2. Multimodal OCR & Semantic Structure Extraction:
+              - Extracts plain text, tables, infographics, hierarchical key-value pairs, and transcribes architectural/system
+                diagram flowcharts into structured GitHub-flavored Markdown.
+              - In the event of temporary upstream 503 spikes or rate limits, retries with exponential backoff and automatically
+                falls back across the prioritized model chain.
+           3. End-to-End RAG & Citation Integration:
+              - Image text chunks are chunked, normalized, and embedded into 768-dimensional vectors using `gemini-embedding-001`,
+                stored in PostgreSQL `document_chunks` with `is_image: true` metadata.
+              - Semantic vector retrieval and authorization subqueries seamlessly treat image content as first-class knowledge sources.
+              - Frontend chat displays dedicated violet `ImageIcon` pills, "Image OCR" badges, and relevance metrics in the source citation drawer.
+           4. File Upload & Format Whitelisting:
+              - Upload middleware and Zod schemas whitelist image MIME types and extensions with a 50MB per-file safety cap.
+              - Frontend upload zone provides instant client-side thumbnail image previews prior to upload dispatch.
+Why:       Enterprise documentation frequently contains architecture diagrams, scanned invoices, receipts, charts, flowcharts,
+           and presentation infographics. Supporting multimodal vision unlocks previously opaque visual data for grounded RAG,
+           eliminates separate bulky Tesseract OCR native binary dependencies in container images, and provides superior extraction
+           accuracy for complex diagrams.
+Status:    Confirmed & Implemented
+Phase:     Multimodal Vision & Document Intelligence
+Affected:  apps/worker/src/extractors/image.py, apps/worker/src/extractors/__init__.py,
+           apps/worker/src/config.py, apps/ai-service/src/services/utility_service.py,
+           apps/ai-service/src/routers/utils.py, apps/ai-service/.env,
+           apps/api/src/modules/documents/document.schema.ts, apps/api/src/middlewares/upload.middleware.ts,
+           apps/web/src/components/documents/document-upload-zone.tsx,
+           apps/web/src/components/documents/document-table.tsx,
+           apps/web/src/components/chat/citation-pill.tsx,
+           apps/web/src/components/chat/source-citation-drawer.tsx
+```
+
+
 

@@ -21,8 +21,9 @@ The RAG system is implemented as a **separate Python AI Service** (FastAPI) and 
 |-----------|-----------|---------------|
 | AI Service | Python + FastAPI | Real-time RAG orchestration and answer generation |
 | AI Worker | Python | Asynchronous document processing and embedding generation |
+| Vision Model | Google Gemini API (`gemini-3.6-flash`, with `gemini-3-flash-preview` / `gemini-flash-lite-latest` fallback) | Multimodal OCR, table transcription, and visual diagram/workflow understanding |
 | Embedding Model | Google Gemini API `gemini-embedding-001` (768-dim, production standard); Ollama for local dev | Text-to-vector conversion |
-| LLM | Google Gemini API `gemini-3.8-flash` (production standard); Qwen via Ollama for local dev | Answer generation |
+| LLM | Google Gemini API `gemini-3.6-flash` (production standard); Qwen via Ollama for local dev | Answer generation |
 | Vector Store | pgvector (PostgreSQL) | Similarity search |
 
 ### Embedding Model Selection
@@ -32,23 +33,27 @@ The RAG system is implemented as a **separate Python AI Service** (FastAPI) and 
 
 ### LLM Selection
 
-> **Production Standard:** `gemini-3.8-flash` via Google Gemini API (`AI_PROVIDER=gemini`, configured with `GEMINI_API_KEY`). Provides enterprise-grade grounded reasoning, low latency token streaming, and massive context windows.  
+> **Production Standard:** `gemini-3.6-flash` via Google Gemini API (`AI_PROVIDER=gemini`, configured with `GEMINI_API_KEY`). Provides high-speed enterprise-grade grounded reasoning, low latency token streaming, and resilient fallback sequence across `gemini-3-flash-preview`, `gemini-flash-lite-latest`, and `gemini-3.1-flash-lite`.  
 > **Development Runtime:** `qwen2.5:1.5b` via Ollama for fast, lightweight local CPU execution on developer laptops.  
+
+### Multimodal Vision Model Selection
+
+> **Production Standard:** `gemini-3.6-flash` multimodal vision (`GEMINI_VISION_MODEL=gemini-3.6-flash`) via Google Gemini API. Extracts text, tables, and transcribes architectural diagrams, workflows, and infographics from raster image files (`.png`, `.jpg`, `.jpeg`, `.jfif`, `.webp`, `.bmp`, `.tiff`, `.tif`, `.gif`) into structured GitHub-flavored Markdown.
 
 ---
 
 ## 3. Document Processing Flow (Async — AI Worker)
 
 ```text
-User uploads document
+User uploads document or image
         ↓
-Backend validates request (auth, permissions, file type, size, duplicate check)
+Backend validates request (auth, permissions, file type whitelist, 50MB cap, duplicate check)
         ↓
-File stored in object storage
+File stored in object storage (S3 / MinIO)
         ↓
 Document record created (status = QUEUED)
         ↓
-Job published to RabbitMQ (PROCESS_DOCUMENT)
+Job published to queue / worker (PROCESS_DOCUMENT)
         ↓
         [Async from here]
         ↓
@@ -56,13 +61,15 @@ Worker picks up job
         ↓
 Document status → PROCESSING
         ↓
-Worker downloads file from object storage
+Worker downloads file stream from object storage
         ↓
-Content extraction (PDF, DOCX, XLSX, TXT, PPTX)
+Content extraction:
+  - Text & Office: PDF, DOCX, XLSX, TXT, PPTX
+  - Images & Diagrams: PNG, JPG, WEBP, BMP, TIFF, GIF (Multimodal AI Vision OCR)
         ↓
-Content normalization / cleaning
+Content normalization & cleaning
         ↓
-Chunking (split into manageable segments)
+Chunking (1000-char window, 200-char overlap, boundary snapping)
         ↓
 Embedding generation (via Embedding Model / Ollama)
         ↓
