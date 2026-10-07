@@ -48,24 +48,25 @@ class Settings(BaseSettings):
 
     # Embedding Pipeline (Phase 11)
     EMBEDDING_PROVIDER: str = Field(
-        default="ollama",
-        description="Embedding provider: ollama, openai, or mock"
+        default="gemini",
+        description="Embedding provider: gemini, mock (or ollama when uncommented)"
     )
     EMBEDDING_MODEL: str = Field(
         default="nomic-embed-text",
-        description="Name of the embedding model"
+        description="Name of the embedding model (local Ollama default: nomic-embed-text)"
     )
     EMBEDDING_DIMENSION: int = Field(
         default=768,
-        description="Vector dimension of the embedding model (e.g. 768 for nomic-embed-text)"
+        description="Vector dimension of the embedding model (768 for both Gemini and nomic-embed-text)"
     )
     EMBEDDING_BATCH_SIZE: int = Field(
         default=32,
         description="Number of chunks to embed per request"
     )
+    # Local Ollama endpoint (kept for reference when running models locally)
     OLLAMA_BASE_URL: str = Field(
         default="http://localhost:11434",
-        description="Ollama API base URL"
+        description="Local Ollama API base URL (reference for local AI execution)"
     )
     GEMINI_API_KEY: str = Field(
         default="",

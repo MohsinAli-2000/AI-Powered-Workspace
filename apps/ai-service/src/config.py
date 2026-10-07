@@ -27,13 +27,16 @@ class Settings(BaseSettings):
     # No default on purpose: a missing DATABASE_URL should fail fast, not silently use a localhost guess.
     database_url: str = Field(validation_alias="DATABASE_URL")
 
+    # Local Ollama configuration (kept for reference - uncomment/activate when running models locally)
     ollama_base_url: str = Field(
         default="http://localhost:11434",
-        validation_alias="OLLAMA_BASE_URL"
+        validation_alias="OLLAMA_BASE_URL",
+        description="Local Ollama server URL (reference for local AI)"
     )
     embedding_model: str = Field(
         default="nomic-embed-text",
-        validation_alias="EMBEDDING_MODEL"
+        validation_alias="EMBEDDING_MODEL",
+        description="Local embedding model name for Ollama"
     )
     embedding_dimension: int = Field(
         default=768,
@@ -41,10 +44,11 @@ class Settings(BaseSettings):
     )
     llm_model: str = Field(
         default="qwen2.5",
-        validation_alias="LLM_MODEL"
+        validation_alias="LLM_MODEL",
+        description="Local LLM model name for Ollama"
     )
     ai_provider: Literal["ollama", "mock", "gemini"] = Field(
-        default="ollama",
+        default="gemini",
         validation_alias="AI_PROVIDER"
     )
 
@@ -107,6 +111,7 @@ class Settings(BaseSettings):
         validation_alias="SENTRY_DSN"
     )
 
+    # Local Ollama connection tuning (reference for local execution)
     ollama_timeout_seconds: float = Field(
         default=60.0,
         validation_alias="OLLAMA_TIMEOUT_SECONDS"

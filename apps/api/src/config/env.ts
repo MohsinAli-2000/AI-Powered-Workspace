@@ -59,12 +59,13 @@ const envSchema = z.object({
   AI_SERVICE_URL: z.string().default('http://127.0.0.1:8001'),
   // Shared secret sent to the AI service as `X-Internal-Token` (must match apps/ai-service AI_SERVICE_TOKEN).
   AI_SERVICE_TOKEN: z.string().optional(),
+  // Local Ollama endpoints & models (kept for reference - uncomment/activate when running models locally)
   OLLAMA_BASE_URL: z.string().default('http://localhost:11434'),
   EMBEDDING_MODEL: z.string().default('nomic-embed-text'),
   LLM_MODEL: z.string().default('qwen2.5'),
   RAG_SIMILARITY_THRESHOLD: z.coerce.number().default(0.35),
   RAG_TOP_K: z.coerce.number().default(5),
-  AI_PROVIDER: z.enum(['ollama', 'mock', 'ai-service']).default('ollama'),
+  AI_PROVIDER: z.enum(['ollama', 'mock', 'ai-service']).default('ai-service'),
 });
 
 const parseEnv = () => {

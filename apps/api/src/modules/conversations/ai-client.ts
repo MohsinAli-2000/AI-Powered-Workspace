@@ -12,8 +12,23 @@ export interface AiClient {
 }
 
 /**
- * Production Ollama client calling local Ollama REST endpoints.
+ * ============================================================================
+ * LOCAL OLLAMA CLIENT IMPLEMENTATION (Commented out for reference)
+ * ============================================================================
+ * This code demonstrates how to interact with local AI models via Ollama's REST API.
+ * 
+ * OVERVIEW - How to run AI models locally with Ollama:
+ * 1. Install Ollama: https://ollama.com
+ * 2. Download models:
+ *      ollama pull nomic-embed-text   # (768-dim embeddings)
+ *      ollama pull qwen2.5:1.5b       # (Fast, low-resource LLM)
+ * 3. Start daemon: ollama serve (runs on http://localhost:11434)
+ * 4. Configure .env:
+ *      AI_PROVIDER=ollama
+ *      OLLAMA_BASE_URL=http://localhost:11434
+ * 5. To re-enable: Uncomment the OllamaAiClient class below and its call in getAiClient().
  */
+/*
 export class OllamaAiClient implements AiClient {
   private readonly baseUrl: string;
   private readonly embeddingModel: string;
@@ -30,7 +45,7 @@ export class OllamaAiClient implements AiClient {
     const timeout = setTimeout(() => controller.abort(), 30000);
 
     try {
-      // 1. Attempt batch /api/embed endpoint
+      // 1. Attempt modern batch /api/embed endpoint
       const embedResp = await fetch(`${this.baseUrl}/api/embed`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48,7 +63,7 @@ export class OllamaAiClient implements AiClient {
         }
       }
 
-      // 2. Fallback to legacy /api/embeddings
+      // 2. Fallback to legacy /api/embeddings endpoint
       const fallbackResp = await fetch(`${this.baseUrl}/api/embeddings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,6 +135,7 @@ export class OllamaAiClient implements AiClient {
     }
   }
 }
+*/
 
 /**
  * Deterministic Mock AI Client for testing and offline environments.
@@ -165,10 +181,11 @@ export const getAiClient = (providerOverride?: 'ollama' | 'mock' | 'ai-service')
   if (providerOverride === 'mock') {
     return new MockAiClient();
   }
-  if (providerOverride === 'ollama') {
-    return new OllamaAiClient();
-  }
-  if (providerOverride === 'ai-service') {
+  // Local Ollama override (commented out for reference):
+  // if (providerOverride === 'ollama') {
+  //   return new OllamaAiClient();
+  // }
+  if (providerOverride === 'ai-service' || providerOverride === 'ollama') {
     return fastApiAiServiceClient;
   }
 
@@ -183,11 +200,19 @@ export const getAiClient = (providerOverride?: 'ollama' | 'mock' | 'ai-service')
       );
       aiClientInstance = fastApiAiServiceClient;
     } else {
+      /*
+      // Local Ollama branch (commented out for reference - uncomment if using Ollama):
       logger.info(
         { baseUrl: env.OLLAMA_BASE_URL, model: env.LLM_MODEL },
         'Using OllamaAiClient for RAG operations'
       );
       aiClientInstance = new OllamaAiClient();
+      */
+      logger.info(
+        { baseUrl: env.AI_SERVICE_URL },
+        'Defaulting to FastApiAiServiceClient for RAG operations (Ollama client is commented out)'
+      );
+      aiClientInstance = fastApiAiServiceClient;
     }
   }
   return aiClientInstance;
