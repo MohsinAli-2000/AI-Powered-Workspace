@@ -90,7 +90,7 @@ export class DocumentService {
     // 3. Generate Unique Document ID and Storage Key
     const documentId = crypto.randomUUID();
     const sanitizedFilename = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storageKey = `orgs/${project.organization_id}/projects/${projectId}/documents/${documentId}/v1_${sanitizedFilename}`;
+    const storageKey = `documents/${documentId}/${sanitizedFilename}`;
 
     // 4. Upload file to Object Storage (MinIO / S3)
     await this.storage.uploadFile(storageKey, file.buffer, file.mimetype);

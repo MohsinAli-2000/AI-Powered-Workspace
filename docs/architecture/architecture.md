@@ -206,13 +206,12 @@ EXTERNAL MANAGED SERVICES
 
 ### PostgreSQL + pgvector
 
-**Object storage key structure (conceptual):**
+**Object storage key structure:**
 ```
 documents-bucket/
-  └── org_{org_id}/
-        └── project_{project_id}/
-              └── document_{doc_id}/
-                    └── original-file.pdf
+  └── documents/
+        └── {document_id}/
+              └── original-file.pdf
 ```
 
 **Development object storage:** MinIO (Docker)  
