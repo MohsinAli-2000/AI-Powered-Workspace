@@ -22,7 +22,17 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
   const isInsufficientInfo =
     message.role === 'ASSISTANT' &&
     (message.content.includes('could not find sufficient information') ||
-      message.content.includes('Please ensure the relevant documents have been uploaded'));
+      message.content.includes('Please ensure the relevant documents have been uploaded') ||
+      message.content.includes('No documents have been uploaded') ||
+      message.content.includes('are currently being processed and indexed') ||
+      message.content.includes('did not find sections with sufficient relevance'));
+
+  const isServiceNotice =
+    message.role === 'ASSISTANT' &&
+    (message.content.includes('Service Notice') ||
+      message.content.includes('temporarily unavailable') ||
+      message.content.includes('rate limit was exceeded') ||
+      message.content.includes('quota or rate limit'));
 
   const handleCopy = async () => {
     try {
@@ -71,13 +81,23 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
 
-            {/* Insufficient Info Warning Banner (FR-AI-005) */}
-            {isInsufficientInfo ? (
+            {/* Service Error Notice Banner */}
+            {isServiceNotice ? (
+              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-200 text-xs flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-rose-300">AI Service Notice</p>
+                  <p className="mt-1 leading-relaxed text-rose-200/90 whitespace-pre-wrap">
+                    {message.content.replace(/^⚠️\s*\*\*Service Notice\*\*\s*/i, '')}
+                  </p>
+                </div>
+              </div>
+            ) : isInsufficientInfo ? (
               <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-semibold text-amber-300">Knowledge Scope Notice</p>
-                  <p className="mt-1 leading-relaxed text-amber-200/90">{message.content}</p>
+                  <p className="mt-1 leading-relaxed text-amber-200/90 whitespace-pre-wrap">{message.content}</p>
                 </div>
               </div>
             ) : (

@@ -74,13 +74,25 @@ export class FastApiAiServiceClient implements AiClient {
 
     if (!resp.ok) {
       const errorText = await resp.text().catch(() => '');
+      let serverMessage = '';
+      try {
+        const parsed = JSON.parse(errorText);
+        serverMessage = parsed.message || parsed.error || '';
+      } catch {
+        // Not JSON
+      }
       logger.error({ errorText: errorText.slice(0, 500), status: resp.status, path }, 'AI Service call failed');
-      if (resp.status === 429 || resp.status >= 500) {
+      if (resp.status === 429) {
         throw new ServiceUnavailableError(
-          'The AI assistant is temporarily busy. Please try again in a moment.'
+          serverMessage || 'The AI assistant rate limit was exceeded. Please wait a moment before trying again.'
         );
       }
-      throw new Error(`AI Service call to ${path} failed with HTTP ${resp.status}`);
+      if (resp.status >= 500) {
+        throw new ServiceUnavailableError(
+          serverMessage || 'The AI assistant is temporarily unavailable. Please try again shortly.'
+        );
+      }
+      throw new Error(serverMessage || `AI Service call to ${path} failed with HTTP ${resp.status}`);
     }
 
     return resp.json();

@@ -340,11 +340,20 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
         )
       );
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to get answer', 'error');
+      const errMsg = err instanceof Error ? err.message : 'Failed to get answer';
+      showToast(errMsg, 'error');
       if (activeIdRef.current === conversationId) {
-        // Roll back the optimistic message and give the question back so nothing is lost.
-        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        const errorAssistantMsg: Message = {
+          id: `err-${Date.now()}`,
+          conversation_id: conversationId,
+          role: 'ASSISTANT',
+          content: `⚠️ **Service Notice**\n\n${errMsg}\n\nPlease check your question or retry in a few moments.`,
+          created_at: new Date().toISOString(),
+          sources: [],
+        };
+        setMessages((prev) => [...prev, errorAssistantMsg]);
         setInputText((current) => current || question);
+        setTimeout(scrollToBottom, 50);
       }
     } finally {
       setIsSending(false);

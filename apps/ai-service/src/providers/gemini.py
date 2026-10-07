@@ -218,6 +218,18 @@ class GeminiProvider(BaseEmbeddingProvider, BaseLLMProvider):
 
             await asyncio.sleep(wait_seconds)
 
+        if last_status == "429":
+            raise ProviderUnavailableError(
+                "Gemini API quota or rate limit was exceeded. Please wait a moment and try again."
+            )
+        if last_status in ("503", "500", "502", "504"):
+            raise ProviderUnavailableError(
+                f"AI service is temporarily unavailable: Gemini model is overloaded (HTTP {last_status}). Please try again shortly."
+            )
+        if "Timeout" in last_status or "Connect" in last_status or "Transport" in last_status:
+            raise ProviderUnavailableError(
+                f"AI service request timed out ({last_status}). Please try again shortly."
+            )
         raise ProviderUnavailableError(
             "AI service is temporarily unavailable. Please try again shortly."
         )
