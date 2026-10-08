@@ -1,0 +1,81 @@
+services:
+  # ============================================================================
+  # 1. Python AI Service (FastAPI + Gemini + Vector Retrieval)
+  # ============================================================================
+  ai-service:
+    build:
+      context: ./apps/ai-service
+      dockerfile: Dockerfile
+    image: ai-workspace-ai-service
+    container_name: workspace-ai-service
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      - PORT=8001
+      - HOST=0.0.0.0
+      - ENVIRONMENT=production
+    expose:
+      - "8001"
+    networks:
+      - workspace-network
+    deploy:
+      resources:
+        limits:
+          memory: 250M
+
+  # ============================================================================
+  # 2. Node.js API (Core Backend REST API)
+  # ============================================================================
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    image: ai-workspace-api
+    container_name: workspace-api
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      # Routes AI requests internally to the ai-service container via Docker DNS
+      - AI_SERVICE_URL=http://ai-service:8001
+      - AI_PROVIDER=ai-service
+    ports:
+      - "5000:5000"
+    depends_on:
+      ai-service:
+        condition: service_healthy
+    networks:
+      - workspace-network
+    deploy:
+      resources:
+        limits:
+          memory: 250M
+
+  # ============================================================================
+  # 3. Python Background Worker (RabbitMQ Consumer + Document Processing)
+  # ============================================================================
+  worker:
+    build:
+      context: ./apps/worker
+      dockerfile: Dockerfile
+    image: ai-workspace-worker
+    container_name: workspace-worker
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+    networks:
+      - workspace-network
+    deploy:
+      resources:
+        limits:
+          memory: 250M
+
+networks:
+  workspace-network:
+    driver: bridge

@@ -1,0 +1,11 @@
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+logs
+.vscode
+.env
+.env.local
+.git
+.gitignore
