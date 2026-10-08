@@ -2,6 +2,9 @@
 
 > A multi-tenant AI-powered knowledge platform that helps organizations transform large collections of documents into searchable, grounded, and actionable knowledge.
 
+🌐 **Live Production App:** [https://ai-powered-workspace.vercel.app](https://ai-powered-workspace.vercel.app)  
+⚙️ **Production API (HTTPS):** [https://3-25-255-191.sslip.io/api/v1](https://3-25-255-191.sslip.io/api/v1)
+
 ---
 
 ## 📌 Overview
