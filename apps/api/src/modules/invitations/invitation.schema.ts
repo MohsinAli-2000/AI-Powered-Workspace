@@ -62,6 +62,41 @@ export const rejectInvitationSchema = z.object({
   }),
 });
 
+/**
+ * Schema for fetching invitation details via query token or body token.
+ */
+export const invitationDetailsQuerySchema = z.object({
+  query: z.object({
+    token: z.string().min(1, { message: 'Invitation token is required' }),
+  }),
+});
+
+export const invitationDetailsBodySchema = z.object({
+  body: z.object({
+    token: z.string().min(1, { message: 'Invitation token is required' }),
+  }),
+});
+
+/**
+ * Schema for accepting an invitation and setting up a new user account atomically.
+ */
+export const acceptAndRegisterSchema = z.object({
+  body: z.object({
+    token: z.string().min(1, { message: 'Invitation token is required' }),
+    name: z
+      .string()
+      .trim()
+      .min(2, { message: 'Name must be at least 2 characters long' })
+      .max(100, { message: 'Name must not exceed 100 characters' }),
+    password: z
+      .string()
+      .min(8, { message: 'Password must be at least 8 characters long' })
+      .max(100, { message: 'Password must not exceed 100 characters' })
+      .regex(/[A-Za-z]/, { message: 'Password must contain at least one letter' })
+      .regex(/[0-9]/, { message: 'Password must contain at least one number' }),
+  }),
+});
+
 // Inferred types for controller/service usage
 export type CreateInvitationInput = z.infer<typeof createInvitationSchema>['body'];
 export type CreateInvitationParams = z.infer<typeof createInvitationSchema>['params'];
@@ -69,3 +104,4 @@ export type ListInvitationsParams = z.infer<typeof listInvitationsSchema>['param
 export type RevokeInvitationParams = z.infer<typeof revokeInvitationSchema>['params'];
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>['body'];
 export type RejectInvitationInput = z.infer<typeof rejectInvitationSchema>['body'];
+export type AcceptAndRegisterInput = z.infer<typeof acceptAndRegisterSchema>['body'];

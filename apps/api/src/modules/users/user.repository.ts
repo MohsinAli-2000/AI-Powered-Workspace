@@ -28,13 +28,18 @@ export class UserRepository extends BaseRepository<User> {
     databaseClient?: PoolClient
   ): Promise<User> {
     const sqlQuery = `
-      INSERT INTO ${this.tableName} (email, password_hash, name)
-      VALUES (LOWER($1), $2, $3)
+      INSERT INTO ${this.tableName} (email, password_hash, name, email_verified_at)
+      VALUES (LOWER($1), $2, $3, $4)
       RETURNING *;
     `;
     const insertedUserRows = await this.query<User>(
       sqlQuery,
-      [newUserData.email, newUserData.password_hash, newUserData.name],
+      [
+        newUserData.email,
+        newUserData.password_hash,
+        newUserData.name,
+        newUserData.email_verified_at ?? new Date(),
+      ],
       databaseClient
     );
     return insertedUserRows[0];

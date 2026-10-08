@@ -186,7 +186,7 @@ function buildHeaders(init: RequestInit): Headers {
  * (`/auth/me` and `/auth/logout` are NOT in this list, so they refresh an expired access token like any other call.)
  */
 function isCredentialRoute(path: string): boolean {
-  return /^\/auth\/(login|register|refresh|verify-email|resend-verification|forgot-password|reset-password)(\/|\?|$)/.test(path);
+  return /^\/(auth\/(login|register|refresh|verify-email|resend-verification|forgot-password|reset-password)|invitations\/(details|accept-and-register))(\/|\?|$)/.test(path);
 }
 
 /** Performs the request, retrying once with a refreshed token on a 401. */

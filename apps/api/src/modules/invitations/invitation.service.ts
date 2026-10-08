@@ -17,8 +17,14 @@ import { emailService, type EmailService } from '../email/email.service.js';
 import {
   generateInvitationToken,
   verifyInvitationToken,
+  generateAccessToken,
+  generateRefreshToken,
+  passwordFingerprint,
 } from '../../utils/jwt.js';
+import { hashPassword } from '../../utils/password.js';
 import { hashToken } from '../../utils/crypto.js';
+import { toSafeUser, type SafeUser } from '../users/user.entity.js';
+import type { AcceptAndRegisterInput } from './invitation.schema.js';
 import type {
   Invitation,
   InvitationDetail,
@@ -350,6 +356,155 @@ export class InvitationService {
     }
 
     return rejectedInvitation;
+  }
+
+  /**
+   * Retrieves public details of a valid invitation to render the acceptance / registration page.
+   */
+  public async getInvitationDetails(rawToken: string): Promise<{
+    email: string;
+    organizationName: string;
+    role: string;
+    hasAccount: boolean;
+  }> {
+    verifyInvitationToken(rawToken);
+    const tokenHash = hashToken(rawToken);
+
+    const invitation = await this.invitationRepo.findByTokenHash(tokenHash);
+    if (!invitation) {
+      throw new NotFoundError('Invitation not found or has been invalidated.');
+    }
+
+    this.validateInvitationIsActionable(invitation);
+
+    const organization = await this.organizationRepo.findById(invitation.organization_id);
+    if (!organization) {
+      throw new NotFoundError('The organization associated with this invitation no longer exists.');
+    }
+    if (organization.status === 'SUSPENDED') {
+      throw new ForbiddenError(
+        'This organization is currently suspended, so its invitations cannot be accepted.',
+        { code: 'ORGANIZATION_SUSPENDED' }
+      );
+    }
+
+    const existingUser = await this.userRepo.findByEmail(invitation.email);
+
+    return {
+      email: invitation.email,
+      organizationName: organization.name,
+      role: invitation.role,
+      hasAccount: Boolean(existingUser),
+    };
+  }
+
+  /**
+   * Accepts an invitation by creating a brand-new user account with verified email,
+   * adding the user to the organization, and automatically issuing authentication tokens.
+   */
+  public async acceptInvitationAndRegister(
+    input: AcceptAndRegisterInput
+  ): Promise<{
+    authenticatedUser: SafeUser;
+    accessTokenString: string;
+    refreshTokenString: string;
+    organizationId: string;
+    membership: OrganizationMembership;
+  }> {
+    verifyInvitationToken(input.token);
+    const tokenHash = hashToken(input.token);
+
+    const invitation = await this.invitationRepo.findByTokenHash(tokenHash);
+    if (!invitation) {
+      throw new NotFoundError('Invitation not found or has been invalidated.');
+    }
+
+    this.validateInvitationIsActionable(invitation);
+
+    const organization = await this.organizationRepo.findById(invitation.organization_id);
+    if (!organization) {
+      throw new NotFoundError('The organization associated with this invitation no longer exists.');
+    }
+    if (organization.status === 'SUSPENDED') {
+      throw new ForbiddenError(
+        'This organization is currently suspended, so its invitations cannot be accepted.',
+        { code: 'ORGANIZATION_SUSPENDED' }
+      );
+    }
+
+    const existingUser = await this.userRepo.findByEmail(invitation.email);
+    if (existingUser) {
+      throw new ConflictError(
+        'An account with this email address already exists. Please sign in to accept the invitation.'
+      );
+    }
+
+    const securePasswordHash = await hashPassword(input.password);
+
+    return BaseRepository.withTransaction(async (transactionClient) => {
+      // 1. Claim the invitation atomically
+      const claimed = await this.invitationRepo.transitionFromPending(
+        invitation.id,
+        'ACCEPTED',
+        transactionClient
+      );
+      if (!claimed) {
+        throw new ConflictError('This invitation was already used, revoked or has expired.');
+      }
+
+      // 2. Create the user account with email_verified_at set to NOW()
+      const newlyCreatedUser = await this.userRepo.create(
+        {
+          email: invitation.email,
+          name: input.name,
+          password_hash: securePasswordHash,
+          email_verified_at: new Date(),
+        },
+        transactionClient
+      );
+
+      // 3. Create the organization membership with assigned role
+      const newMembership = await this.membershipRepo.create(
+        {
+          organization_id: invitation.organization_id,
+          user_id: newlyCreatedUser.id,
+          role: invitation.role,
+        },
+        transactionClient
+      );
+
+      // 4. Record audit event
+      await this.audit.record(
+        {
+          organizationId: invitation.organization_id,
+          actorUserId: newlyCreatedUser.id,
+          action: 'member.joined',
+          resourceType: 'member',
+          resourceId: newlyCreatedUser.id,
+          metadata: { role: invitation.role, invitationId: invitation.id, createdViaInvitation: true },
+        },
+        transactionClient
+      );
+
+      // 5. Issue session tokens for immediate authentication
+      const accessTokenString = generateAccessToken({
+        userId: newlyCreatedUser.id,
+        email: newlyCreatedUser.email,
+      });
+
+      const refreshTokenString = generateRefreshToken({
+        userId: newlyCreatedUser.id,
+        pwv: passwordFingerprint(newlyCreatedUser.password_hash),
+      });
+
+      return {
+        authenticatedUser: toSafeUser(newlyCreatedUser),
+        accessTokenString,
+        refreshTokenString,
+        organizationId: invitation.organization_id,
+        membership: newMembership,
+      };
+    });
   }
 
   /**

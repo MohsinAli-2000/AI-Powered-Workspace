@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticateUser } from '../../middlewares/auth.middleware.js';
 import { validateRequest } from '../../middlewares/validate.middleware.js';
+import { rateLimit } from '../../middlewares/rate-limit.middleware.js';
 import {
   requireOrgMembership,
   requireOrgRole,
@@ -12,6 +13,9 @@ import {
   revokeInvitationSchema,
   acceptInvitationSchema,
   rejectInvitationSchema,
+  invitationDetailsQuerySchema,
+  invitationDetailsBodySchema,
+  acceptAndRegisterSchema,
 } from './invitation.schema.js';
 
 // ---------------------------------------------------------------------------
@@ -68,8 +72,45 @@ invitationOrgRouter.delete(
 // ---------------------------------------------------------------------------
 export const invitationPublicRouter: Router = Router();
 
-// Accept/reject require authentication (FR-MEMBER-007)
-invitationPublicRouter.use(authenticateUser);
+const invitationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: 'Too many attempts. Please wait a few minutes and try again.',
+});
+
+/**
+ * Route: GET /api/v1/invitations/details
+ * Description: Retrieve invitation details by query token
+ * Access: Public (token required)
+ */
+invitationPublicRouter.get(
+  '/details',
+  validateRequest(invitationDetailsQuerySchema),
+  invitationController.getInvitationDetailsHandler
+);
+
+/**
+ * Route: POST /api/v1/invitations/details
+ * Description: Retrieve invitation details by body token
+ * Access: Public (token required)
+ */
+invitationPublicRouter.post(
+  '/details',
+  validateRequest(invitationDetailsBodySchema),
+  invitationController.getInvitationDetailsHandler
+);
+
+/**
+ * Route: POST /api/v1/invitations/accept-and-register
+ * Description: Accept invitation by setting password and creating account (auto-authenticates)
+ * Access: Public (valid invitation token required)
+ */
+invitationPublicRouter.post(
+  '/accept-and-register',
+  invitationLimiter,
+  validateRequest(acceptAndRegisterSchema),
+  invitationController.acceptAndRegisterHandler
+);
 
 /**
  * Route: POST /api/v1/invitations/accept
@@ -78,6 +119,7 @@ invitationPublicRouter.use(authenticateUser);
  */
 invitationPublicRouter.post(
   '/accept',
+  authenticateUser,
   validateRequest(acceptInvitationSchema),
   invitationController.acceptInvitationHandler
 );
@@ -89,6 +131,7 @@ invitationPublicRouter.post(
  */
 invitationPublicRouter.post(
   '/reject',
+  authenticateUser,
   validateRequest(rejectInvitationSchema),
   invitationController.rejectInvitationHandler
 );

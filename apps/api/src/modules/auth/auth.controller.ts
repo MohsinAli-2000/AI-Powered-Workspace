@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { authService, type AuthService } from './auth.service.js';
 import type {
+  InitiateRegisterInput,
   RegisterInput,
   LoginInput,
   RefreshTokenInput,
@@ -14,7 +15,27 @@ export class AuthController {
   constructor(private readonly authenticationService: AuthService = authService) {}
 
   /**
-   * Handles user registration.
+   * Handles user self-registration initiation (sends verification email).
+   */
+  public initiateRegisterHandler = async (
+    incomingRequest: Request<Record<string, never>, unknown, InitiateRegisterInput>,
+    outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      await this.authenticationService.initiateRegistration(incomingRequest.body);
+
+      outgoingResponse.status(200).json({
+        success: true,
+        message: 'A verification link has been sent to your email. Please verify to complete your account setup.',
+      });
+    } catch (controllerError) {
+      nextMiddleware(controllerError);
+    }
+  };
+
+  /**
+   * Handles completing user registration with a verified token and auto-authenticates.
    */
   public registerHandler = async (
     incomingRequest: Request<Record<string, never>, unknown, RegisterInput>,
@@ -27,7 +48,7 @@ export class AuthController {
 
       outgoingResponse.status(201).json({
         success: true,
-        message: 'User account registered successfully. A verification email has been dispatched.',
+        message: 'Account created and authenticated successfully.',
         data: {
           user: authenticationResult.authenticatedUser,
           tokens: {
@@ -126,14 +147,12 @@ export class AuthController {
     nextMiddleware: NextFunction
   ): Promise<void> => {
     try {
-      const verifiedUser = await this.authenticationService.verifyUserEmail(incomingRequest.body);
+      const verificationResult = await this.authenticationService.verifyUserEmail(incomingRequest.body);
 
       outgoingResponse.status(200).json({
         success: true,
         message: 'Email address verified successfully.',
-        data: {
-          user: verifiedUser,
-        },
+        data: verificationResult,
       });
     } catch (controllerError) {
       nextMiddleware(controllerError);
@@ -153,7 +172,7 @@ export class AuthController {
 
       outgoingResponse.status(200).json({
         success: true,
-        message: 'If the account exists and is unverified, a new verification link has been sent.',
+        message: 'If the account exists or is pending verification, a new link has been sent.',
       });
     } catch (controllerError) {
       nextMiddleware(controllerError);

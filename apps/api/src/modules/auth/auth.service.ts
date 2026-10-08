@@ -1,7 +1,13 @@
+import { BaseRepository } from '../../db/base.repository.js';
 import { userRepository, type UserRepository } from '../users/user.repository.js';
+import {
+  emailVerificationRepository,
+  type EmailVerificationRepository,
+} from './email-verification.repository.js';
 import { toSafeUser, type SafeUser } from '../users/user.entity.js';
 import { emailService, type EmailService } from '../email/email.service.js';
 import { hashPassword, comparePassword } from '../../utils/password.js';
+import { hashToken } from '../../utils/crypto.js';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -12,8 +18,15 @@ import {
   generatePasswordResetToken,
   verifyPasswordResetToken,
 } from '../../utils/jwt.js';
-import { ConflictError, UnauthorizedError } from '../../errors/app-error.js';
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../../errors/app-error.js';
 import type {
+  InitiateRegisterInput,
   RegisterInput,
   LoginInput,
   RefreshTokenInput,
@@ -37,35 +50,92 @@ export interface TokenRefreshResult {
 export class AuthService {
   constructor(
     private readonly userStore: UserRepository = userRepository,
-    private readonly mailer: EmailService = emailService
+    private readonly mailer: EmailService = emailService,
+    private readonly verificationStore: EmailVerificationRepository = emailVerificationRepository
   ) {}
 
   /**
-   * Registers a new user account with secure password hashing, dispatches email verification, and issues initial auth tokens.
+   * Initiates user self-registration by sending an email verification link.
+   * Crucially, does NOT create a user record in the database until email is verified.
+   */
+  public async initiateRegistration(
+    input: InitiateRegisterInput
+  ): Promise<void> {
+    const existingUser = await this.userStore.findByEmail(input.email);
+
+    if (existingUser) {
+      throw new ConflictError('An account with this email address already exists.');
+    }
+
+    const verificationToken = generateEmailVerificationToken(input.email);
+    const tokenHash = hashToken(verificationToken);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await this.verificationStore.create({
+      email: input.email.toLowerCase(),
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+    });
+
+    await this.mailer.sendVerificationEmail({
+      recipientEmail: input.email,
+      recipientName: input.email.split('@')[0],
+      verificationToken,
+    });
+  }
+
+  /**
+   * Completes user account creation after email verification has been confirmed.
+   * Atomically consumes the verification token, creates the user account (already verified),
+   * and automatically issues authentication tokens.
    */
   public async registerUser(
     registrationInput: RegisterInput
   ): Promise<AuthenticationResult> {
-    const existingUser = await this.userStore.findByEmail(registrationInput.email);
+    const decodedToken = verifyEmailVerificationToken(registrationInput.token);
+    const tokenHash = hashToken(registrationInput.token);
 
+    const verification = await this.verificationStore.findByTokenHash(tokenHash);
+    if (!verification) {
+      throw new NotFoundError('Verification token not found or has been invalidated.');
+    }
+
+    if (verification.status === 'CONSUMED') {
+      throw new ConflictError('This verification token has already been used.');
+    }
+
+    if (new Date(verification.expires_at) <= new Date()) {
+      throw new UnauthorizedError('Email verification link has expired. Please request a new one.');
+    }
+
+    const email = verification.email;
+    const existingUser = await this.userStore.findByEmail(email);
     if (existingUser) {
       throw new ConflictError('An account with this email address already exists.');
     }
 
     const securePasswordHash = await hashPassword(registrationInput.password);
 
-    const newlyCreatedUser = await this.userStore.create({
-      email: registrationInput.email,
-      password_hash: securePasswordHash,
-      name: registrationInput.name,
-    });
+    const newlyCreatedUser = await BaseRepository.withTransaction(async (transactionClient) => {
+      // 1. Consume the token atomically to prevent replay attacks
+      const consumed = await this.verificationStore.transitionToConsumed(
+        verification.id,
+        transactionClient
+      );
+      if (!consumed) {
+        throw new ConflictError('This verification token has already been used.');
+      }
 
-    // Generate email verification token and send verification email
-    const emailVerificationToken = generateEmailVerificationToken(newlyCreatedUser.id);
-    await this.mailer.sendVerificationEmail({
-      recipientEmail: newlyCreatedUser.email,
-      recipientName: newlyCreatedUser.name,
-      verificationToken: emailVerificationToken,
+      // 2. Create the user with email_verified_at set to NOW()
+      return this.userStore.create(
+        {
+          email,
+          password_hash: securePasswordHash,
+          name: registrationInput.name,
+          email_verified_at: new Date(),
+        },
+        transactionClient
+      );
     });
 
     const accessTokenString = generateAccessToken({
@@ -109,6 +179,13 @@ export class AuthService {
       throw new UnauthorizedError(invalidCredentialsMessage);
     }
 
+    if (!matchedUser.email_verified_at) {
+      throw new ForbiddenError(
+        'Your email address has not been verified. Please verify your email first.',
+        { code: 'EMAIL_NOT_VERIFIED' }
+      );
+    }
+
     const accessTokenString = generateAccessToken({
       userId: matchedUser.id,
       email: matchedUser.email,
@@ -140,6 +217,13 @@ export class AuthService {
       throw new UnauthorizedError('User account associated with this session no longer exists.');
     }
 
+    if (!existingUser.email_verified_at) {
+      throw new ForbiddenError(
+        'Your email address has not been verified. Please verify your email first.',
+        { code: 'EMAIL_NOT_VERIFIED' }
+      );
+    }
+
     // A password reset invalidates every session created before it (older tokens carry no/other fingerprint).
     if (
       decodedToken.pwv !== undefined &&
@@ -165,44 +249,84 @@ export class AuthService {
   }
 
   /**
-   * Verifies a user's email address using a valid verification token.
+   * Verifies an email verification token before account creation.
+   * If a legacy token with userId is passed, marks that user as verified.
    */
   public async verifyUserEmail(
     verificationInput: VerifyEmailInput
-  ): Promise<SafeUser> {
+  ): Promise<{ email: string; verified: boolean; user?: SafeUser }> {
     const decodedToken = verifyEmailVerificationToken(verificationInput.token);
 
-    const matchedUser = await this.userStore.findById(decodedToken.userId);
+    if (decodedToken.email) {
+      const tokenHash = hashToken(verificationInput.token);
+      const verification = await this.verificationStore.findByTokenHash(tokenHash);
 
-    if (!matchedUser) {
-      throw new UnauthorizedError('User account associated with this verification link no longer exists.');
+      if (!verification) {
+        throw new NotFoundError('Verification token not found or has been invalidated.');
+      }
+
+      if (verification.status === 'CONSUMED') {
+        throw new BadRequestError('This verification token has already been used.');
+      }
+
+      if (new Date(verification.expires_at) <= new Date()) {
+        throw new UnauthorizedError('Email verification link has expired. Please request a new one.');
+      }
+
+      if (verification.status === 'PENDING') {
+        await this.verificationStore.markVerified(verification.id);
+      }
+
+      return {
+        email: verification.email,
+        verified: true,
+      };
     }
 
-    if (matchedUser.email_verified_at) {
-      return toSafeUser(matchedUser); // already verified
+    if (decodedToken.userId) {
+      const matchedUser = await this.userStore.findById(decodedToken.userId);
+
+      if (!matchedUser) {
+        throw new UnauthorizedError('User account associated with this verification link no longer exists.');
+      }
+
+      if (matchedUser.email_verified_at) {
+        return { email: matchedUser.email, verified: true, user: toSafeUser(matchedUser) };
+      }
+
+      const updatedVerifiedUser = await this.userStore.markEmailVerified(matchedUser.id);
+      return { email: updatedVerifiedUser!.email, verified: true, user: toSafeUser(updatedVerifiedUser!) };
     }
 
-    const updatedVerifiedUser = await this.userStore.markEmailVerified(matchedUser.id);
-    return toSafeUser(updatedVerifiedUser!);
+    throw new UnauthorizedError('Invalid email verification token payload.');
   }
 
   /**
-   * Resends an email verification link to an unverified user account.
+   * Resends an email verification link to an unverified email address.
    */
   public async resendVerificationEmail(
     resendInput: ResendVerificationInput
   ): Promise<void> {
     const matchedUser = await this.userStore.findByEmail(resendInput.email);
 
-    // Prevent account enumeration: do not reveal whether the email exists or is verified
-    if (!matchedUser || matchedUser.email_verified_at) {
+    // If an account already exists and is already verified, do not send verification link
+    if (matchedUser && matchedUser.email_verified_at) {
       return;
     }
 
-    const emailVerificationToken = generateEmailVerificationToken(matchedUser.id);
+    const emailVerificationToken = generateEmailVerificationToken(resendInput.email);
+    const tokenHash = hashToken(emailVerificationToken);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await this.verificationStore.create({
+      email: resendInput.email.toLowerCase(),
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+    });
+
     await this.mailer.sendVerificationEmail({
-      recipientEmail: matchedUser.email,
-      recipientName: matchedUser.name,
+      recipientEmail: resendInput.email,
+      recipientName: matchedUser ? matchedUser.name : resendInput.email.split('@')[0],
       verificationToken: emailVerificationToken,
     });
   }

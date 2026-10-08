@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { apiClient, ApiError } from '@/lib/api-client';
 import { getSafeRedirect } from '@/lib/utils';
-import { User, Lock, Mail, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Mail, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 
 function RegisterForm() {
   const searchParams = useSearchParams();
@@ -16,10 +16,7 @@ function RegisterForm() {
     ? `/login?redirect=${encodeURIComponent(getSafeRedirect(redirectParam))}`
     : '/login';
 
-  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,36 +27,18 @@ function RegisterForm() {
     e.preventDefault();
     setError(null);
 
-    if (fullName.trim().length < 2) {
-      setError('Please enter your full name (at least 2 characters).');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long.');
-      return;
-    }
-
-    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
-      setError('Password must contain at least one letter and one number.');
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setError('Please provide a valid work email address.');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      await apiClient('/auth/register', {
+      await apiClient('/auth/register/initiate', {
         method: 'POST',
-        body: JSON.stringify({
-          name: fullName.trim(),
-          email: email.trim(),
-          password,
-        }),
+        body: JSON.stringify({ email: trimmedEmail }),
       });
 
       setSuccess(true);
@@ -67,7 +46,7 @@ function RegisterForm() {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError('Registration failed. Please try again.');
+        setError('Failed to initiate registration. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -96,25 +75,35 @@ function RegisterForm() {
         <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 mx-auto flex items-center justify-center">
           <CheckCircle2 className="w-6 h-6" />
         </div>
-        <h2 className="text-xl font-bold text-white">Verification email sent!</h2>
+        <h2 className="text-xl font-bold text-white">Check your email</h2>
         <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
-          We have sent a verification link to <span className="font-semibold text-white">{email}</span>. Please click the link in your email to activate your account.
+          We have sent a verification link to <span className="font-semibold text-white">{email}</span>. Click the link in your email to verify your email address and set your password.
         </p>
-        <div className="pt-2 space-y-2">
-          <Link href={loginHref} className="block">
-            <Button variant="secondary" className="w-full">
-              Proceed to Sign In
-            </Button>
-          </Link>
+        <p className="text-[11px] text-slate-400">
+          Your account will be created once your email is confirmed.
+        </p>
+        <div className="pt-2 space-y-3">
           <button
             type="button"
             onClick={handleResend}
             disabled={isResending}
-            className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 cursor-pointer"
+            className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50 cursor-pointer block mx-auto"
           >
-            {isResending ? 'Sending…' : "Didn't get it? Resend the email"}
+            {isResending ? 'Sending…' : "Didn't receive the email? Resend"}
           </button>
           {resendMessage && <p className="text-xs text-slate-400">{resendMessage}</p>}
+          <div className="border-t border-white/5 pt-3">
+            <button
+              type="button"
+              onClick={() => {
+                setSuccess(false);
+                setResendMessage(null);
+              }}
+              className="text-xs text-slate-400 hover:text-slate-200 cursor-pointer"
+            >
+              Use a different email address
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -125,7 +114,7 @@ function RegisterForm() {
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-white tracking-tight">Create your account</h2>
         <p className="text-xs text-slate-400 mt-1">
-          Start collaborating on your organizational documents with AI
+          Enter your email to verify ownership before setting up your workspace
         </p>
       </div>
 
@@ -136,19 +125,7 @@ function RegisterForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-3.5">
-        <Input
-          type="text"
-          label="Full Name"
-          placeholder="Jane Doe"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          required
-          autoComplete="name"
-          autoFocus
-          leftIcon={<User className="w-4 h-4" />}
-        />
-
+      <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           type="email"
           label="Work Email"
@@ -157,30 +134,9 @@ function RegisterForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
           autoComplete="email"
+          autoFocus
           leftIcon={<Mail className="w-4 h-4" />}
-        />
-
-        <Input
-          type="password"
-          label="Password"
-          placeholder="••••••••"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="new-password"
-          helperText="At least 8 characters, including a letter and a number."
-          leftIcon={<Lock className="w-4 h-4" />}
-        />
-
-        <Input
-          type="password"
-          label="Confirm Password"
-          placeholder="••••••••"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-          autoComplete="new-password"
-          leftIcon={<Lock className="w-4 h-4" />}
+          helperText="We will send you a verification link to complete your registration."
         />
 
         <Button
@@ -188,7 +144,7 @@ function RegisterForm() {
           className="w-full mt-2"
           isLoading={isLoading}
         >
-          Create Account
+          Continue with Email
           {!isLoading && <ArrowRight className="w-4 h-4 ml-1" />}
         </Button>
       </form>

@@ -76,18 +76,19 @@ export const verifyRefreshToken = (refreshTokenString: string): RefreshTokenPayl
 };
 
 export interface EmailVerificationTokenPayload {
-  userId: string;
+  email?: string;
+  userId?: string;
   purpose: 'email_verification';
 }
 
 /**
  * Signs a 24-hour verification token for email confirmation.
+ * Supports email (pre-registration) or userId (legacy).
  */
-export const generateEmailVerificationToken = (userId: string): string => {
-  const payload: EmailVerificationTokenPayload = {
-    userId,
-    purpose: 'email_verification',
-  };
+export const generateEmailVerificationToken = (identifier: string): string => {
+  const payload: EmailVerificationTokenPayload = identifier.includes('@')
+    ? { email: identifier.toLowerCase(), purpose: 'email_verification' }
+    : { userId: identifier, purpose: 'email_verification' };
   const tokenString = jwt.sign(payload, env.JWT_SECRET, {
     expiresIn: '24h',
   });

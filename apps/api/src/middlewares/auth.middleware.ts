@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../utils/jwt.js';
 import { userRepository } from '../modules/users/user.repository.js';
 import { toSafeUser, type SafeUser } from '../modules/users/user.entity.js';
-import { UnauthorizedError } from '../errors/app-error.js';
+import { ForbiddenError, UnauthorizedError } from '../errors/app-error.js';
 
 // Extend Express Request interface to include the authenticated user
 declare global {
@@ -47,6 +47,12 @@ export const authenticateUser = async (
 
     if (!matchedUser) {
       throw new UnauthorizedError('User account associated with this token no longer exists.');
+    }
+
+    if (!matchedUser.email_verified_at) {
+      throw new ForbiddenError('Email address is not verified. Please verify your email to access this resource.', {
+        code: 'EMAIL_NOT_VERIFIED',
+      });
     }
 
     // Attach sanitized user to the request object for downstream handlers

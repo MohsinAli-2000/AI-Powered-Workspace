@@ -3,7 +3,7 @@ import {
   invitationService,
   type InvitationService,
 } from './invitation.service.js';
-import type { CreateInvitationInput } from './invitation.schema.js';
+import type { CreateInvitationInput, AcceptAndRegisterInput } from './invitation.schema.js';
 
 export class InvitationController {
   constructor(
@@ -143,6 +143,59 @@ export class InvitationController {
         success: true,
         data: { invitation: rejectedInvitation },
         message: 'Invitation rejected.',
+      });
+    } catch (controllerError) {
+      nextMiddleware(controllerError);
+    }
+  };
+
+  /**
+   * Handles retrieving invitation details for public acceptance page.
+   * Route: GET /api/v1/invitations/details or POST /api/v1/invitations/details
+   */
+  public getInvitationDetailsHandler = async (
+    incomingRequest: Request,
+    outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      const token = (incomingRequest.query.token as string) || (incomingRequest.body?.token as string);
+      const details = await this.invService.getInvitationDetails(token);
+
+      outgoingResponse.status(200).json({
+        success: true,
+        data: details,
+        message: 'Invitation details retrieved successfully.',
+      });
+    } catch (controllerError) {
+      nextMiddleware(controllerError);
+    }
+  };
+
+  /**
+   * Handles accepting an invitation by registering a new account and immediately authenticating.
+   * Route: POST /api/v1/invitations/accept-and-register
+   */
+  public acceptAndRegisterHandler = async (
+    incomingRequest: Request<Record<string, never>, unknown, AcceptAndRegisterInput>,
+    outgoingResponse: Response,
+    nextMiddleware: NextFunction
+  ): Promise<void> => {
+    try {
+      const result = await this.invService.acceptInvitationAndRegister(incomingRequest.body);
+
+      outgoingResponse.status(201).json({
+        success: true,
+        data: {
+          user: result.authenticatedUser,
+          tokens: {
+            accessToken: result.accessTokenString,
+            refreshToken: result.refreshTokenString,
+          },
+          organizationId: result.organizationId,
+          membership: result.membership,
+        },
+        message: 'Account created and invitation accepted successfully.',
       });
     } catch (controllerError) {
       nextMiddleware(controllerError);

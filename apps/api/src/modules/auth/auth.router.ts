@@ -3,6 +3,7 @@ import { validateRequest } from '../../middlewares/validate.middleware.js';
 import { authenticateUser } from '../../middlewares/auth.middleware.js';
 import { rateLimit } from '../../middlewares/rate-limit.middleware.js';
 import {
+  initiateRegisterSchema,
   registerSchema,
   loginSchema,
   refreshTokenSchema,
@@ -28,8 +29,19 @@ const emailLimiter = rateLimit({
 });
 
 /**
+ * Route: POST /api/v1/auth/register/initiate
+ * Description: Initiate self-registration by sending email verification link
+ */
+authenticationRouter.post(
+  '/register/initiate',
+  emailLimiter,
+  validateRequest(initiateRegisterSchema),
+  authController.initiateRegisterHandler
+);
+
+/**
  * Route: POST /api/v1/auth/register
- * Description: Register a new user account
+ * Description: Complete user account creation using verified token
  */
 authenticationRouter.post(
   '/register',

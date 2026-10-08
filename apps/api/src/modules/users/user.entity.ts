@@ -14,6 +14,7 @@ export interface CreateUserInput {
   email: string;
   password_hash: string;
   name: string;
+  email_verified_at?: Date | null;
 }
 
 /**
