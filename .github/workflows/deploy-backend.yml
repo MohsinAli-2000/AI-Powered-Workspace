@@ -1,0 +1,57 @@
+name: Deploy Backend to EC2
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/api/**'
+      - 'apps/ai-service/**'
+      - 'apps/worker/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  deploy:
+    name: Deploy Backend & AI Services to AWS EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync Code to EC2 (Preserving .env.production)
+        run: |
+          rsync -avz \
+            --exclude '.git' \
+            --exclude '.env' \
+            --exclude '.env.production' \
+            --exclude 'node_modules' \
+            --exclude '.venv' \
+            --exclude 'apps/web' \
+            ./ ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/app/
+
+      - name: Deploy Containers with Docker Compose
+        run: |
+          ssh -o ServerAliveInterval=60 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
+            cd ~/app
+            docker compose up -d --build
+            # Clean up old unused dangling images to preserve free-tier disk space
+            docker image prune -f
+          EOF
+
+      - name: Verify Backend Health Check
+        run: |
+          echo "Waiting 15 seconds for containers to initialize..."
+          sleep 15
+          curl --fail --retry 5 --retry-delay 5 --retry-connrefused https://3-25-255-191.sslip.io/health
+          echo "✅ Backend successfully deployed and responding with HTTP 200!"
