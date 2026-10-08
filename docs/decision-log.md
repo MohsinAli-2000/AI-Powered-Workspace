@@ -579,5 +579,33 @@ Affected:  apps/worker/src/extractors/image.py, apps/worker/src/extractors/__ini
            apps/web/src/components/chat/source-citation-drawer.tsx
 ```
 
+---
 
-
+```text
+Decision:   DEC-033: Production Deployment, Multi-Stage Dockerization & Automated CI/CD
+Date:       2026-10-08
+Context:    Deploying the full-stack multi-tenant AI Knowledge Platform into a cost-efficient,
+            production-ready infrastructure with continuous delivery automation.
+Decision:   1. Split Deployment Architecture:
+               - Frontend (Next.js 16) deployed on Vercel utilizing global Edge CDN and serverless runtime.
+               - Backend services (Node.js API, Python FastAPI AI Service, Python Background Worker)
+                 containerized via multi-stage Dockerfiles and deployed to an AWS EC2 instance.
+            2. EC2 Free-Tier Stability & Resource Optimization:
+               - Provisioned t3.micro EC2 with 4.0 GiB Swap space on a 30 GB EBS gp3 volume, preventing
+                 kernel Out-Of-Memory (OOM) failures under low physical RAM conditions.
+               - Strict memory caps (250MB per container) enforced via Docker Compose.
+            3. Automated SSL & Reverse Proxying:
+               - Integrated Caddy Server on EC2 with sslip.io wildcard DNS (https://3-25-255-191.sslip.io)
+                 providing zero-configuration Let's Encrypt SSL certificates and reverse proxying to port 5000.
+            4. Continuous Integration & Deployment (CI/CD):
+               - Frontend CI/CD managed automatically via Vercel GitHub integration.
+               - Backend CI/CD managed via GitHub Actions (.github/workflows/deploy-backend.yml), executing
+                 secure rsync deployments over SSH, automated container rebuilding, and live HTTPS health verification.
+Why:        Delivers optimal performance, edge caching, and cost efficiency by isolating static/edge workloads
+            on Vercel while keeping complex multi-container Python AI pipelines, workers, and Node services
+            orchestrated securely on AWS EC2 within Free Tier limits.
+Status:     Confirmed & Implemented
+Phase:      Phase 17 — Production Deployment & Dockerization
+Affected:   docker-compose.yml, apps/api/Dockerfile, apps/ai-service/Dockerfile, apps/worker/Dockerfile,
+            .github/workflows/deploy-backend.yml, apps/api/src/app.ts
+```

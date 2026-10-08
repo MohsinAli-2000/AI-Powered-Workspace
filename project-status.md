@@ -1,15 +1,17 @@
 # Project Status
 
-> **Last synchronized:** 2026-10-07  
+> **Last synchronized:** 2026-10-08  
 > **Purpose:** Single source of truth for project phase, completed work, in-progress work, and planned work.
 
 ---
 
 ## Current Phase
 
-**Phase: Platform Owner Dashboard & Tenant Governance Completed → Ready for Phase 17 (Deployment & Dockerization)**
+**All Project Phases (Phases 1 through 17) Completed — Live in Production**
 
-All foundational, core business, AI processing, frontend, audit, and platform governance features (Phases 1 through 16 + Platform Admin) are fully implemented and verified:
+**OAuth social login and Sentry production monitoring will be implemented in the future.**
+
+All foundational, core business, AI processing, frontend, audit, platform governance, and deployment features (Phases 1 through 17 + Platform Admin) are fully implemented, verified, and live:
 - **Phase 11 (Embedding Pipeline)**: pgvector `vector(768)` HNSW cosine index, Gemini (`gemini-embedding-001`) and Ollama (`nomic-embed-text`) clients, batch embedding in worker.
 - **Phase 12 (RAG & Conversations)**: Multi-turn conversations, XML prompt isolation, grounded answer generation, insufficient-information fallback, and source citations.
 - **Phase 13 (Document Access Control)**: Granular access control (`PROJECT` vs `RESTRICTED`), 6-step evaluation pipeline with strict `DENY` precedence, database-level subquery filtering during vector search.
@@ -20,21 +22,22 @@ All foundational, core business, AI processing, frontend, audit, and platform go
   - **Zero-Knowledge Privacy Boundary**: Dedicated platform owner dashboard (`/admin`) displaying aggregated tenant telemetry (org name, owner contact, creation date, member/project/document counts, storage used) with zero exposure of tenant documents, file contents, vectors, or chat histories.
   - **Organization Suspension & Reversible Lockout**: Immediate universal member lockout via database-level chokepoint (`organizations.status = 'ACTIVE'`) preserving 100% of tenant data while denying all workspace access.
   - **Air-Gapped Admin Management**: Privileged platform admin roles (`users.is_platform_admin`) managed exclusively via CLI (`npm run platform-admin -- grant/revoke <email>`), preventing HTTP privilege escalation.
+- **Phase 17 (Production Deployment, Dockerization & CI/CD) (Completed)**:
+  - **Production Dockerization**: Multi-stage, security-hardened Dockerfiles for `apps/api` (Node.js 22 slim), `apps/ai-service` (Python 3.11 slim), and `apps/worker` (Python 3.11 slim) running under non-privileged users with `.dockerignore` filters.
+  - **Docker Compose Orchestration**: Unified `docker-compose.yml` tying API, AI Service, and Background Worker on an internal bridge network (`workspace-network`) with 250MB memory limits per container.
+  - **AWS EC2 Free Tier (`t3.micro`) Optimization**: Configured 4.0 GiB swap memory on AWS EBS gp3 volume, preventing Out-Of-Memory (OOM) issues on 1GB RAM instances.
+  - **Automated HTTPS & SSL**: Zero-touch reverse proxying via **Caddy Server** and `sslip.io` (`https://3-25-255-191.sslip.io`), auto-provisioning Let's Encrypt certificates.
+  - **Frontend Live on Vercel**: Next.js 16 frontend deployed globally on Vercel Edge CDN with production API routing and dynamic CORS support.
+  - **Automated CI/CD Pipelines**: Automated GitHub Actions workflow (`.github/workflows/deploy-backend.yml`) for zero-downtime EC2 backend redeployment, image pruning, and health verification; continuous Git deployment on Vercel for frontend.
 - **Post-Phase 16 Hardening & UX Polish (Completed)**:
   - **API Rate Limiting & Security (`apps/api`)**: In-memory IP-based rate limiting on sensitive auth endpoints (`/login`, `/register`, etc.) and internal service token (`AI_SERVICE_TOKEN`) protection for the Python AI service.
   - **Frontend UI/UX Refinement (`apps/web`)**: Interactive Help Center (`/help`), User Account Settings (`/settings/account`), Invitation Acceptance page (`/invitations/accept`), "Your Access" permission cards, Email Verification banner, empty organization guards, accessible confirm dialogs & custom select inputs, and client-side response normalization.
   - **Service Resilience (`apps/worker`, `apps/api`, `apps/ai-service`)**: Reconnect resilience for RabbitMQ, S3/MinIO error handling, Neon Serverless Postgres support with pgvector, and Gemini provider as cost-effective default.
-- **Local AI / Ollama Code Overview & Commenting (Completed)**:
-  - Preserved complete Ollama provider and client code in commented form across `apps/ai-service`, `apps/worker`, and `apps/api` for code overview and local AI model reference.
-  - Added instructional headers explaining local model installation, model pulling (`nomic-embed-text`, `qwen2.5`), endpoint usage (`/api/embed`, `/api/chat`), and configuration steps.
-  - Set default provider configurations to `gemini` / `ai-service`, ensuring the application runs smoothly in cloud mode without local daemon requirements.
 - **Multimodal AI Vision & Image RAG Pipeline (Completed)**:
   - **Multimodal AI Vision OCR**: Implemented `ImageExtractor` in `apps/worker` using Google Gemini Vision (`gemini-3.6-flash` with automatic fallback sequence across `gemini-3-flash-preview`, `gemini-flash-lite-latest`, and `gemini-3.1-flash-lite`).
   - **Broad Image Format Whitelist**: End-to-end ingestion and extraction for raster formats (`.png`, `.jpg`, `.jpeg`, `.jfif`, `.webp`, `.bmp`, `.tiff`, `.tif`, `.gif`) with in-memory Pillow format normalization.
   - **Diagram & Workflow Transcription**: Transcribes complex visual architectures, flowcharts, tables, and infographics into clean GitHub-flavored Markdown for semantic chunking and vector storage.
   - **Image Citation & UI Grounding**: Frontend chat displays dedicated violet `ImageIcon` pills, "Image OCR" badges, and relevance metrics in the source citation drawer. The upload zone provides instant thumbnail previews.
-
-The immediate next implementation phase is **Phase 17 — Deployment & Dockerization**.
 
 
 
@@ -381,39 +384,18 @@ The following have been decided, designed, and documented / implemented:
 
 ## 🔄 In Progress
 
-Nothing currently in active implementation. Platform Owner Administration & Tenant Governance completed. Ready to initiate Phase 17 (Deployment & Dockerization).
+None. All implementation phases (1 through 17) are 100% complete and operational in production.
 
 
 ---
 
-## ⏭️ Next — Immediate Implementation Phase
+## ⏭️ Future Roadmap (Post-Launch Enhancements)
 
-### Phase 17 — Deployment & Dockerization
-- Docker Compose (full local dev stack)
-- Dockerfile per service (`apps/web`, `apps/api`, `apps/ai-service`, `apps/worker`)
-- Environment orchestration and healthcheck definitions
-- CI/CD pipeline (GitHub Actions)
-- Production deployment configuration
+**OAuth social login and Sentry production monitoring will be implemented in the future.**
 
-### Phase 18 — Testing
-- Unit tests (backend business logic)
-- Integration tests (API endpoints)
-- Authorization boundary tests
-- Multi-tenant isolation tests
-- RAG pipeline tests
-
-### Phase 19 — Security Hardening
-- Rate limiting
-- Input validation hardening
-- JWT security review
-- Secrets management
-- Security headers
-
-### Phase 20 — Monitoring and Observability
-- Structured logging (all services)
-- Sentry performance monitoring
-- Log aggregation (TBD — Logtail / ELK)
-- Health check endpoints
+- **OAuth Social Login**: Google and GitHub social authentication providers for `apps/web` and `apps/api`.
+- **Sentry Production Monitoring**: Activating Sentry DSN for live error telemetry, alert channels, and distributed tracing.
+- **Automated Testing Suite (Phase 18)**: Expanded integration and unit tests for multi-tenant isolation, RBAC chokepoints, and RAG accuracy.
 
 ---
 
@@ -441,11 +423,11 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 | 12 | Exact duplicate detection scope | ✅ **Resolved** | **Project-scoped SHA-256**: duplicate content in same project rejected (`409 Conflict`, `FR-DOC-005`) |
 | 13 | Rate limiting rules | ✅ **Resolved** | In-memory fixed-window IP rate limiter implemented in `apps/api/src/middlewares/rate-limit.middleware.ts` for sensitive auth endpoints |
 | 14 | AI answer evaluation metrics | ✅ **Resolved** | Source citation provenance with cosine similarity scores, confidence percentages, and `FR-AI-005` insufficient-evidence warning callouts |
-| 15 | Whether OAuth social login is in scope for MVP | ⏳ Pending | Frontend, Auth (post-MVP extension) |
-| 16 | Log aggregation platform (Sentry only / Logtail / ELK) | ⏳ Pending | Monitoring (Pino HTTP + Sentry active; external aggregator deferred) |
-| 17 | Exact production deployment provider (EC2, ECS, or Render) | ⏳ Pending | Deployment (DevOps phase) |
-| 18 | Migration tooling choice (Flyway, Liquibase, raw SQL) | ⏳ Pending | Database (raw PostgreSQL baseline currently verified) |
-| 19 | Exact CI/CD provider | ⏳ Pending | DevOps (GitHub Actions / GitLab CI) |
+| 15 | Whether OAuth social login is in scope for MVP | 🔮 **Future** | **OAuth social login will be implemented in the future.** |
+| 16 | Production monitoring & Sentry | 🔮 **Future** | **Sentry production monitoring will be implemented in the future.** |
+| 17 | Exact production deployment provider | ✅ **Resolved** | **AWS EC2 Free Tier (`t3.micro`) + Caddy SSL** for backend; **Vercel** for frontend (DEC-033) |
+| 18 | Migration tooling choice (Flyway, Liquibase, raw SQL) | ✅ **Resolved** | Raw PostgreSQL baseline verified and active |
+| 19 | Exact CI/CD provider | ✅ **Resolved** | **GitHub Actions** for EC2 backend + **Vercel Git Integration** for frontend (DEC-033) |
 | 20 | Chunking strategy (chunk size, overlap) | ✅ **Resolved** | 1000 characters chunk size, 200 characters overlap with paragraph, sentence, and word boundary snapping (`apps/worker/src/chunker.py`) |
 | 21 | Similarity threshold for "insufficient information" response | ✅ **Resolved** | Configurable similarity threshold (`MIN_SIMILARITY_SCORE`) with fallback response and citation suppression (`FR-AI-005`) |
 | 22 | Whether historical document versions are searchable by default | ✅ **Resolved** | Default retrieval strictly scopes to `is_current = true` and `status = 'READY'` chunks |

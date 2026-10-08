@@ -118,3 +118,14 @@ npm run build
 # Start production server
 npm start
 ```
+
+---
+
+## 🌐 Production Deployment (Vercel)
+
+The frontend is live in production deployed on **Vercel Edge Network**:
+- **Production API Endpoint:** Connected to the EC2 backend via `NEXT_PUBLIC_API_URL=https://3-25-255-191.sslip.io/api/v1`.
+- **CI/CD:** Automatic continuous deployment enabled via GitHub repository integration.
+
+**OAuth social login and Sentry production monitoring will be implemented in the future.**
+
