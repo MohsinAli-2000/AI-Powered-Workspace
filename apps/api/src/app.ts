@@ -47,6 +47,8 @@ const allowedOrigins: (string | RegExp)[] = env.CORS_ORIGIN.split(',')
 if (env.NODE_ENV !== 'production') {
   allowedOrigins.push(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/);
 }
+// Allow Vercel deployment domains (*.vercel.app)
+allowedOrigins.push(/^https:\/\/.*\.vercel\.app$/);
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
