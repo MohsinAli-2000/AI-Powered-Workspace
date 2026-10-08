@@ -111,8 +111,8 @@ Potential use cases include:
 
 Users can:
 
-* Register using email and password
-* Verify their email address
+* Register using email and password. The email address is verified **before** the account is created: the user requests a verification link, opens it, and then sets their name and password. The account is created already verified and the user is signed in automatically.
+* Accept an organization invitation and register in one step (the invitation link proves ownership of the email address)
 * Log in
 * Log out
 * Reset their password
@@ -623,6 +623,13 @@ A queue message should contain a reference such as:
 
 The actual document file should remain in object storage rather than being placed inside the queue message.
 
+> **Current implementation note:** the worker discovers jobs in two ways, and both are safe to run together because the QUEUED → PROCESSING transition is a single atomic `UPDATE`:
+>
+> 1. **Database poller (primary in the Docker / EC2 deployment).** `apps/worker` polls `document_versions` every 3 seconds for the oldest `QUEUED` version (skipping suspended organizations) and processes it.
+> 2. **RabbitMQ consumer (optional).** Started alongside the poller; it only connects when `RABBITMQ_URL` is configured.
+>
+> The API does not publish to RabbitMQ today. In local development it spawns the worker's `src.process_job` as a child process; in Docker it leaves the version `QUEUED` for the worker service. A recovery sweep in the API marks versions stuck in `PROCESSING` for more than 20 minutes as `FAILED`.
+
 ---
 
 # 🐍 Python AI Service
@@ -786,7 +793,7 @@ Console Mock — Graceful development fallback when keys are unconfigured
 Supported email types:
 
 ```text
-Email Verification
+Email Verification (pre-registration link and resend)
 Organization Invitation
 Password Reset
 Important Account Notifications
@@ -1056,7 +1063,7 @@ Embeddings are requested at 768 dimensions, so the `vector(768)` schema is uncha
 | Vector Search     | pgvector (PostgreSQL extension)     |
 | Object Storage    | MinIO (Local Dev Only) → AWS S3 (Production standard) |
 | AI Provider       | Google Gemini API (Production default); Ollama for local dev |
-| LLM               | gemini-3.8-flash (Production); qwen2.5 via Ollama (Local dev) |
+| LLM               | gemini-3.6-flash (Production); qwen2.5 via Ollama (Local dev) |
 | Embeddings        | gemini-embedding-001 (Production, 768-dim); nomic-embed-text via Ollama (Local dev) |
 | Email             | Nodemailer (Gmail SMTP) / Resend    |
 | Monitoring        | Sentry                              |
@@ -1114,7 +1121,7 @@ Free-tier / mock email fallbacks
 ### Production Cloud Architecture
 ```text
 AWS S3 (Standard production cloud object storage)
-Google Gemini API (gemini-3.8-flash for generation + gemini-embedding-001 for 768-dim embeddings)
+Google Gemini API (gemini-3.6-flash for generation + gemini-embedding-001 for 768-dim embeddings)
 Neon Serverless PostgreSQL (with pgvector & PgBouncer pooling)
 Managed RabbitMQ (CloudAMQP / AWS MQ)
 Sentry error tracking & performance monitoring
@@ -1132,9 +1139,9 @@ The unified `@aws-sdk/client-s3` and pluggable AI provider abstractions ensure z
 * [x] **Architecture & Database Design**: System architecture diagrams, ERD (20 tables, 6 enums), component matrix, security and tenant isolation principles.
 * [x] **PostgreSQL Schema & pgvector**: Full DDL schema with relational constraints, foreign keys, and `vector(768)` HNSW cosine index.
 * [x] **Node.js Backend Foundation (Phase 3)**: Express 5, TypeScript ESM, connection pooling, AppError hierarchy, Pino logging, Sentry monitoring, BaseRepository.
-* [x] **Authentication & User Management (Phase 4)**: Registration, bcrypt, login, JWT dual-token rotation, email verification, password reset, logout.
+* [x] **Authentication & User Management (Phase 4)**: Pre-registration email verification (`email_verifications` table, migration 003) with automatic sign-in after registration, bcrypt, login, JWT dual-token rotation, password reset, logout.
 * [x] **Organization Management (Phase 5)**: Multi-tenant CRUD, roles (`OWNER`, `ADMIN`, `MEMBER`), tenant isolation middleware, atomic ownership transfer.
-* [x] **Members & Invitations (Phase 6)**: Invite member, role assignment, accept/reject token flows, ADMIN minimum count enforcement, Nodemailer (Gmail SMTP) & Resend email dispatch.
+* [x] **Members & Invitations (Phase 6)**: Invite member, role assignment, accept/reject token flows, one-step accept-and-register for new users, ADMIN minimum count enforcement, Nodemailer (Gmail SMTP) & Resend email dispatch.
 * [x] **Project Management (Phase 7)**: Project CRUD, project membership, PROJECT_MANAGER minimum count rule, member self-removal.
 * [x] **Group Management (Phase 8)**: Group CRUD, memberships, group-based document access rule integration.
 * [x] **Document Upload & Storage (Phase 9)**: Multipart upload, 50MB file size limit, PDF/DOCX/XLSX/PPTX/TXT format validation, project-scoped SHA-256 deduplication, MinIO & AWS S3 object storage driver.
@@ -1154,11 +1161,13 @@ The unified `@aws-sdk/client-s3` and pluggable AI provider abstractions ensure z
   - Interactive Help Center (`/help`), User Account Settings (`/settings/account`), Invitation Acceptance flow (`/invitations/accept`).
   - Contextual "Your Access" card, email verification banner, empty org view, accessible dialogs, and normalized API client.
   - Reconnect resilience for RabbitMQ and S3 storage error recovery.
-* [x] **33 architectural decisions confirmed and documented** (see `docs/decision-log.md`).
+* [x] **35 architectural decisions confirmed and documented** (see `docs/decision-log.md`).
 
-### ⏭️ Next — Immediate Implementation Phase
+### 🛠️ Latest Updates (2026-10-08)
 
-* [ ] **Phase 17 — Deployment & Dockerization** (Docker Compose for full dev stack, service Dockerfiles, CI/CD pipeline, production cloud deployment).
+* [x] **Phase 17 — Deployment & Dockerization**: Docker Compose stack (API, AI service, worker), AWS EC2 + Caddy SSL, Vercel frontend, GitHub Actions CI/CD. See `project-status.md`.
+* [x] **Pre-registration email verification and auto-login** (`POST /api/v1/auth/register/initiate` → verify link → `POST /api/v1/auth/register`), plus `POST /api/v1/invitations/accept-and-register`.
+* [x] **Stabilization pass**: worker DB poller no longer leaves documents stuck in `PROCESSING`; document sizes render correctly; open-redirect hardening on post-login redirects; invitation tokens are no longer returned to the inviter; invitation rejection is atomic; verification tokens are unique per request; API trusts one proxy hop in production so rate limits are per client.
 
 ### 🔮 Future Phases
 
@@ -1258,7 +1267,7 @@ docs/
 │   ├── authorization.md            — Authorization model (roles, rules, DENY precedence)
 │   └── rag.md                      — RAG system design (processing + retrieval pipeline)
 │
-└── decision-log.md                 — All 20 confirmed architectural/product decisions
+└── decision-log.md                 — All 35 confirmed architectural/product decisions
 ```
 
 Also at the root:
@@ -1356,7 +1365,7 @@ The system has been developed and deployed incrementally:
 
 See [project-status.md](project-status.md) for the full progress tracker, open TODOs, and upcoming milestones.
 
-See [docs/decision-log.md](docs/decision-log.md) for all 33 confirmed architectural and product decisions.
+See [docs/decision-log.md](docs/decision-log.md) for all 35 confirmed architectural and product decisions.
 
 
 The objective is to build the system end-to-end while maintaining production-oriented engineering practices throughout the development process.

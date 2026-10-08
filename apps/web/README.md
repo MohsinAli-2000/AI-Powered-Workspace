@@ -14,10 +14,10 @@
 
 ### 1. Authentication & Onboarding
 - **Sign In (`/login`)**: Email and password authentication with automatic redirect to requested resources.
-- **Sign Up (`/register`)**: Account creation with instant email verification dispatch.
-- **Email Verification (`/verify-email`)**: Automated token verification and one-click token resend.
+- **Sign Up (`/register`)**: Enter an email address to receive a verification link. No account exists yet at this point.
+- **Email Verification (`/verify-email`)**: Opens the emailed link, confirms the address, and lets the user choose a name and password. The account is then created already verified and the user is signed in automatically. One-click resend is available.
 - **Password Recovery (`/forgot-password`, `/reset-password`)**: Self-service password reset flows with token validation.
-- **Accept Invitation (`/invitations/accept`)**: Deep-linked organization invite acceptance for existing and new users.
+- **Accept Invitation (`/invitations/accept`)**: Deep-linked organization invite acceptance. Existing users sign in and accept; new users register and accept in a single step and are signed in automatically.
 
 ### 2. Workspace & Context Management
 - **Organization Switcher (`OrgSwitcher`)**: Multi-tenant navigation allowing seamless switching between organizations and creation of new tenants.

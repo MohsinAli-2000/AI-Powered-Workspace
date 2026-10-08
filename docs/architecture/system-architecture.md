@@ -110,7 +110,7 @@ flowchart TB
 
         EMBEDDING_MODEL["Embedding Model (768-dim)<br/><br/>Google Gemini API (gemini-embedding-001)"]
 
-        LLM["LLM (Grounded Generation)<br/><br/>Google Gemini API (gemini-3.8-flash)"]
+        LLM["LLM (Grounded Generation)<br/><br/>Google Gemini API (gemini-3.6-flash)"]
 
         VISION["Vision OCR Model (Multimodal)<br/><br/>Google Gemini Vision API (gemini-3.6-flash)"]
 
@@ -389,7 +389,7 @@ document is accessible to the current user
 | Object Storage      | MinIO (Local Dev Only) → AWS S3 (Production) | Original uploaded documents           |
 | Multimodal Vision OCR | Google Gemini Vision API (`gemini-3.6-flash`) | Image OCR, table extraction, workflow & diagram transcription |
 | Embedding Runtime   | Google Gemini API default (`gemini-embedding-001`, 768-dim); Ollama code kept for local reference | Text-to-vector conversion (768-dim)   |
-| LLM Runtime         | Google Gemini API default (`gemini-3.8-flash`); Ollama code kept for local reference | Grounded answer generation and streaming |
+| LLM Runtime         | Google Gemini API default (`gemini-3.6-flash`); Ollama code kept for local reference | Grounded answer generation and streaming |
 | Email               | Nodemailer (Gmail SMTP) / Resend | Transactional emails                  |
 | Monitoring          | Sentry               | Errors, performance, and tracing      |
 

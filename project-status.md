@@ -1,6 +1,6 @@
 # Project Status
 
-> **Last synchronized:** 2026-10-08  
+> **Last synchronized:** 2026-10-08 (post-launch stabilization)  
 > **Purpose:** Single source of truth for project phase, completed work, in-progress work, and planned work.
 
 ---
@@ -127,7 +127,7 @@ The following have been decided, designed, and documented / implemented:
 - [x] Insufficient-information behavior defined
 
 ### Decision Log
-- [x] 20 confirmed decisions documented in `docs/decision-log.md`
+- [x] 35 confirmed decisions documented in `docs/decision-log.md`
 
 ### Phase 3 — Node.js Backend Foundation
 - [x] Project setup (Node.js + Express.js 5 / TypeScript / ESM `NodeNext`)
@@ -148,7 +148,8 @@ The following have been decided, designed, and documented / implemented:
 - [x] Refresh token rotation and session management (`POST /api/v1/auth/refresh`)
 - [x] Authentication middleware (`authenticateUser`) with Express Request module augmentation
 - [x] Protected profile endpoint (`GET /api/v1/auth/me`)
-- [x] Email verification flow with signed 24h tokens (`POST /api/v1/auth/verify-email`, `POST /api/v1/auth/resend-verification`)
+- [x] Pre-registration email verification: `POST /api/v1/auth/register/initiate` emails a signed, single-use 24h link (stored hashed in `email_verifications`, migration `003`); `POST /api/v1/auth/register` consumes it, creates the already-verified user, and returns tokens (automatic sign-in)
+- [x] Email verification endpoints (`POST /api/v1/auth/verify-email`, `POST /api/v1/auth/resend-verification`)
 - [x] Transactional email service integration (`src/modules/email/email.service.ts`)
 - [x] Password reset flow with single-use fingerprint tokens (`POST /api/v1/auth/forgot-password`, `POST /api/v1/auth/reset-password`)
 - [x] User logout endpoint (`POST /api/v1/auth/logout`) (FR-AUTH-009)
@@ -171,7 +172,8 @@ The following have been decided, designed, and documented / implemented:
 - [x] Prevent duplicate active invitations rule (FR-MEMBER-004)
 - [x] List organization invitations (`GET /api/v1/organizations/:id/invitations`)
 - [x] Revoke invitation endpoint (`DELETE /api/v1/organizations/:id/invitations/:invitationId`)
-- [x] Accept invitation flow (`POST /api/v1/invitations/accept` for authenticated users and new users)
+- [x] Accept invitation flow (`POST /api/v1/invitations/accept` for authenticated users)
+- [x] One-step accept-and-register for new users (`POST /api/v1/invitations/accept-and-register`, `GET|POST /api/v1/invitations/details`) with automatic sign-in
 - [x] Reject invitation flow (`POST /api/v1/invitations/reject`)
 - [x] Remove member endpoint with ADMIN minimum count enforcement (`DELETE /api/v1/organizations/:id/members/:userId`)
 - [x] Update member role endpoint with OWNER protection (`PATCH /api/v1/organizations/:id/members/:userId/role`)
@@ -343,7 +345,7 @@ The following have been decided, designed, and documented / implemented:
 
 ### Post-Phase 16 — Hardening, UI/UX Polish & Cloud Readiness ✅ COMPLETE (2026-10-06)
 - [x] **Gemini API Integration (Primary AI Provider)**:
-  - Configured `gemini-3.8-flash` for high-throughput, low-latency generation and streaming.
+  - Configured `gemini-3.6-flash` for high-throughput, low-latency generation and streaming.
   - Configured `gemini-embedding-001` with 768 output dimensions matching pgvector HNSW schema.
   - Seamless toggle between Gemini, local Ollama (`qwen2.5` + `nomic-embed-text`), and deterministic Mock providers via `AI_PROVIDER` / `EMBEDDING_PROVIDER`.
 - [x] **Neon Serverless PostgreSQL Support**:
@@ -382,6 +384,24 @@ The following have been decided, designed, and documented / implemented:
 
 ---
 
+### Post-Launch Updates (2026-10-08)
+- [x] **Pre-registration email verification and auto-login** (DEC-034): new `email_verifications` table (`apps/api/migrations/003_email_verifications.sql`), new `/register`, `/verify-email` and `/invitations/accept` flows in `apps/web`, 11 automated auth tests (`npm test` in `apps/api`).
+- [x] **Worker job pickup** (DEC-035): the database poller no longer pre-claims versions, which had left every polled document stuck in `PROCESSING`; suspended organizations are skipped; the worker tolerates a database without the pgvector extension at first start.
+- [x] **Web fixes**: document sizes display correctly (Postgres `bigint` arrives as a string); post-login redirects reject control characters.
+- [x] **API fixes**: raw invitation token no longer returned to the inviter; invitation rejection only applies to pending invitations; email-verification tokens carry a unique `jti`; `trust proxy` enabled in production so rate limits apply per client; `.env.example` pool defaults corrected.
+- [x] **Ops**: AI service Docker healthcheck timeout raised to 12s so a slow database ping no longer blocks API startup.
+
+### Known Issues / Backlog (from the 2026-10-08 audit, not yet changed)
+- **AI service token**: `AI_SERVICE_TOKEN` unset disables the internal auth check (documented dev behaviour); consider failing startup when `ENVIRONMENT=production`.
+- **Worker resilience**: a document can stay `PROCESSING` if the worker is killed mid-job (only the API's 20-minute sweep recovers it); failed image OCR still yields a `READY` placeholder document.
+- **Authorization edge cases**: org OWNER/ADMIN can read member conversation titles (conflicts with `authorization.md` §8); a `PROJECT_MANAGER` can manage rules on a document they are denied; ownership transfer and last-admin checks are not row-locked.
+- **Auth/email**: SMTP/Resend failures are swallowed, so the UI may report an email as sent; legacy users with `email_verified_at IS NULL` cannot complete the new verification flow.
+- **Deployment config**: `docker-compose.yml` `FRONTEND_URL` / `CORS_ORIGIN` override `.env.production`; `.env.production.example` uses `API_PREFIX=/api` while the web client expects `/api/v1`; migrations are not applied automatically and the API image does not ship them.
+- **Logging**: invitation tokens (query string) and, on DB errors, bound parameters can reach logs.
+- **Web session handling**: stale-session redirect on public pages, sign-out on transient refresh failure, no cross-tab auth sync, audit-log search fires per keystroke.
+
+---
+
 ## 🔄 In Progress
 
 None. All implementation phases (1 through 17) are 100% complete and operational in production.
@@ -410,8 +430,8 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 | # | Item | Status | Impact / Implementation Resolution |
 |---|------|--------|-----------------------------------|
 | 1 | Exact embedding model name/version | ✅ **Resolved** | **Google Gemini API `gemini-embedding-001`** (768-dim L2-normalized) in Production; **`nomic-embed-text`** via Ollama for Local Dev |
-| 2 | Exact LLM model name/version | ✅ **Resolved** | **Google Gemini API `gemini-3.8-flash`** in Production; **`qwen2.5:1.5b`** via Ollama for Local Dev |
-| 3 | Production AI provider (Gemini vs Ollama) | ✅ **Resolved** | **Google Gemini API** (`gemini-3.8-flash`, `gemini-embedding-001`) confirmed as primary cloud production provider (DEC-030); Ollama is strictly local dev fallback |
+| 2 | Exact LLM model name/version | ✅ **Resolved** | **Google Gemini API `gemini-3.6-flash`** in Production; **`qwen2.5:1.5b`** via Ollama for Local Dev |
+| 3 | Production AI provider (Gemini vs Ollama) | ✅ **Resolved** | **Google Gemini API** (`gemini-3.6-flash`, `gemini-embedding-001`) confirmed as primary cloud production provider (DEC-030); Ollama is strictly local dev fallback |
 | 4 | Exact email provider | ✅ **Resolved** | **Nodemailer (Gmail SMTP)** default / **Resend** custom domain (`apps/api/src/modules/email/email.service.ts`) |
 | 5 | Maximum allowed file size | ✅ **Resolved** | **50MB** (`52,428,800` bytes) enforced in `env.ts` and `upload.middleware.ts` |
 | 6 | Exact JWT / session authentication strategy | ✅ **Resolved** | **Dual-token**: 15m Access Token + 7d Refresh Token with rotation in `auth.service.ts` |

@@ -249,7 +249,7 @@ Documents support multiple versions.
 | Item | Status | Implementation Details |
 |------|--------|------------------------|
 | Exact embedding model | ✅ Confirmed | Google Gemini API `gemini-embedding-001` (768-dim L2-normalized) in Production; `nomic-embed-text` via Ollama for Local Dev |
-| Exact LLM model | ✅ Confirmed | Google Gemini API `gemini-3.8-flash` in Production; `qwen2.5:1.5b` via Ollama for Local Dev |
+| Exact LLM model | ✅ Confirmed | Google Gemini API `gemini-3.6-flash` in Production; `qwen2.5:1.5b` via Ollama for Local Dev |
 | Production AI provider | ✅ Confirmed | Google Gemini API (DEC-030) as primary cloud production provider; Ollama as local dev fallback |
 | Chunking strategy | ✅ Confirmed | 1000 characters chunk window, 200 characters overlap with paragraph/sentence/word boundary snapping (`apps/worker/src/chunker.py`) |
 | Similarity threshold | ✅ Confirmed | Configurable cosine threshold (`MIN_SIMILARITY_SCORE`) with prompt-level insufficient-evidence fallback (`FR-AI-005`) |

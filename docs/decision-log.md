@@ -84,7 +84,7 @@ Affected:  All components — defines the deployment boundary
 
 ```
 Decision:  Use Ollama strictly as a local model runtime during development and offline testing;
-           standardize on Google Gemini API (gemini-3.8-flash for LLM and gemini-embedding-001
+           standardize on Google Gemini API (gemini-3.6-flash for LLM and gemini-embedding-001
            for 768-dim embeddings) as the primary cloud and production AI provider (see DEC-030).
 Why:       Ollama enables zero-cost local prototyping without external API keys on developer machines;
            for production, Google Gemini API provides enterprise scalability, high token throughput,
@@ -466,7 +466,7 @@ Affected:  apps/api/.env, conversation.service.ts, ai-client.ts
 
 ```
 Decision:  Standardize on Google Gemini API as the primary production AI provider across the platform:
-           `gemini-3.8-flash` for high-throughput grounded reasoning and SSE streaming, and
+           `gemini-3.6-flash` for high-throughput grounded reasoning and SSE streaming, and
            `gemini-embedding-001` (768 dimensions) for dense vector embeddings.
            Local Ollama and mock providers are retained strictly as development alternatives.
 Why:       Self-hosting LLMs in production requires expensive dedicated GPU instances (e.g. EC2 g5).
@@ -608,4 +608,52 @@ Status:     Confirmed & Implemented
 Phase:      Phase 17 — Production Deployment & Dockerization
 Affected:   docker-compose.yml, apps/api/Dockerfile, apps/ai-service/Dockerfile, apps/worker/Dockerfile,
             .github/workflows/deploy-backend.yml, apps/api/src/app.ts
+```
+
+---
+
+```text
+Decision:   DEC-034: Pre-Registration Email Verification and Automatic Sign-In
+Date:       2026-10-08
+Context:    Accounts were created before the email address was proven, leaving unverified
+            accounts for addresses the registrant may not own.
+Decision:   1. POST /auth/register/initiate stores a hashed, 24-hour, single-use verification
+               token in the new email_verifications table and emails the link. No user row exists yet.
+            2. Opening the link marks the token VERIFIED; POST /auth/register then consumes it and
+               creates the user (email_verified_at = NOW()) in one transaction.
+            3. The register response includes access and refresh tokens, so the user is signed in
+               automatically.
+            4. Invited users register through POST /invitations/accept-and-register; the invitation
+               token proves ownership of the email, and the user is added to the organization
+               and signed in in the same transaction.
+            5. The raw invitation token is only emailed; it is not returned to the inviter.
+Why:        Verified ownership of every email address from the first moment, fewer unverified
+            accounts, and a shorter sign-up path for invited users.
+Status:     Confirmed & Implemented
+Phase:      Post-Phase 17 — Authentication refinement
+Affected:   apps/api/migrations/003_email_verifications.sql, apps/api/src/modules/auth/*,
+            apps/api/src/modules/invitations/*, apps/web/src/app/(auth)/register,
+            apps/web/src/app/(auth)/verify-email, apps/web/src/app/(auth)/invitations/accept
+```
+
+---
+
+```text
+Decision:   DEC-035: Database-Driven Job Pickup for the Document Worker
+Date:       2026-10-08
+Context:    The API container has no Python runtime and does not publish to RabbitMQ, so the
+            Docker deployment needed a reliable way to start document processing.
+Decision:   1. The worker polls document_versions for QUEUED rows (oldest first, suspended
+               organizations excluded) in addition to the optional RabbitMQ consumer.
+            2. The poller only selects a version; the atomic QUEUED -> PROCESSING claim stays in the
+               processor, so duplicate runs from the poller, RabbitMQ or the API's local spawn skip
+               versions that are already held.
+            3. The API's recovery sweep marks versions stuck in PROCESSING for more than 20 minutes
+               as FAILED.
+Why:        Works with no message broker, keeps a single authority for the status transition,
+            and tolerates restarts without losing queued documents.
+Status:     Confirmed & Implemented
+Phase:      Phase 17 — Production Deployment & Dockerization
+Affected:   apps/worker/src/db.py, apps/worker/src/db_poller.py, apps/worker/src/processor.py,
+            apps/api/src/modules/queue/queue.service.ts
 ```

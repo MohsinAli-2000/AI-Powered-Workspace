@@ -1,6 +1,6 @@
 # Database Model
 
-> **Status:** Confirmed baseline — Schema implemented in PostgreSQL (`ai_workspace`: 20 tables, 6 enums).  
+> **Status:** Confirmed baseline — Schema implemented in PostgreSQL (`ai_workspace`: 20 core tables, 6 enums, plus `email_verifications` added by migration `003`).  
 > **Sources:** `ERD/ERD Diagram.png`, `ERD/ERD.pdf`, system architecture decisions.  
 > **Database:** PostgreSQL + pgvector  
 > **Vector storage:** pgvector (integrated into PostgreSQL — do not replace without explicit decision)
@@ -67,6 +67,30 @@ SYSTEM
 
 **Indexes:**
 - `email` (unique)
+
+---
+
+### `email_verifications`
+
+Added by `apps/api/migrations/003_email_verifications.sql`. Holds pending email verifications so that a user must prove ownership of an email address **before** an account is created. This table is not part of the original ERD.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid (pk) | `gen_random_uuid()` |
+| `email` | varchar(255) (not null) | Stored lower-cased |
+| `token_hash` | text (not null, unique) | Hash of the signed verification token; the raw token is only emailed |
+| `status` | varchar(20) (not null) | `PENDING` → `VERIFIED` → `CONSUMED` (CHECK constraint) |
+| `expires_at` | timestamptz (not null) | 24 hours after creation |
+| `created_at` | timestamptz | |
+| `verified_at` | timestamptz | Set when the link is opened |
+| `consumed_at` | timestamptz | Set when the account is created |
+
+**Indexes:**
+- `token_hash` (unique), `LOWER(email)`
+
+**Business rules:**
+- A token can be consumed only once; consuming it and creating the user happen in one transaction
+- Not linked to `users` by foreign key because the user does not exist yet
 
 ---
 

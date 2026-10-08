@@ -40,7 +40,7 @@
 | Object Storage | MinIO (Local Dev Only) → AWS S3 (Production) | Original uploaded documents |
 | Multimodal Vision OCR | Google Gemini Vision API (`gemini-3.6-flash`, fallback chain) | Image OCR, table extraction, and workflow / diagram transcription |
 | Embedding Runtime | Google Gemini API default (`gemini-embedding-001`); Ollama code kept for local reference | Text-to-vector conversion (768-dim) |
-| LLM Runtime | Google Gemini API default (`gemini-3.8-flash`); Ollama code kept for local reference | Grounded answer generation and streaming |
+| LLM Runtime | Google Gemini API default (`gemini-3.6-flash`); Ollama code kept for local reference | Grounded answer generation and streaming |
 | Email | Nodemailer (Gmail SMTP) / Resend | Transactional emails |
 | Monitoring | Sentry | Errors, performance, and tracing |
 
@@ -164,7 +164,7 @@ EXTERNAL MANAGED SERVICES
 - Embedding Service (`POST /api/v1/embeddings`, `POST /api/v1/embeddings/batch` — Gemini `gemini-embedding-001` 768-dim default, Ollama `nomic-embed-text` alternative)
 - Synchronous RAG Service (`POST /api/v1/rag/query` — pgvector search, XML prompt isolation, grounded answer generation, citations)
 - Streaming RAG Service (`POST /api/v1/rag/stream` — real-time token streaming via Server-Sent Events `text/event-stream`)
-- LLM Service (`POST /api/v1/llm/chat` — Gemini `gemini-3.8-flash` default, Ollama `qwen2.5:1.5b` alternative)
+- LLM Service (`POST /api/v1/llm/chat` — Gemini `gemini-3.6-flash` default, Ollama `qwen2.5:1.5b` alternative)
 - Utility Service (`POST /api/v1/utils/chunk` — semantic sliding-window chunking)
 - Database Pooling — Async PostgreSQL connection pool (`asyncpg`) with native pgvector type registration
 
@@ -187,6 +187,8 @@ EXTERNAL MANAGED SERVICES
 7. Generate embeddings in batches (Gemini `gemini-embedding-001` default, 768 dimensions)
 8. Store chunks + 768-dim embeddings in PostgreSQL (pgvector) with image metadata flags
 9. Update document status to `READY` (with `processed_at`) or `FAILED`
+
+**Job discovery (current implementation):** the worker runs a database poller (every 3 seconds, oldest `QUEUED` version first, suspended organizations excluded) alongside the optional RabbitMQ consumer. Only `claim_version_for_processing` moves a version to `PROCESSING`, as one atomic `UPDATE ... WHERE status <> 'PROCESSING'`, so duplicate deliveries or concurrent workers skip a version that is already held. The API does not publish to RabbitMQ today; in Docker it leaves versions `QUEUED` for the worker, and its recovery sweep fails versions stuck in `PROCESSING` for more than 20 minutes.
 
 ---
 
@@ -264,7 +266,7 @@ documents-bucket/
 | PostgreSQL | Neon Serverless PostgreSQL / AWS RDS with pgvector |
 | RabbitMQ | Managed RabbitMQ (CloudAMQP / AWS MQ) |
 | Object Storage | AWS S3 (Production standard) |
-| AI / LLM & Embeddings | Google Gemini API (`gemini-3.8-flash` & `gemini-embedding-001`) |
+| AI / LLM & Embeddings | Google Gemini API (`gemini-3.6-flash` & `gemini-embedding-001`) |
 | Monitoring | Sentry |
 
 > **TODO — DECISION REQUIRED:** Exact production deployment provider for backend, AI service, and worker.
