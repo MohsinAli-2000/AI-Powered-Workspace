@@ -21,7 +21,9 @@ export function formatDate(value: string | number | Date | null | undefined): st
 }
 
 /** Format a byte count as a human-readable size, e.g. "1.5 MB". */
-export function formatBytes(bytes: number, decimals = 1): string {
+export function formatBytes(input: number | string, decimals = 1): string {
+  // Postgres returns bigint columns (e.g. file_size) as strings, so coerce before validating.
+  const bytes = Number(input);
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
@@ -34,7 +36,14 @@ export function formatBytes(bytes: number, decimals = 1): string {
  * (prevents open redirects such as `//evil.com` or `https://evil.com`).
  */
 export function getSafeRedirect(value: string | null | undefined, fallback = '/dashboard'): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) {
+  // URL parsers strip tab/CR/LF, so "/\t/evil.com" would otherwise resolve to "//evil.com".
+  if (
+    !value ||
+    !value.startsWith('/') ||
+    value.startsWith('//') ||
+    value.includes('\\') ||
+    /[\u0000-\u001f\u007f]/.test(value)
+  ) {
     return fallback;
   }
   return value;

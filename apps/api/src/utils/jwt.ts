@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { UnauthorizedError } from '../errors/app-error.js';
@@ -89,8 +90,10 @@ export const generateEmailVerificationToken = (identifier: string): string => {
   const payload: EmailVerificationTokenPayload = identifier.includes('@')
     ? { email: identifier.toLowerCase(), purpose: 'email_verification' }
     : { userId: identifier, purpose: 'email_verification' };
+  // jwtid keeps tokens unique when the same email asks twice within one second (token_hash is UNIQUE).
   const tokenString = jwt.sign(payload, env.JWT_SECRET, {
     expiresIn: '24h',
+    jwtid: randomUUID(),
   });
   return tokenString;
 };

@@ -34,6 +34,12 @@ import { platformAdminRouter } from './modules/platform-admin/platform-admin.rou
 
 const app: Application = express();
 
+// In production the API sits behind a TLS reverse proxy; trust one hop so req.ip (rate limiting, logs)
+// is the real client address instead of the proxy's shared address.
+if (env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 app.use(httpLogger);
 
 // Core standard middlewares

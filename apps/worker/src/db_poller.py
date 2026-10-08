@@ -31,6 +31,8 @@ class DbPoller(threading.Thread):
                     result = processor.process_version(version_id)
                     if result.get("skipped"):
                         logger.info(f"[DB Poller] Version {version_id} was already held; skipped duplicate.")
+                        # Back off so a version that stays QUEUED is not re-selected in a hot loop.
+                        self._stop_event.wait(self.poll_interval)
                     else:
                         chunks_count = result.get("chunks_count", 0)
                         logger.info(

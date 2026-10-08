@@ -157,13 +157,11 @@ export class InvitationService {
       metadata: { email: input.email, role: input.role },
     });
 
-    // Never hand the stored hash back to API consumers.
+    // Never hand the stored hash or the raw token back to the inviter: the token is a bearer credential
+    // that lets whoever holds it register a verified account for the invited address. It is only emailed.
     const { token_hash: _omitHash, ...safeInvitation } = createdInvitation;
     void _omitHash;
-    return {
-      ...safeInvitation,
-      token: rawInvitationToken,
-    } as Invitation;
+    return safeInvitation as Invitation;
   }
 
   /**
@@ -350,9 +348,10 @@ export class InvitationService {
       );
     }
 
-    const rejectedInvitation = await this.invitationRepo.updateStatus(invitation.id, 'REJECTED');
+    // Only a still-pending invitation may be rejected, so a concurrent accept is never overwritten.
+    const rejectedInvitation = await this.invitationRepo.transitionFromPending(invitation.id, 'REJECTED');
     if (!rejectedInvitation) {
-      throw new NotFoundError('Invitation not found.');
+      throw new ConflictError('This invitation was already used, revoked or has expired.');
     }
 
     return rejectedInvitation;

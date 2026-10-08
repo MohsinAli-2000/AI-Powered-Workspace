@@ -69,7 +69,12 @@ def get_db_cursor(commit: bool = True):
         p.putconn(conn, close=True)
         conn = p.getconn()
     try:
-        register_vector(conn)
+        try:
+            register_vector(conn)
+        except psycopg2.ProgrammingError:
+            # On a brand-new database the "vector" type does not exist yet; ensure_vector_schema() creates
+            # the extension on this very connection, so registration must not abort startup.
+            conn.rollback()
         with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             yield cursor
         if commit:
@@ -200,33 +205,28 @@ def claim_version_for_processing(version_id: str) -> bool:
 
 def claim_next_queued_version() -> Optional[str]:
     """
-    Finds and atomically claims the oldest QUEUED document version using
-    SELECT ... FOR UPDATE SKIP LOCKED.
-    Returns the version_id if found and claimed, else None.
+    Finds the oldest QUEUED document version that belongs to a non-suspended organization.
+    It deliberately does NOT change the status: the atomic QUEUED -> PROCESSING transition belongs to
+    claim_version_for_processing() inside the processor. Flipping it here as well made the processor's claim
+    fail ("already PROCESSING"), so every polled job was skipped and left stuck in PROCESSING.
+    Returns the version_id if one is waiting, else None.
     """
-    with get_db_cursor(commit=True) as cur:
+    with get_db_cursor(commit=False) as cur:
         cur.execute(
             """
-            SELECT id FROM document_versions
-            WHERE status = 'QUEUED'
-            ORDER BY created_at ASC
+            SELECT dv.id
+            FROM document_versions dv
+            LEFT JOIN documents d ON d.id = dv.document_id
+            LEFT JOIN projects p ON p.id = d.project_id
+            LEFT JOIN organizations o ON o.id = p.organization_id
+            WHERE dv.status = 'QUEUED'
+              AND o.status IS DISTINCT FROM 'SUSPENDED'
+            ORDER BY dv.created_at ASC
             LIMIT 1
-            FOR UPDATE SKIP LOCKED
             """
         )
         row = cur.fetchone()
-        if not row:
-            return None
-        version_id = row["id"]
-        cur.execute(
-            """
-            UPDATE document_versions
-            SET status = 'PROCESSING', updated_at = NOW()
-            WHERE id = %s
-            """,
-            (version_id,)
-        )
-        return str(version_id)
+        return str(row["id"]) if row else None
 
 
 def save_chunks_and_mark_ready(version_id: str, chunks: List[Dict[str, Any]]) -> int:

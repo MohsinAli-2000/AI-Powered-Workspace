@@ -29,7 +29,7 @@ USER appuser
 EXPOSE 8001
 
 # Healthcheck to verify the FastAPI service is responsive
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=12s --start-period=20s --retries=3 \
   CMD curl -f http://localhost:8001/health || exit 1
 
 # Limit to 1 worker to conserve RAM on EC2 Free Tier
