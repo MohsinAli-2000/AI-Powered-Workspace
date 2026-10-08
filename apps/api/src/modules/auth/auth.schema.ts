@@ -71,17 +71,28 @@ export const forgotPasswordSchema = z.object({
 });
 
 export const resetPasswordSchema = z.object({
-  body: z.object({
-    token: z
-      .string()
-      .min(1, { message: 'Password reset token is required' }),
-    newPassword: z
-      .string()
-      .min(8, { message: 'Password must be at least 8 characters long' })
-      .max(100, { message: 'Password must not exceed 100 characters' })
-      .regex(/[A-Za-z]/, { message: 'Password must contain at least one letter' })
-      .regex(/[0-9]/, { message: 'Password must contain at least one number' }),
-  }),
+  body: z.preprocess(
+    (raw: unknown) => {
+      if (raw && typeof raw === 'object') {
+        const obj = raw as Record<string, unknown>;
+        if (!obj.newPassword && obj.new_password) {
+          return { ...obj, newPassword: obj.new_password };
+        }
+      }
+      return raw;
+    },
+    z.object({
+      token: z
+        .string()
+        .min(1, { message: 'Password reset token is required' }),
+      newPassword: z
+        .string()
+        .min(8, { message: 'Password must be at least 8 characters long' })
+        .max(100, { message: 'Password must not exceed 100 characters' })
+        .regex(/[A-Za-z]/, { message: 'Password must contain at least one letter' })
+        .regex(/[0-9]/, { message: 'Password must contain at least one number' }),
+    })
+  ),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>['body'];

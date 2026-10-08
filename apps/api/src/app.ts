@@ -37,19 +37,32 @@ const app: Application = express();
 app.use(httpLogger);
 
 // Core standard middlewares
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 // Only the configured frontend may call the API from a browser (CORS_ORIGIN may be a comma-separated list).
 // In development, any localhost / 127.0.0.1 port is also accepted so opening the site by IP or on another
 // port doesn't fail with a confusing "could not load" error.
-const allowedOrigins: (string | RegExp)[] = env.CORS_ORIGIN.split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const rawOrigins = [
+  env.FRONTEND_URL?.trim(),
+  ...env.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
+].filter(Boolean) as string[];
+
+const allowedOrigins: (string | RegExp)[] = Array.from(new Set(rawOrigins));
 if (env.NODE_ENV !== 'production') {
   allowedOrigins.push(/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/);
 }
 // Allow Vercel deployment domains (*.vercel.app)
 allowedOrigins.push(/^https:\/\/.*\.vercel\.app$/);
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+    exposedHeaders: ['Content-Disposition'],
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

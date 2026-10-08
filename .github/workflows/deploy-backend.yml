@@ -44,6 +44,15 @@ jobs:
           ssh -o ServerAliveInterval=60 ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             set -e
             cd ~/app
+            # Ensure .env.production on EC2 contains the production frontend URL and not localhost
+            if [ -f .env.production ]; then
+              sed -i 's|^CORS_ORIGIN=http://localhost:3000|CORS_ORIGIN=https://ai-powered-workspace.vercel.app|' .env.production
+              if ! grep -q "^FRONTEND_URL=" .env.production; then
+                echo "FRONTEND_URL=https://ai-powered-workspace.vercel.app" >> .env.production
+              else
+                sed -i 's|^FRONTEND_URL=http://localhost:3000|FRONTEND_URL=https://ai-powered-workspace.vercel.app|' .env.production
+              fi
+            fi
             docker compose up -d --build
             # Clean up old unused dangling images to preserve free-tier disk space
             docker image prune -f

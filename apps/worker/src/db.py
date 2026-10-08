@@ -45,6 +45,8 @@ def get_connection_pool() -> pool.ThreadedConnectionPool:
                 time.sleep(2 * attempt)
         if last_error is not None:
             raise last_error
+        if _connection_pool is None:
+            raise RuntimeError("Database connection pool failed to initialize.")
     return _connection_pool
 
 
@@ -194,6 +196,37 @@ def claim_version_for_processing(version_id: str) -> bool:
             (version_id,)
         )
         return cur.fetchone() is not None
+
+
+def claim_next_queued_version() -> Optional[str]:
+    """
+    Finds and atomically claims the oldest QUEUED document version using
+    SELECT ... FOR UPDATE SKIP LOCKED.
+    Returns the version_id if found and claimed, else None.
+    """
+    with get_db_cursor(commit=True) as cur:
+        cur.execute(
+            """
+            SELECT id FROM document_versions
+            WHERE status = 'QUEUED'
+            ORDER BY created_at ASC
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+            """
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        version_id = row["id"]
+        cur.execute(
+            """
+            UPDATE document_versions
+            SET status = 'PROCESSING', updated_at = NOW()
+            WHERE id = %s
+            """,
+            (version_id,)
+        )
+        return str(version_id)
 
 
 def save_chunks_and_mark_ready(version_id: str, chunks: List[Dict[str, Any]]) -> int:

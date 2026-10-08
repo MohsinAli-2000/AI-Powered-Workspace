@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     DB_POOL_MIN: int = Field(default=1, description="Minimum pool connections")
     DB_POOL_MAX: int = Field(default=10, description="Maximum pool connections")
 
+    @property
+    def database_url(self) -> str:
+        return self.DATABASE_URL
+
     # Logging
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
 

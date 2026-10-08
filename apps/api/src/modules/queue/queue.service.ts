@@ -103,7 +103,12 @@ export class QueueService {
           : path.join(workerDir, '.venv', 'bin', 'python');
 
       if (!fs.existsSync(pythonBin)) {
-        throw new Error(`Worker Python interpreter not found at ${pythonBin}. Create apps/worker/.venv first.`);
+        logger.info(
+          { versionId },
+          'Background Python interpreter not present locally; version remains QUEUED in database for worker service.'
+        );
+        finish(null);
+        return;
       }
 
       // Keep the worker's output instead of discarding it: this is the only place its errors are visible.

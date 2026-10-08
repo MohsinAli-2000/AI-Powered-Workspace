@@ -5,6 +5,7 @@ import sys
 from src.config import settings
 from src.db import close_connection_pool, ensure_vector_schema
 from src.embeddings import get_embedding_client
+from src.db_poller import DbPoller
 from src.queue_consumer import QueueConsumer
 
 # Configure root logging with level from settings
@@ -32,12 +33,17 @@ def main():
             "Verify Ollama/provider daemon availability before processing incoming jobs."
         )
 
+    # Start the continuous database queue poller (ensures documents are processed even without RabbitMQ)
+    db_poller = DbPoller(poll_interval=3.0)
+    db_poller.start()
+
     consumer = QueueConsumer()
 
     # Graceful shutdown handler
     def handle_shutdown(signum, frame):
         signame = signal.Signals(signum).name
         logger.info(f"Received signal {signame}. Initiating graceful shutdown...")
+        db_poller.stop()
         consumer.stop()
         close_connection_pool()
         logger.info("Worker shutdown complete.")
@@ -50,6 +56,7 @@ def main():
     try:
         consumer.start_consuming()
     finally:
+        db_poller.stop()
         close_connection_pool()
 
 

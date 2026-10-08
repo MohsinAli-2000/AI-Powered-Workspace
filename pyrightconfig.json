@@ -1,9 +1,19 @@
 {
-  "venvPath": "apps/worker",
-  "venv": ".venv",
-  "extraPaths": [
-    "apps/worker",
-    "apps/worker/src"
+  "executionEnvironments": [
+    {
+      "root": "apps/worker",
+      "extraPaths": [
+        "apps/worker",
+        "apps/worker/src"
+      ]
+    },
+    {
+      "root": "apps/ai-service",
+      "extraPaths": [
+        "apps/ai-service",
+        "apps/ai-service/src"
+      ]
+    }
   ],
   "reportMissingImports": false,
   "reportMissingTypeStubs": false

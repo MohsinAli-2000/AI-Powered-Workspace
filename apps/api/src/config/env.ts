@@ -9,7 +9,16 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(5000),
   API_PREFIX: z.string().default('/api/v1'),
-  CORS_ORIGIN: z.string().default('http://localhost:3000'),
+  FRONTEND_URL: z.string().default(
+    process.env.NODE_ENV === 'production'
+      ? 'https://ai-powered-workspace.vercel.app'
+      : 'http://localhost:3000'
+  ),
+  CORS_ORIGIN: z.string().default(
+    process.env.NODE_ENV === 'production'
+      ? 'https://ai-powered-workspace.vercel.app'
+      : 'http://localhost:3000'
+  ),
 
   // Database
   DATABASE_URL: z.string().min(1, { message: 'DATABASE_URL is required' }),
@@ -30,7 +39,7 @@ const envSchema = z.object({
   BCRYPT_SALT_ROUNDS: z.coerce.number().default(12),
 
   // Object Storage (MinIO for development / AWS S3 for production)
-  S3_ENDPOINT: z.string().default('http://localhost:9000'),
+  S3_ENDPOINT: z.string().default(''),
   S3_REGION: z.string().default('us-east-1'),
   S3_ACCESS_KEY_ID: z.string().default('minioadmin'),
   S3_SECRET_ACCESS_KEY: z.string().default('minioadmin'),
@@ -39,7 +48,7 @@ const envSchema = z.object({
     .string()
     .transform((val) => val === 'true')
     .or(z.boolean())
-    .default(true),
+    .default(Boolean(process.env.S3_ENDPOINT && process.env.S3_ENDPOINT.trim() !== '')),
   MAX_FILE_SIZE_BYTES: z.coerce.number().default(52428800), // 50MB
 
   // Email Configuration (SMTP / Nodemailer & Resend)

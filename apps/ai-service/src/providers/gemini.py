@@ -168,8 +168,8 @@ class GeminiProvider(BaseEmbeddingProvider, BaseLLMProvider):
                 if time.monotonic() - started + wait_seconds >= deadline:
                     break
                 await asyncio.sleep(wait_seconds)
+            if resp is None:
                 continue
-
             status = resp.status_code
             last_status = str(status)
 

@@ -1,7 +1,7 @@
 import { AuthSession, User } from '@/types/api.types';
 import { normalizeDeep, shapeResponse } from './normalize';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1').replace(/\/+$/, '');
 const SESSION_STORAGE_KEY = 'auth_session';
 const ORG_STORAGE_KEY = 'active_organization_id';
 
@@ -216,7 +216,7 @@ export async function apiClient<T = unknown>(path: string, init: RequestInit = {
   } catch (err: any) {
     if (err instanceof TypeError && err.message.includes('fetch')) {
       throw new ApiError(
-        'Unable to connect to the backend server. Please ensure the API service is running on port 5000.',
+        'Unable to connect to the backend server. Please verify network connectivity or that the API service is reachable.',
         503
       );
     }

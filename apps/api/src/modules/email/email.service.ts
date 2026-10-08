@@ -158,10 +158,40 @@ export class EmailService {
   }
 
   /**
+   * Resolves the canonical frontend base URL for generating user-facing email links.
+   * Defends against misconfigured CORS origins or localhost leaks in production.
+   */
+  private getFrontendUrl(): string {
+    const explicit = env.FRONTEND_URL?.trim();
+    if (explicit) {
+      const cleaned = explicit.replace(/\/+$/, '');
+      if (env.NODE_ENV === 'production' && (cleaned.includes('localhost') || cleaned.includes('127.0.0.1'))) {
+        return 'https://ai-powered-workspace.vercel.app';
+      }
+      return cleaned;
+    }
+
+    const origins = env.CORS_ORIGIN.split(',')
+      .map((origin) => origin.trim().replace(/\/+$/, ''))
+      .filter(Boolean);
+
+    if (env.NODE_ENV === 'production') {
+      const prodOrigin = origins.find(
+        (origin) => !origin.includes('localhost') && !origin.includes('127.0.0.1')
+      );
+      if (prodOrigin) return prodOrigin;
+      return 'https://ai-powered-workspace.vercel.app';
+    }
+
+    return origins[0] || 'http://localhost:3000';
+  }
+
+  /**
    * Sends an email verification link to a user.
    */
   public async sendVerificationEmail(input: SendVerificationEmailInput): Promise<void> {
-    const verificationUrl = `${env.CORS_ORIGIN}/verify-email?token=${encodeURIComponent(
+    const frontendBaseUrl = this.getFrontendUrl();
+    const verificationUrl = `${frontendBaseUrl}/verify-email?token=${encodeURIComponent(
       input.verificationToken
     )}`;
 
@@ -209,7 +239,8 @@ export class EmailService {
    * Sends a password reset link to a user.
    */
   public async sendPasswordResetEmail(input: SendPasswordResetEmailInput): Promise<void> {
-    const passwordResetUrl = `${env.CORS_ORIGIN}/reset-password?token=${encodeURIComponent(
+    const frontendBaseUrl = this.getFrontendUrl();
+    const passwordResetUrl = `${frontendBaseUrl}/reset-password?token=${encodeURIComponent(
       input.resetToken
     )}`;
 
@@ -257,7 +288,8 @@ export class EmailService {
    * Sends an organization invitation email to the specified recipient.
    */
   public async sendOrganizationInvitationEmail(input: SendInvitationEmailInput): Promise<void> {
-    const invitationUrl = `${env.CORS_ORIGIN}/invitations/accept?token=${encodeURIComponent(
+    const frontendBaseUrl = this.getFrontendUrl();
+    const invitationUrl = `${frontendBaseUrl}/invitations/accept?token=${encodeURIComponent(
       input.invitationToken
     )}`;
 

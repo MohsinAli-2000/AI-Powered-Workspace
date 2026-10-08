@@ -41,6 +41,9 @@ services:
     environment:
       - PORT=5000
       - NODE_ENV=production
+      # Frontend domain and CORS origin for production emails and browser security
+      - FRONTEND_URL=${FRONTEND_URL:-https://ai-powered-workspace.vercel.app}
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://ai-powered-workspace.vercel.app}
       # Routes AI requests internally to the ai-service container via Docker DNS
       - AI_SERVICE_URL=http://ai-service:8001
       - AI_PROVIDER=ai-service
