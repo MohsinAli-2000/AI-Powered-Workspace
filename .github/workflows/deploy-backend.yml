@@ -53,7 +53,10 @@ jobs:
                 sed -i 's|^FRONTEND_URL=http://localhost:3000|FRONTEND_URL=https://ai-powered-workspace.vercel.app|' .env.production
               fi
             fi
-            docker compose up -d --build
+            # An interrupted recreate leaves a renamed leftover such as "6f9906fc34cd_workspace-worker", which
+            # blocks Compose from reusing the container name and fails the whole deploy. Remove any such leftovers.
+            docker ps -a --format '{{.ID}} {{.Names}}' | awk '$2 ~ /^[0-9a-f]{12}_workspace-/ {print $1}' | xargs -r docker rm -f
+            docker compose up -d --build --remove-orphans
             # Clean up old unused dangling images to preserve free-tier disk space
             docker image prune -f
           EOF
