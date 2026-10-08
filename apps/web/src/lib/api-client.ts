@@ -189,12 +189,37 @@ function isCredentialRoute(path: string): boolean {
   return /^\/(auth\/(login|register|refresh|verify-email|resend-verification|forgot-password|reset-password)|invitations\/(details|accept-and-register))(\/|\?|$)/.test(path);
 }
 
+/** True when `fetch` failed to reach the server at all (offline, refused, reset, blocked), not for other TypeErrors. */
+function isNetworkFailure(err: unknown): boolean {
+  if (!(err instanceof TypeError)) return false;
+  const message = err.message.toLowerCase();
+  if (message.includes('failed to execute')) return false; // a malformed request, not a connectivity problem
+  return /fetch|load failed|network/.test(message);
+}
+
+/**
+ * `fetch` that retries once, after a short pause, when a request cannot reach the server at all (no response).
+ * Only methods that are safe to repeat are retried: reads, plus PATCH/PUT, which in this API set a value
+ * (access mode, rename, role...) so applying one twice is harmless. POST (create, upload, chat) and DELETE
+ * are never retried automatically.
+ */
+async function fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, headers: buildHeaders(init) });
+  } catch (err) {
+    const method = (init.method || 'GET').toUpperCase();
+    if (!isNetworkFailure(err) || !['GET', 'HEAD', 'PATCH', 'PUT'].includes(method)) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    return fetch(url, { ...init, headers: buildHeaders(init) });
+  }
+}
+
 /** Performs the request, retrying once with a refreshed token on a 401. */
 async function authorizedFetch(path: string, init: RequestInit): Promise<Response> {
   const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   const isAuthRoute = isCredentialRoute(path);
 
-  let response = await fetch(url, { ...init, headers: buildHeaders(init) });
+  let response = await fetchWithRetry(url, init);
 
   if (response.status === 401 && !isAuthRoute && (await refreshSessionOnce())) {
     response = await fetch(url, { ...init, headers: buildHeaders(init) });
@@ -213,8 +238,8 @@ export async function apiClient<T = unknown>(path: string, init: RequestInit = {
   let response: Response;
   try {
     response = await authorizedFetch(path, init);
-  } catch (err: any) {
-    if (err instanceof TypeError && err.message.includes('fetch')) {
+  } catch (err) {
+    if (isNetworkFailure(err)) {
       throw new ApiError(
         'Unable to connect to the backend server. Please verify network connectivity or that the API service is reachable.',
         503

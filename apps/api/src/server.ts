@@ -12,6 +12,12 @@ const server = app.listen(env.PORT, () => {
   console.log(`🚀 API Server running on port ${env.PORT} in [${env.NODE_ENV}] mode`);
 });
 
+// Behind the reverse proxy (Caddy) connections are reused. Node's default 5s keep-alive timeout closes idle
+// connections sooner than the proxy expects, so a reused connection can be reset mid-request. Keep them open
+// longer than the proxy's idle timeout, with headersTimeout above keepAliveTimeout as Node requires.
+server.keepAliveTimeout = 125_000;
+server.headersTimeout = 130_000;
+
 // Repair document versions stuck in QUEUED/PROCESSING (API restarts, crashed workers).
 queueService.startRecovery();
 
