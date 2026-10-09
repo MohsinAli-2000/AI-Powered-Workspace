@@ -173,6 +173,8 @@ The RAG system must NOT:
 4. Allow a user to bypass permissions by asking a different question
 5. Expose information from another organization
 
+> **Implementation note:** the retrieval access filter exists in two places: the Node API (`rag.repository.ts`, used by chat) and the AI service (`db.py`, used only by its unused `/rag/*` endpoints). Any rule change must be applied to both.
+
 **A similarity search without tenant and authorization filtering is never allowed.**
 
 ---
@@ -182,6 +184,7 @@ The RAG system must NOT:
 - Conversations are **private to the user** who created them.
 - Conversations are **organization-scoped**.
 - Another member of the organization must not automatically see someone else's conversation.
+- **As implemented:** only the creator can read or send messages. The organization OWNER or ADMIN can open conversation metadata (title, scope); only the creator or the OWNER can rename or delete it.
 - A conversation may optionally contain one or more **project scopes**.
 - Selecting a project in a conversation does **not** grant project access.
 - Retrieval still uses the user's **actual authorization** (project membership).

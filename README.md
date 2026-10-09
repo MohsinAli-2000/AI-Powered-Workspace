@@ -349,10 +349,13 @@ Node.js Backend
         └──────────────► PostgreSQL
                               │
                               ▼
-                         RabbitMQ
+                      document_versions
+                      (status = QUEUED)
                               │
                               ▼
                        Python Worker
+                   (polls the DB every 3 s;
+                    RabbitMQ is optional)
                               │
                     ┌─────────┴─────────┐
                     ▼                   ▼
@@ -398,7 +401,7 @@ PROCESSING
 FAILED
 ```
 
-The queue system will allow background jobs to be processed independently from the user's HTTP request.
+Background jobs are processed independently from the user's HTTP request: the API leaves the version `QUEUED` and the worker picks it up (see *Background Job Processing*).
 
 ---
 
@@ -474,21 +477,16 @@ This is one of the most important security requirements of the system.
 
 # 🧠 Initial AI Model Strategy
 
-The initial version is designed to use **free/local AI models** to minimize development cost.
+> **Current status:** production uses the **Google Gemini API** (`gemini-3.6-flash` for generation and vision, `gemini-embedding-001` for 768-dim embeddings). The Ollama/Qwen code is kept **commented out** as a reference for running models locally (see "AI provider configuration" below).
 
-The initial model runtime will use:
-
-```text
-Ollama
-```
-
-The initial LLM choice is:
+The original plan was to start with **free/local AI models** to minimize development cost:
 
 ```text
-Qwen
+Runtime: Ollama
+LLM:     Qwen
 ```
 
-The exact model version will be finalized during implementation and benchmarking.
+That plan was superseded by the Gemini provider; the abstraction below is what made the switch possible.
 
 The architecture should keep model access behind an abstraction so that models can be replaced later.
 
@@ -590,29 +588,23 @@ AWS S3
 
 # 📨 Background Job Processing
 
-The application uses:
-
-```text
-RabbitMQ
-```
-
-for asynchronous document-processing jobs.
-
-Example:
+Document processing is asynchronous. **As built**, the flow is:
 
 ```text
 Node.js Backend
       │
-      │ Publish
+      │ Commit document_versions row with status = QUEUED
       ▼
-RabbitMQ
+PostgreSQL
       │
-      │ Consume
+      │ Worker DB poller (every 3 s) claims the oldest QUEUED row
       ▼
 Python Worker
 ```
 
-A queue message should contain a reference such as:
+RabbitMQ was the original design (a Node publisher and a Python consumer). Only the **consumer** was built, it is optional, and nothing publishes to it (see DEC-003 and DEC-035 in `docs/decision-log.md`).
+
+If RabbitMQ publishing is added in the future, a queue message should contain a reference such as:
 
 ```json
 {
@@ -643,17 +635,17 @@ Python
 FastAPI
 ```
 
-Its responsibilities include:
+Its responsibilities are:
 
-* Document processing
-* Content extraction
-* Text normalization
-* Chunking
-* Embedding generation
-* Retrieval
-* RAG orchestration
-* LLM interaction
-* Source preparation
+* Embedding generation for questions (`POST /api/v1/embeddings`)
+* LLM interaction / answer generation (`POST /api/v1/llm/chat`)
+* Provider abstraction (Gemini, Ollama reference, mock)
+* A utility chunking endpoint (`POST /api/v1/utils/chunk`)
+* RAG orchestration and SSE streaming (`POST /api/v1/rag/query`, `/rag/stream`): implemented, but **not currently called** by the API or the web app
+
+Document processing (extraction, normalization, chunking, embedding of documents) lives in the **Python worker**, not in this service.
+
+> **Current implementation note:** the permission-aware vector search for chat runs in the **Node.js API** (`apps/api/src/modules/conversations/rag.repository.ts`), which calls this service only to embed the question and to generate the answer. A second copy of the same search exists in `apps/ai-service/src/db.py` for its `/rag/*` endpoints. If the access rules change, update both (or remove one).
 
 The AI service does not own the core SaaS business rules.
 
@@ -671,11 +663,9 @@ REPROCESS_DOCUMENT
 DELETE_DOCUMENT_VECTORS
 ```
 
-The worker consumes jobs from RabbitMQ.
+In the current implementation the worker finds work by polling `document_versions` for `QUEUED` rows (and, optionally, by consuming RabbitMQ). Only document processing is implemented: a failed document is retried through `POST /documents/:id/reprocess`, which re-queues it, and vectors are removed by database cascade when a document is deleted (there is no separate `DELETE_DOCUMENT_VECTORS` job).
 
-A successful job is acknowledged.
-
-Failed jobs can be retried according to the retry policy.
+A successful run saves the chunks and marks the version `READY` in one transaction; a failed run marks it `FAILED`.
 
 ---
 
@@ -851,7 +841,7 @@ flowchart TB
         ORG["Organizations / Memberships"]
         DOC["Document Management"]
         CHAT["Conversations"]
-        JOB["Job Publisher"]
+        JOB["Queue Service<br/>(marks QUEUED, local spawn)"]
         EMAIL["Email Module"]
 
         API --> AUTH
@@ -865,7 +855,7 @@ flowchart TB
 
     subgraph DATA["Data Layer"]
         DB["PostgreSQL + pgvector"]
-        QUEUE["RabbitMQ"]
+        QUEUE["Job pickup<br/>(DB polling; RabbitMQ optional)"]
         STORAGE["Object Storage"]
     end
 
@@ -950,9 +940,9 @@ Duplicate Check
  ↓
 Object Storage
  ↓
-PostgreSQL
+PostgreSQL (version = QUEUED)
  ↓
-RabbitMQ
+Worker DB poller
  ↓
 Python Worker
  ↓
@@ -984,23 +974,17 @@ Authentication
  ↓
 Authorization
  ↓
-Python AI Service
+Authorized Project Scope (Node.js API)
  ↓
-Question Embedding
+Question Embedding (Node.js API → Python AI Service → Gemini)
  ↓
-pgvector
+pgvector Search with Org / Project / Access Filters (Node.js API)
  ↓
-Retrieve Authorized Chunks
+Context Builder (Node.js API)
  ↓
-Context Builder
+LLM (Node.js API → Python AI Service → Gemini)
  ↓
-LLM
- ↓
-Grounded Answer
- ↓
-Sources
- ↓
-Node.js API
+Grounded Answer + Sources saved (PostgreSQL)
  ↓
 Next.js
  ↓
@@ -1054,8 +1038,8 @@ Embeddings are requested at 768 dimensions, so the `vector(768)` schema is uncha
 | Layer             | Technology                          |
 | ----------------- | ----------------------------------- |
 | Frontend          | Next.js + TypeScript                |
-| UI Components     | React + Shadcn/ui + Tailwind CSS    |
-| State Management  | Zustand + React Query               |
+| UI Components     | React + Tailwind CSS v4 (hand-written components in `components/ui`) |
+| State Management  | Zustand (data fetching via a custom `apiClient`) |
 | Core Backend      | Node.js + TypeScript (Express.js)   |
 | AI Backend        | Python + FastAPI                    |
 | Background Worker | Python                              |
@@ -1082,7 +1066,7 @@ Infrastructure can run locally using Docker:
 Docker
 │
 ├── PostgreSQL + pgvector
-├── RabbitMQ
+├── RabbitMQ (optional)
 └── MinIO
 ```
 
@@ -1112,7 +1096,7 @@ The architecture strictly separates zero-cost local development tooling from pro
 ### Local Development (Zero Infrastructure Cost)
 ```text
 Local PostgreSQL (or Neon Serverless free tier) with pgvector
-Local RabbitMQ message broker
+Local RabbitMQ message broker (optional; not required by the current worker)
 MinIO (S3-compatible local emulator — strictly for development)
 Ollama (Local CPU model runner — strictly for development & offline testing)
 Free-tier / mock email fallbacks
@@ -1123,7 +1107,7 @@ Free-tier / mock email fallbacks
 AWS S3 (Standard production cloud object storage)
 Google Gemini API (gemini-3.6-flash for generation + gemini-embedding-001 for 768-dim embeddings)
 Neon Serverless PostgreSQL (with pgvector & PgBouncer pooling)
-Managed RabbitMQ (CloudAMQP / AWS MQ)
+Managed RabbitMQ (CloudAMQP / AWS MQ): optional, not used by the current deployment
 Sentry error tracking & performance monitoring
 ```
 
@@ -1137,7 +1121,7 @@ The unified `@aws-sdk/client-s3` and pluggable AI provider abstractions ensure z
 
 * [x] **Product Idea & Requirements**: Concept defined, target users, problem statement, full functional requirements (`docs/requirements/functional-requirements.md`).
 * [x] **Architecture & Database Design**: System architecture diagrams, ERD (20 tables, 6 enums), component matrix, security and tenant isolation principles.
-* [x] **PostgreSQL Schema & pgvector**: Full DDL schema with relational constraints, foreign keys, and `vector(768)` HNSW cosine index.
+* [x] **PostgreSQL Schema & pgvector**: Relational schema with constraints, foreign keys, and a `vector(768)` HNSW cosine index (the worker creates the extension/index on startup). **Note:** the base DDL is not saved in the repo; only migrations 001–003 are. See *Known Gaps*.
 * [x] **Node.js Backend Foundation (Phase 3)**: Express 5, TypeScript ESM, connection pooling, AppError hierarchy, Pino logging, Sentry monitoring, BaseRepository.
 * [x] **Authentication & User Management (Phase 4)**: Pre-registration email verification (`email_verifications` table, migration 003) with automatic sign-in after registration, bcrypt, login, JWT dual-token rotation, password reset, logout.
 * [x] **Organization Management (Phase 5)**: Multi-tenant CRUD, roles (`OWNER`, `ADMIN`, `MEMBER`), tenant isolation middleware, atomic ownership transfer.
@@ -1145,12 +1129,12 @@ The unified `@aws-sdk/client-s3` and pluggable AI provider abstractions ensure z
 * [x] **Project Management (Phase 7)**: Project CRUD, project membership, PROJECT_MANAGER minimum count rule, member self-removal.
 * [x] **Group Management (Phase 8)**: Group CRUD, memberships, group-based document access rule integration.
 * [x] **Document Upload & Storage (Phase 9)**: Multipart upload, 50MB file size limit, PDF/DOCX/XLSX/PPTX/TXT format validation, project-scoped SHA-256 deduplication, MinIO & AWS S3 object storage driver.
-* [x] **Asynchronous Document Processing Worker (Phase 10)**: Python worker (`apps/worker`), RabbitMQ consumer with DLQ, format extractors, NFKC text normalizer, sliding-window chunker, thread-safe connection pooling.
+* [x] **Asynchronous Document Processing Worker (Phase 10)**: Python worker (`apps/worker`), optional RabbitMQ consumer with DLQ, DB-polling job pickup, format extractors, NFKC text normalizer, sliding-window chunker, thread-safe connection pooling.
 * [x] **Embedding Pipeline (Phase 11)**: Pluggable embedding clients (Gemini API `gemini-embedding-001`, Ollama `nomic-embed-text`, deterministic Mock), batch embedding, pgvector HNSW indexing, standalone batch embedder tool.
 * [x] **RAG & Conversations (Phase 12)**: Multi-turn conversations, XML prompt isolation, grounded answer generation, `FR-AI-005` insufficient-information fallback, citation provenance tracking in single DB transactions.
 * [x] **Document Access Control (Phase 13)**: `PROJECT` vs `RESTRICTED` mode, user/group/org-role/project-role access rules with strict `DENY` precedence, 6-step evaluation pipeline, DB-level vector search filtering.
-* [x] **Python AI Service (Phase 14)**: FastAPI microservice (`apps/ai-service`), asyncpg connection pooling, synchronous `/rag/query`, Server-Sent Events `/rag/stream`, Gemini and Ollama providers, internal auth token.
-* [x] **Next.js Frontend (Phase 15)**: Next.js 16 App Router, dark-mode design system with Tailwind CSS v4, full auth views, organization switcher, project & document management, drag-and-drop upload with status polling, granular access rule dialog, AI chat with SSE streaming, and off-canvas source citation drawer.
+* [x] **Python AI Service (Phase 14)**: FastAPI microservice (`apps/ai-service`), asyncpg connection pooling, embeddings and LLM-completion endpoints (used by the API), `/rag/query` and SSE `/rag/stream` endpoints (implemented, not currently called by the app), Gemini and Ollama providers, internal auth token.
+* [x] **Next.js Frontend (Phase 15)**: Next.js 16 App Router, dark-mode design system with Tailwind CSS v4, full auth views, organization switcher, project & document management, drag-and-drop upload with status polling, granular access rule dialog, AI chat (single-response, non-streaming) with a thinking indicator, and off-canvas source citation drawer.
 * [x] **Audit Logging (Phase 16)**: Immutable PostgreSQL append-only audit log, non-fatal event dispatch across all system mutations, protected OWNER/ADMIN endpoints, interactive frontend audit log inspector.
 * [x] **Platform Owner Dashboard & Tenant Governance**: Dedicated `/admin` interface for product owners to monitor cross-organization telemetry, suspend or reactivate organizations violating compliance/terms, with air-gapped CLI provisioning (`npm run platform-admin`) and zero-knowledge privacy protection (no access to customer files or conversations).
 * [x] **Multimodal AI Vision & Image RAG Pipeline**: End-to-end ingestion and extraction for raster images (PNG, JPG, WEBP, BMP, TIFF, GIF) with in-memory normalization, multimodal Gemini Vision OCR (`gemini-3.6-flash` with fallback sequence), flowchart/architecture diagram transcription into structured Markdown, client-side thumbnail previews, and dedicated violet `ImageIcon` source citation drawer badges.
@@ -1160,7 +1144,7 @@ The unified `@aws-sdk/client-s3` and pluggable AI provider abstractions ensure z
   - In-memory fixed-window IP rate limiter (`rate-limit.middleware.ts`) on credential routes.
   - Interactive Help Center (`/help`), User Account Settings (`/settings/account`), Invitation Acceptance flow (`/invitations/accept`).
   - Contextual "Your Access" card, email verification banner, empty org view, accessible dialogs, and normalized API client.
-  - Reconnect resilience for RabbitMQ and S3 storage error recovery.
+  - Reconnect resilience for the RabbitMQ consumer and S3 storage error recovery.
 * [x] **35 architectural decisions confirmed and documented** (see `docs/decision-log.md`).
 
 ### 🛠️ Latest Updates (2026-10-08)
@@ -1168,6 +1152,16 @@ The unified `@aws-sdk/client-s3` and pluggable AI provider abstractions ensure z
 * [x] **Phase 17 — Deployment & Dockerization**: Docker Compose stack (API, AI service, worker), AWS EC2 + Caddy SSL, Vercel frontend, GitHub Actions CI/CD. See `project-status.md`.
 * [x] **Pre-registration email verification and auto-login** (`POST /api/v1/auth/register/initiate` → verify link → `POST /api/v1/auth/register`), plus `POST /api/v1/invitations/accept-and-register`.
 * [x] **Stabilization pass**: worker DB poller no longer leaves documents stuck in `PROCESSING`; document sizes render correctly; open-redirect hardening on post-login redirects; invitation tokens are no longer returned to the inviter; invitation rejection is atomic; verification tokens are unique per request; API trusts one proxy hop in production so rate limits are per client.
+
+### ⚠️ Known Gaps & Documentation Notes (as of 2026-10-09)
+
+* **Base schema is not in the repo.** Only `apps/api/migrations/001–003` exist. Export the live schema (`pg_dump --schema-only`) and commit it (for example as `000_base_schema.sql`) so the database can be rebuilt.
+* **No RabbitMQ publisher.** The API never publishes jobs; the worker discovers work by DB polling (DEC-035). The optional consumer and DLQ code is unused in production.
+* **Chat retrieval lives in the Node API**, not in the AI service. `/rag/query` and `/rag/stream` exist in `apps/ai-service` but nothing calls them, and the web chat does not stream.
+* **Authorization SQL is duplicated** in `apps/api/src/modules/conversations/rag.repository.ts` and `apps/ai-service/src/db.py`. They have already drifted (the Python copy also requires the organization to be `ACTIVE`).
+* **Similarity threshold:** the value that matters for chat is the API's `RAG_SIMILARITY_THRESHOLD` (code default `0.35`; the `.env.example` files use `0.45`). The ai-service has its own threshold (its example uses `0.6`) that only affects its unused `/rag/*` endpoints.
+* **Frontend stack:** there is no React Query and no shadcn/ui library; UI primitives are hand-written.
+* **CI/CD** deploys with rsync + `docker compose up` and a health check; it does not run tests.
 
 ### 🔮 Future Phases
 
@@ -1344,7 +1338,7 @@ The system has been developed and deployed incrementally:
       ↓
 ✅ Document Upload & Object Storage (50MB cap, MinIO/S3, deduplication)
       ↓
-✅ Asynchronous Document Processing Worker (Extractors, chunker, RabbitMQ DLQ)
+✅ Asynchronous Document Processing Worker (Extractors, chunker, DB-polling pickup, optional RabbitMQ consumer)
       ↓
 ✅ Embedding Pipeline & Vector Storage (pgvector, Gemini & Ollama clients)
       ↓
@@ -1352,7 +1346,7 @@ The system has been developed and deployed incrementally:
       ↓
 ✅ Document Access Control (RESTRICTED mode, DENY precedence, DB vector filter)
       ↓
-✅ Python FastAPI AI Service (Real-time RAG, SSE streaming, multi-provider)
+✅ Python FastAPI AI Service (Embeddings, LLM completion, multi-provider; RAG/SSE endpoints implemented but unused)
       ↓
 ✅ Next.js 16 Frontend (App Router, Tailwind v4, Chat, Citations, UI polish)
       ↓

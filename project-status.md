@@ -15,7 +15,7 @@ All foundational, core business, AI processing, frontend, audit, platform govern
 - **Phase 11 (Embedding Pipeline)**: pgvector `vector(768)` HNSW cosine index, Gemini (`gemini-embedding-001`) and Ollama (`nomic-embed-text`) clients, batch embedding in worker.
 - **Phase 12 (RAG & Conversations)**: Multi-turn conversations, XML prompt isolation, grounded answer generation, insufficient-information fallback, and source citations.
 - **Phase 13 (Document Access Control)**: Granular access control (`PROJECT` vs `RESTRICTED`), 6-step evaluation pipeline with strict `DENY` precedence, database-level subquery filtering during vector search.
-- **Phase 14 (Python AI Service)**: FastAPI microservice with asyncpg connection pooling, synchronous `/rag/query`, Server-Sent Events `/rag/stream`, and Gemini/Ollama provider abstraction.
+- **Phase 14 (Python AI Service)**: FastAPI microservice with asyncpg connection pooling, embeddings and LLM-completion endpoints used by the API, synchronous `/rag/query` and SSE `/rag/stream` (implemented, not called by the API or web app), and Gemini/Ollama provider abstraction.
 - **Phase 15 (Next.js Frontend)**: Next.js 16 App Router, dark-mode design system with Tailwind CSS v4, complete auth suite, organization & project management, drag-and-drop file upload with status polling, granular access rule dialog, and interactive citation drawer.
 - **Phase 16 (Audit Logging)**: Append-only PostgreSQL audit log, non-fatal event dispatch across all entity mutations, protected endpoints for OWNER/ADMIN, and frontend audit log inspector.
 - **Platform Owner Administration & Tenant Governance (Completed)**:
@@ -40,6 +40,16 @@ All foundational, core business, AI processing, frontend, audit, platform govern
   - **Image Citation & UI Grounding**: Frontend chat displays dedicated violet `ImageIcon` pills, "Image OCR" badges, and relevance metrics in the source citation drawer. The upload zone provides instant thumbnail previews.
 
 
+
+---
+
+## ⚠️ Known Gaps & Docs-vs-Code Notes (2026-10-09)
+
+- [ ] **Save the base database schema in the repo.** Only migrations 001–003 exist; export the live schema (`pg_dump --schema-only`) as a baseline migration.
+- [ ] **Decide on RabbitMQ:** either implement the publisher or remove the consumer/DLQ code (production uses DB polling, DEC-035).
+- [ ] **Remove the duplicated authorization SQL** (`apps/api/.../rag.repository.ts` and `apps/ai-service/src/db.py`), or keep them strictly in sync.
+- [ ] **Decide where RAG lives:** the AI service's `/rag/query` and `/rag/stream` are unused. Either wire chat to them (enabling streaming) or delete them.
+- [ ] **Add automated tests to CI** (the deploy workflow only builds and health-checks).
 
 ---
 
@@ -220,7 +230,7 @@ The following have been decided, designed, and documented / implemented:
 - [x] Download document endpoint (`GET /api/v1/documents/:id/download` supporting both direct streaming and presigned URLs)
 - [x] Update document metadata endpoint (`PATCH /api/v1/documents/:id`)
 - [x] Delete document endpoint (`DELETE /api/v1/documents/:id` with database cascade and object storage cleanup)
-- [x] Queue service abstraction (`QueueService`) publishing `PROCESS_DOCUMENT` job
+- [x] Queue service abstraction (`QueueService`): in-process dispatch that spawns the local worker or leaves the version `QUEUED` for the worker's DB poller, plus a recovery sweep for stuck versions. It does not publish to RabbitMQ
 
 ---
 
@@ -282,8 +292,8 @@ The following have been decided, designed, and documented / implemented:
 - [x] Pydantic Settings configuration (`src/config.py`) and structured logging (`src/logger.py`).
 - [x] Async PostgreSQL connection pooling (`asyncpg`) with vector registration (`pgvector.asyncpg.register_vector`).
 - [x] Embedding service with single (`POST /api/v1/embeddings`) and batch (`POST /api/v1/embeddings/batch`) 768-dim normalized vectors.
-- [x] Synchronous RAG endpoint (`POST /api/v1/rag/query`) with pgvector search, XML prompt isolation, grounded answer generation, and structured source citations.
-- [x] Streaming RAG endpoint (`POST /api/v1/rag/stream`) with Server-Sent Events (`text/event-stream`), real-time token streaming, and final citation payload.
+- [x] Synchronous RAG endpoint (`POST /api/v1/rag/query`) with pgvector search, XML prompt isolation, grounded answer generation, and structured source citations. *(Not called by the API: chat does retrieval in the Node API and uses `/embeddings` + `/llm/chat`.)*
+- [x] Streaming RAG endpoint (`POST /api/v1/rag/stream`) with Server-Sent Events (`text/event-stream`), real-time token streaming, and final citation payload. *(Not used by the web app, whose chat is non-streaming.)*
 - [x] `FR-AI-005` insufficient information fallback handling when similarity is below threshold or zero chunks match.
 - [x] Full database-level Phase 13 document access control enforcement with 6-step evaluation and `DENY` precedence.
 - [x] LLM completion endpoint (`POST /api/v1/llm/chat`) and semantic chunking endpoint (`POST /api/v1/utils/chunk`).
@@ -378,7 +388,7 @@ The following have been decided, designed, and documented / implemented:
   - Frontend layout indicators: Navigation item in sidebar, badge and menu button in user profile dropdown, `Suspended` badge in org switcher, and informational banner in workspace layout.
 
 - [x] **Service & Queue Resilience**:
-  - Exponential backoff reconnect and recovery for RabbitMQ consumers and publishers.
+  - Reconnect and recovery handling for the RabbitMQ consumer (the API has no RabbitMQ publisher).
   - Graceful connection pool teardown on SIGTERM/SIGINT across Node.js and FastAPI services.
   - S3 / MinIO storage error handling and unified streaming.
 
@@ -449,9 +459,9 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 | 18 | Migration tooling choice (Flyway, Liquibase, raw SQL) | ✅ **Resolved** | Raw PostgreSQL baseline verified and active |
 | 19 | Exact CI/CD provider | ✅ **Resolved** | **GitHub Actions** for EC2 backend + **Vercel Git Integration** for frontend (DEC-033) |
 | 20 | Chunking strategy (chunk size, overlap) | ✅ **Resolved** | 1000 characters chunk size, 200 characters overlap with paragraph, sentence, and word boundary snapping (`apps/worker/src/chunker.py`) |
-| 21 | Similarity threshold for "insufficient information" response | ✅ **Resolved** | Configurable similarity threshold (`MIN_SIMILARITY_SCORE`) with fallback response and citation suppression (`FR-AI-005`) |
+| 21 | Similarity threshold for "insufficient information" response | ✅ **Resolved** | Configurable similarity threshold (`RAG_SIMILARITY_THRESHOLD`; API code default `0.35`, `.env.example` files `0.45`) with fallback response and citation suppression (`FR-AI-005`) |
 | 22 | Whether historical document versions are searchable by default | ✅ **Resolved** | Default retrieval strictly scopes to `is_current = true` and `status = 'READY'` chunks |
-| 23 | Streaming vs. non-streaming LLM responses | ✅ **Resolved** | Both supported: synchronous `POST /api/v1/rag/query` and Server-Sent Events (SSE) `POST /api/v1/rag/stream` with frontend streaming token rendering |
+| 23 | Streaming vs. non-streaming LLM responses | ✅ **Resolved** | Both endpoints exist in the AI service (`POST /api/v1/rag/query`, SSE `POST /api/v1/rag/stream`), but the web app does not stream: it uses a single-response `POST /conversations/:id/messages` |
 | 24 | Whether conversation history is included as LLM context | ✅ **Resolved** | Multi-turn conversational history loaded from database and prepended to prompt context |
 | 25 | Object storage configuration (Dev vs Prod) | ✅ **Resolved** | **MinIO** (`http://localhost:9000`, development only) → **AWS S3** (production standard) via unified `@aws-sdk/client-s3` |
 
@@ -475,7 +485,7 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 - **Location A:** `AI Powered Workspace Architecture Diagram.png` → Tailwind CSS + Shadcn/ui
 - **Location B:** `docs/system-architecture.md` → Next.js + TypeScript
 - **Resolution:**
-  Implemented using Next.js 16 App Router paired with modern Tailwind CSS v4 and curated dark-mode design tokens, custom glassmorphism panels, glowing micro-accents, and custom scrollbars in `apps/web`. Zero runtime CSS overhead with full responsive control.
+  Implemented (with hand-written UI components rather than the shadcn/ui library) using Next.js 16 App Router paired with modern Tailwind CSS v4 and curated dark-mode design tokens, custom glassmorphism panels, glowing micro-accents, and custom scrollbars in `apps/web`. Zero runtime CSS overhead with full responsive control.
 
 ---
 

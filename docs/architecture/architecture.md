@@ -12,7 +12,7 @@
 2. **Node.js backend owns authentication, authorization, organizations, and SaaS business rules.**
 3. **Python owns AI-specific processing and RAG responsibilities.**
 4. **Long-running document processing always happens asynchronously.**
-5. **RabbitMQ messages contain references (e.g., `document_id`), not actual file content.**
+5. **Queue messages (when RabbitMQ is used) contain references (e.g., `document_id`), not actual file content.** In the current implementation the worker reads `QUEUED` rows from PostgreSQL instead.
 6. **Original files live in object storage, not PostgreSQL.**
 7. **PostgreSQL stores relational data, metadata, document chunks, and vectors (via pgvector).**
 8. **Every tenant-owned resource must be scoped by `organization_id`.**
@@ -30,13 +30,13 @@
 
 | Component | Technology | Primary Responsibility |
 |-----------|-----------|----------------------|
-| Frontend | Next.js 16 + TypeScript | User interface, dark-mode styling, SSE streaming chat, citation drawer |
+| Frontend | Next.js 16 + TypeScript | User interface, dark-mode styling, chat (single-response, non-streaming), citation drawer |
 | Core API | Node.js + Express 5 + TypeScript | SaaS business logic, authorization, rate limiting, audit logging |
-| AI API | Python + FastAPI | Real-time RAG orchestration, SSE streaming, internal security token |
+| AI API | Python + FastAPI | Question embeddings and LLM completion (used by the API); RAG query/stream endpoints (implemented, not currently called); internal security token |
 | AI Worker | Python | Asynchronous document processing, chunking, and embedding generation |
 | Relational Database | PostgreSQL (Local / Neon Serverless) | Core relational application data |
 | Vector Store | pgvector | 768-dim embeddings and HNSW similarity search |
-| Job Queue | RabbitMQ | Reliable background job delivery with DLQ |
+| Job Queue | PostgreSQL polling (RabbitMQ optional) | The worker polls `document_versions` for `QUEUED` rows (DEC-035). A RabbitMQ consumer exists but nothing publishes to it |
 | Object Storage | MinIO (Local Dev Only) → AWS S3 (Production) | Original uploaded documents |
 | Multimodal Vision OCR | Google Gemini Vision API (`gemini-3.6-flash`, fallback chain) | Image OCR, table extraction, and workflow / diagram transcription |
 | Embedding Runtime | Google Gemini API default (`gemini-embedding-001`); Ollama code kept for local reference | Text-to-vector conversion (768-dim) |
@@ -58,7 +58,7 @@ Node.js Core Backend
         │
         ├──────────────► Object Storage (MinIO / AWS S3)
         │
-        ├──────────────► RabbitMQ ──────► Python AI Worker
+        ├──────────────► (QUEUED rows) ─► Python AI Worker  [polls DB; RabbitMQ optional]
         │                                      │
         │                                      ├── Content Extraction
         │                                      ├── Content Normalization
@@ -67,10 +67,10 @@ Node.js Core Backend
         │
         ├──────────────► Python FastAPI AI Service
         │                       │
-        │                       ├── Retrieval Service
-        │                       ├── RAG Orchestrator
-        │                       ├── Prompt & Context Builder
-        │                       └── Source / Citation Builder
+        │                       ├── Question Embeddings
+        │                       ├── LLM Completion (Gemini)
+        │                       └── RAG endpoints (not used today; the API
+        │                           runs retrieval, prompt building and citations)
         │
         └──────────────► Nodemailer / Resend (Email)
 
@@ -114,8 +114,8 @@ EXTERNAL MANAGED SERVICES
 ## 5. Frontend
 
 **Technology:** Next.js + TypeScript + React  
-**State Management:** Zustand + React Query  
-**UI Components:** Tailwind CSS + Shadcn/ui  
+**State Management:** Zustand (data fetching through a custom `apiClient`; no React Query)  
+**UI Components:** Tailwind CSS v4 with hand-written components (no shadcn/ui library)  
 **Authentication:** JSON Web Tokens (JWT)
 
 **Pages / Modules:**
@@ -148,7 +148,7 @@ EXTERNAL MANAGED SERVICES
 - Conversation Module (Start, Thread History, Multi-turn RAG Orchestration, Source Citations)
 - Audit Module (Append-only PostgreSQL Audit Logs, Non-fatal recording, OWNER/ADMIN queries)
 - Permission / RBAC (Roles, Multi-tenant Isolation Middleware, Document Access Guards)
-- Background Job Publisher (Publish to RabbitMQ with DLQ and connection reconnect resilience)
+- Queue Service (`queue.service.ts`: in-process dispatch that spawns the local worker, or leaves the version `QUEUED` for the worker; recovery sweep for stuck versions; does **not** publish to RabbitMQ)
 - Email Module (Nodemailer Gmail SMTP default & Resend custom domain support)
 - Rate Limiting Middleware (In-memory IP fixed-window throttling for credential endpoints)
 - Structured Logging + Tracing Context (Pino, Sentry)
@@ -162,8 +162,8 @@ EXTERNAL MANAGED SERVICES
 
 **Services & Endpoints:**
 - Embedding Service (`POST /api/v1/embeddings`, `POST /api/v1/embeddings/batch` — Gemini `gemini-embedding-001` 768-dim default, Ollama `nomic-embed-text` alternative)
-- Synchronous RAG Service (`POST /api/v1/rag/query` — pgvector search, XML prompt isolation, grounded answer generation, citations)
-- Streaming RAG Service (`POST /api/v1/rag/stream` — real-time token streaming via Server-Sent Events `text/event-stream`)
+- Synchronous RAG Service (`POST /api/v1/rag/query` — pgvector search, XML prompt isolation, grounded answer generation, citations). *Implemented but not called by the API; the API does retrieval itself.*
+- Streaming RAG Service (`POST /api/v1/rag/stream` — real-time token streaming via Server-Sent Events `text/event-stream`). *Implemented but not used by the web app.*
 - LLM Service (`POST /api/v1/llm/chat` — Gemini `gemini-3.6-flash` default, Ollama `qwen2.5:1.5b` alternative)
 - Utility Service (`POST /api/v1/utils/chunk` — semantic sliding-window chunking)
 - Database Pooling — Async PostgreSQL connection pool (`asyncpg`) with native pgvector type registration
@@ -173,10 +173,10 @@ EXTERNAL MANAGED SERVICES
 ## 8. AI Worker
 
 **Technology:** Python  
-**Role:** Async document processing via RabbitMQ consumer
+**Role:** Async document processing, discovered by DB polling (with an optional RabbitMQ consumer)
 
 **Process flow per job:**
-1. Pick up job from RabbitMQ queue (`document-processing`) with Dead Letter Queue protection
+1. Claim the oldest `QUEUED` version (DB poller, every 3 s). The optional RabbitMQ consumer (`document-processing` queue with a Dead Letter Queue) is not fed by the API
 2. Get document version metadata from PostgreSQL using `ThreadedConnectionPool`
 3. Download original file from object storage (MinIO or AWS S3) with 50MB file size safeguard
 4. Extract text from document or image:
@@ -195,6 +195,8 @@ EXTERNAL MANAGED SERVICES
 ## 9. Message Queue
 
 **Technology:** RabbitMQ
+
+> **Status: original design, not in the live path.** The API does not publish to RabbitMQ and production does not run a broker. The table below describes the intended queues; see DEC-035 for the DB-polling approach actually used.
 
 **Queues:**
 | Queue | Purpose |
@@ -269,7 +271,7 @@ documents-bucket/
 | AI / LLM & Embeddings | Google Gemini API (`gemini-3.6-flash` & `gemini-embedding-001`) |
 | Monitoring | Sentry |
 
-> **TODO — DECISION REQUIRED:** Exact production deployment provider for backend, AI service, and worker.
+> **As deployed (Phase 17, DEC-033):** the API, AI service and worker run via Docker Compose on a single AWS EC2 `t3.micro` behind Caddy (TLS); the frontend is on Vercel; PostgreSQL is Neon; files are in AWS S3. There is no RabbitMQ in production, and the table above reflects the original target, not the live setup.
 
 ---
 
@@ -280,7 +282,7 @@ Conceptual pipeline (from architecture diagram):
 GitHub → Tests → Build & Push Docker → Deploy
 ```
 
-> **TODO — DECISION REQUIRED:** Exact CI/CD provider (GitHub Actions, etc.).
+> **As implemented:** GitHub Actions (`.github/workflows/deploy-backend.yml`) rsyncs the code to EC2, runs `docker compose up -d --build`, and checks `/health`. The frontend deploys through Vercel's Git integration. There is no automated test stage yet.
 
 ---
 

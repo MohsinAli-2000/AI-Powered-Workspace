@@ -36,7 +36,7 @@
 - **Chat Interface (`ChatView`)**:
   - Conversational message bubbles with rich markdown rendering (`react-markdown` + `remark-gfm`).
   - Project scope filtering ("All Accessible Projects" vs. specific project boundaries).
-  - Server-Sent Events (SSE) token streaming for real-time generative responses.
+  - Single-response answers (non-streaming): the chat posts to `POST /conversations/:id/messages`, shows a "thinking" indicator, then renders the answer with its citations.
   - `FR-AI-005` Insufficient Information warning callouts when documents lack supporting evidence.
   - Interactive citation pills (`[1]`, `[2]`) with cosine similarity confidence percentages.
   - Off-canvas **Source Citation Drawer (`SourceCitationDrawer`)** revealing document title, chunk index, page number, confidence meter, and exact grounded chunk excerpts.
@@ -94,7 +94,7 @@ Create a `.env.local` file in `apps/web`:
 
 ```env
 # URL of the Core Node.js API
-NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
+NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
 ```
 
 ---

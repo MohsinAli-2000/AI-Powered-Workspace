@@ -3,6 +3,11 @@
 > **Architecture Style:** Modular SaaS + Separate AI Service
 > **Primary Goal:** Build a production-style multi-tenant AI knowledge platform while gaining hands-on experience with full-stack development, backend engineering, AI/RAG, cloud, queues, databases, security, monitoring, and deployment.
 
+> **Implementation status (as built, 2026-10-09).** The diagrams below show the original design. Where the code differs:
+> - **Job pickup:** the API leaves `document_versions.status = 'QUEUED'` and the worker **polls the database** (DEC-035). RabbitMQ publishing was never implemented; the consumer is optional and unused in production.
+> - **Retrieval:** the Node API embeds the question (via the AI service), runs the permission-filtered pgvector search itself, builds the prompt, and calls the AI service only for LLM generation. The AI service's `/rag/*` endpoints exist but are not called.
+> - **Streaming:** the web chat is non-streaming.
+
 ## 1. High-Level Architecture
 
 ```mermaid
@@ -36,7 +41,7 @@ flowchart TB
         DOC["Document Management"]
         CHAT["Conversation Management"]
         EMAIL["Email Module"]
-        JOB["Job Publisher"]
+        JOB["Queue Service<br/>(marks QUEUED, local spawn)"]
         OBS["Structured Logging<br/>Tracing Context"]
 
         API --> AUTH
@@ -58,7 +63,7 @@ flowchart TB
         FASTAPI["FastAPI<br/>Internal AI API"]
 
         RAG["RAG Orchestrator"]
-        RETRIEVAL["Retrieval Service"]
+        RETRIEVAL["Retrieval Service<br/>(runs in the Node API today)"]
         PROMPT["Prompt & Context Builder"]
         SOURCES["Source / Citation Builder"]
 
@@ -73,7 +78,7 @@ flowchart TB
     %% ============================================================
 
     subgraph WORKER["⚙️ PYTHON BACKGROUND WORKER"]
-        CONSUMER["RabbitMQ Consumer"]
+        CONSUMER["DB Poller<br/>(RabbitMQ consumer optional)"]
         PROCESSOR["Document Processor"]
 
         EXTRACT["Content Extraction"]
@@ -96,7 +101,7 @@ flowchart TB
 
         POSTGRES["PostgreSQL + pgvector<br/><br/>Users<br/>Organizations<br/>Memberships<br/>Roles<br/>Invitations<br/>Documents Metadata<br/>Processing Status<br/>Conversations<br/>Messages<br/>Chunks + Embeddings"]
 
-        RABBIT["RabbitMQ<br/><br/>PROCESS_DOCUMENT<br/>REPROCESS_DOCUMENT<br/>DELETE_DOCUMENT_VECTORS"]
+        RABBIT["RabbitMQ (optional, not published to today)<br/><br/>PROCESS_DOCUMENT<br/>REPROCESS_DOCUMENT<br/>DELETE_DOCUMENT_VECTORS"]
 
         STORAGE["Object Storage<br/><br/>Development Only: MinIO<br/>Production: AWS S3"]
 
@@ -157,8 +162,9 @@ flowchart TB
     DOC -->|"Store original document"| STORAGE
     DOC -->|"Create document metadata"| POSTGRES
 
-    JOB -->|"Publish job"| RABBIT
-    RABBIT -->|"Deliver job"| CONSUMER
+    JOB -.->|"Publish job (not implemented)"| RABBIT
+    RABBIT -.->|"Deliver job (optional)"| CONSUMER
+    POSTGRES -->|"Poll QUEUED versions"| CONSUMER
 
     %% ============================================================
     %% WORKER PROCESSING FLOW
@@ -214,7 +220,7 @@ sequenceDiagram
     participant API as Node.js Backend
     participant DB as PostgreSQL
     participant Storage as MinIO / AWS S3
-    participant Queue as RabbitMQ
+    participant Queue as Job pickup (DB polling)
     participant Worker as Python AI Worker
     participant Model as Embedding Model
     participant Vector as pgvector
@@ -242,12 +248,12 @@ sequenceDiagram
         API->>DB: Update status
         Note over DB: status = QUEUED
 
-        API->>Queue: Publish PROCESS_DOCUMENT(document_id)
+        API->>Queue: Leave version QUEUED (local dev: spawn worker process)
 
         API-->>FE: Upload successful
         Note over FE: Show "Processing"
 
-        Queue->>Worker: Deliver job
+        Worker->>Queue: Poll for QUEUED versions (every 3 s)
 
         Worker->>DB: Update status
         Note over DB: status = PROCESSING
@@ -268,12 +274,12 @@ sequenceDiagram
             Worker->>DB: Update status
             Note over DB: status = READY
 
-            Worker->>Queue: ACK job
+            Note over Worker: Chunks saved and READY set in one transaction
         else Processing failed
             Worker->>DB: Update status
             Note over DB: status = FAILED
 
-            Worker->>Queue: Retry / requeue
+            Note over Worker: User can retry via reprocess (FAILED to QUEUED)
         end
     end
 ```
@@ -299,24 +305,25 @@ sequenceDiagram
     API->>API: Validate organization context
     API->>API: Check membership and permissions
 
-    API->>AI: Internal RAG request
+    API->>API: Compute authorized project scope
 
+    API->>AI: Embed question
     AI->>Embed: Convert question to embedding
     Embed-->>AI: Question vector
+    AI-->>API: Question vector
 
-    AI->>DB: Similarity search
+    API->>DB: Similarity search
     Note over DB: Filter by organization_id
     Note over DB: Filter by allowed project/document scope
+    DB-->>API: Relevant chunks + metadata
 
-    DB-->>AI: Relevant chunks + metadata
-
-    AI->>AI: Build grounded context
+    API->>API: Build grounded prompt (excerpts fenced as untrusted data)
+    API->>AI: Generate answer (/llm/chat)
     AI->>LLM: Question + retrieved context
-
     LLM-->>AI: Generated answer
+    AI-->>API: Answer text
 
-    AI->>AI: Prepare answer + sources
-    AI-->>API: Answer + source references
+    API->>DB: Save messages + source citations
 
     API-->>FE: Final response
     FE-->>User: Display answer + sources
@@ -381,11 +388,11 @@ document is accessible to the current user
 | ------------------- | -------------------- | ------------------------------------- |
 | Frontend            | Next.js + TypeScript | User interface and user experience    |
 | Core API            | Node.js + TypeScript | SaaS business logic, authorization, rate limiting |
-| AI API              | Python + FastAPI     | Real-time RAG orchestration, SSE streaming |
+| AI API              | Python + FastAPI     | Question embeddings and LLM completion (RAG/SSE endpoints exist but are unused) |
 | AI Worker           | Python               | Asynchronous document processing      |
 | Relational Database | PostgreSQL (Local / Neon Serverless) | Core application data                 |
 | Vector Store        | pgvector             | 768-dim embeddings and similarity search |
-| Job Queue           | RabbitMQ             | Reliable background job delivery      |
+| Job Queue           | PostgreSQL polling (RabbitMQ optional) | Worker polls for QUEUED versions; no publisher exists |
 | Object Storage      | MinIO (Local Dev Only) → AWS S3 (Production) | Original uploaded documents           |
 | Multimodal Vision OCR | Google Gemini Vision API (`gemini-3.6-flash`) | Image OCR, table extraction, workflow & diagram transcription |
 | Embedding Runtime   | Google Gemini API default (`gemini-embedding-001`, 768-dim); Ollama code kept for local reference | Text-to-vector conversion (768-dim)   |
@@ -432,7 +439,7 @@ EXTERNAL MANAGED SERVICES
 2. **Node.js backend owns authentication, authorization, organizations, and SaaS business rules.**
 3. **Python owns AI-specific processing and RAG responsibilities.**
 4. **Long-running document processing always happens asynchronously.**
-5. **RabbitMQ messages contain references such as `document_id`, not the actual file.**
+5. **Queue messages (when RabbitMQ is used) contain references such as `document_id`, not the actual file.** Currently the worker reads `QUEUED` rows from PostgreSQL.
 6. **Original files live in object storage, not PostgreSQL.**
 7. **PostgreSQL stores relational data, metadata, document chunks, and vectors through pgvector.**
 8. **Every tenant-owned resource must be scoped by `organization_id`.**
@@ -458,7 +465,7 @@ Node.js Core Backend
         │
         ├──────────────► Object Storage
         │
-        ├──────────────► RabbitMQ ──────► Python AI Worker
+        ├──────────────► (QUEUED rows) ─► Python AI Worker  [polls DB]
         │                                      │
         │                                      ├── Extract
         │                                      ├── Normalize
@@ -467,9 +474,8 @@ Node.js Core Backend
         │
         ├──────────────► Python FastAPI AI Service
         │                       │
-        │                       ├── Retrieve
-        │                       ├── RAG
-        │                       └── LLM
+        │                       ├── Embed (questions)
+        │                       └── LLM (answer generation)
         │
         └──────────────► Nodemailer / Resend
 

@@ -19,7 +19,7 @@ The RAG system is implemented as a **separate Python AI Service** (FastAPI) and 
 
 | Component | Technology | Responsibility |
 |-----------|-----------|---------------|
-| AI Service | Python + FastAPI | Real-time RAG orchestration and answer generation |
+| AI Service | Python + FastAPI | Question embeddings and LLM answer generation. RAG orchestration endpoints exist here but the live chat path runs retrieval and prompt building in the Node API |
 | AI Worker | Python | Asynchronous document processing and embedding generation |
 | Vision Model | Google Gemini API (`gemini-3.6-flash`, with `gemini-3-flash-preview` / `gemini-flash-lite-latest` fallback) | Multimodal OCR, table transcription, and visual diagram/workflow understanding |
 | Embedding Model | Google Gemini API `gemini-embedding-001` (768-dim, primary cloud provider); Ollama code kept for local reference | Text-to-vector conversion |
@@ -53,7 +53,7 @@ File stored in object storage (S3 / MinIO)
         ↓
 Document record created (status = QUEUED)
         ↓
-Job published to queue / worker (PROCESS_DOCUMENT)
+Version left QUEUED for the worker (DB polling; local dev spawns the processor)
         ↓
         [Async from here]
         ↓
@@ -77,7 +77,7 @@ Store chunks + embeddings in PostgreSQL (pgvector)
         ↓
 Document status → READY (success) or FAILED (failure)
         ↓
-Worker ACKs or NACKs job to RabbitMQ
+Chunks + READY are committed in one transaction (no queue ack needed with DB polling)
 ```
 
 ### Processing Status Transitions
@@ -94,6 +94,8 @@ QUEUED → PROCESSING → FAILED
 | `PROCESS_DOCUMENT` | Initial processing of a new document version |
 | `REPROCESS_DOCUMENT` | Reprocess an existing document (e.g., after failure) |
 | `DELETE_DOCUMENT_VECTORS` | Remove all vector chunks for a deleted document version |
+
+> **Implementation note:** these job types are the original queue design. In the current code only document processing exists: reprocess re-queues a `FAILED` version, and vectors are removed by `ON DELETE CASCADE` when a document is deleted.
 
 ---
 
@@ -112,26 +114,20 @@ Backend checks membership and permissions
         ↓
 Backend computes authorized document scope for user
         ↓
-Backend → AI Service (internal request, with user's auth scope)
+Backend → AI Service: embed the question (Embedding Model)
         ↓
-AI Service embeds question (Embedding Model)
-        ↓
-AI Service performs similarity search (pgvector)
+Backend performs similarity search (pgvector)
     WHERE organization_id = active_org
     AND document is accessible to this user
     AND (optional) project_id IN conversation_projects
         ↓
-AI Service receives relevant chunks + metadata
+Backend receives relevant chunks + metadata
         ↓
-AI Service builds grounded context (Prompt Builder)
+Backend builds grounded prompt (excerpts fenced as untrusted data)
         ↓
-AI Service sends [question + context] to LLM
+Backend → AI Service: generate answer from [question + context] (LLM)
         ↓
-LLM generates answer
-        ↓
-AI Service builds source/citation metadata
-        ↓
-AI Service → Backend: Answer + source references
+Backend stores the answer and its source citations (message_sources)
         ↓
 Backend → Frontend: Final response
         ↓
@@ -165,6 +161,8 @@ WHERE chunk.organization_id = :active_org_id
 ```
 
 **A similarity search without tenant and authorization filters is never allowed.**
+
+> **Implementation note:** this filter is implemented twice: in the Node API (`apps/api/src/modules/conversations/rag.repository.ts`, used by chat) and in the AI service (`apps/ai-service/src/db.py`, used only by its `/rag/*` endpoints). They have already drifted (the Python copy also requires `organizations.status = 'ACTIVE'`). Keep them in sync or remove one.
 
 ---
 
@@ -252,7 +250,7 @@ Documents support multiple versions.
 | Exact LLM model | ✅ Confirmed | Google Gemini API `gemini-3.6-flash` in Production; `qwen2.5:1.5b` via Ollama for Local Dev |
 | Production AI provider | ✅ Confirmed | Google Gemini API (DEC-030) as primary cloud production provider; Ollama as local dev fallback |
 | Chunking strategy | ✅ Confirmed | 1000 characters chunk window, 200 characters overlap with paragraph/sentence/word boundary snapping (`apps/worker/src/chunker.py`) |
-| Similarity threshold | ✅ Confirmed | Configurable cosine threshold (`MIN_SIMILARITY_SCORE`) with prompt-level insufficient-evidence fallback (`FR-AI-005`) |
+| Similarity threshold | ✅ Confirmed | Configurable cosine threshold (`RAG_SIMILARITY_THRESHOLD`; the API's code default is `0.35`, the `.env.example` files use `0.45`) with an insufficient-evidence fallback (`FR-AI-005`). The API's value is the one that governs chat |
 | Historical versions search | ✅ Confirmed | By default, vector retrieval strictly filters `v.is_current = true` and `v.status = 'READY'` chunks |
-| Streaming vs. non-streaming | ✅ Confirmed | Dual support: synchronous `POST /api/v1/rag/query` and Server-Sent Events (SSE) `POST /api/v1/rag/stream` |
+| Streaming vs. non-streaming | ⚠️ Partially implemented | The AI service has `POST /api/v1/rag/query` and an SSE `POST /api/v1/rag/stream`, but neither is called. The web app uses a single-response `POST /conversations/:id/messages` |
 | Conversation history context | ✅ Confirmed | Chronological message history loaded from database and supplied as context in the prompt builder |

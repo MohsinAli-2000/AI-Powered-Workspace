@@ -657,3 +657,27 @@ Phase:      Phase 17 — Production Deployment & Dockerization
 Affected:   apps/worker/src/db.py, apps/worker/src/db_poller.py, apps/worker/src/processor.py,
             apps/api/src/modules/queue/queue.service.ts
 ```
+
+---
+
+```text
+Decision:   DEC-036: Chat Retrieval Runs in the Node API (As-Built Record)
+Date:       2026-10-09
+Context:    The original design placed retrieval and RAG orchestration in the Python AI service
+            and streaming answers via SSE. During implementation the Node API took over the
+            permission-aware vector search so that it sits next to the membership/authorization
+            data it depends on.
+Decision:   1. The Node API embeds the question (AI service /embeddings), runs the pgvector search
+               with organization, project and document-access filters, builds the prompt, and
+               calls the AI service /llm/chat for generation. Messages and citations are saved
+               by the API.
+            2. The AI service's /rag/query and /rag/stream remain implemented but are not called.
+            3. The web chat is single-response (non-streaming).
+Why:        Recorded to match the code. Known cost: the access-control SQL exists twice
+            (apps/api/src/modules/conversations/rag.repository.ts and apps/ai-service/src/db.py)
+            and must be kept in sync, or one copy removed.
+Status:     As-built record (2026-10-09). Revisit: remove the unused endpoints or move chat onto them.
+Phase:      Documentation reconciliation
+Affected:   apps/api/src/modules/conversations/*, apps/ai-service/src/routers/rag.py,
+            apps/ai-service/src/services/rag_service.py, apps/ai-service/src/db.py
+```
