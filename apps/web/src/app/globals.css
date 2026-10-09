@@ -53,13 +53,47 @@
     --color-slate-900: #ffffff;
     --color-slate-800: #f1f5f9;
     --color-slate-700: #e2e8f0;
-    --color-slate-600: #94a3b8;
+    --color-slate-600: #64748b;
     --color-slate-500: #64748b;
-    --color-slate-400: #64748b;
+    --color-slate-400: #475569;
     --color-slate-300: #334155;
     --color-slate-200: #1e293b;
     --color-slate-100: #0f172a;
     --color-slate-50:  #020617;
+
+    /* Accent palette remap for light mode. The 100–400 shades are only used as text/icon
+       colors (pale tints meant for dark backgrounds), so map them to deep shades that stay
+       readable on white and on the /10 tinted chips. Lower numbers stay "stronger", so
+       hover states (e.g. 400 → 300) still darken visibly. 500+ (backgrounds/borders) are untouched. */
+    --color-indigo-100: #312e81;
+    --color-indigo-200: #3730a3;
+    --color-indigo-300: #4338ca;
+    --color-indigo-400: #4f46e5;
+
+    --color-violet-100: #4c1d95;
+    --color-violet-200: #5b21b6;
+    --color-violet-300: #6d28d9;
+    --color-violet-400: #7c3aed;
+
+    --color-rose-100: #881337;
+    --color-rose-200: #9f1239;
+    --color-rose-300: #9f1239;
+    --color-rose-400: #be123c;
+
+    --color-emerald-100: #064e3b;
+    --color-emerald-200: #065f46;
+    --color-emerald-300: #065f46;
+    --color-emerald-400: #047857;
+
+    --color-amber-100: #78350f;
+    --color-amber-200: #92400e;
+    --color-amber-300: #92400e;
+    --color-amber-400: #b45309;
+
+    --color-sky-100: #0c4a6e;
+    --color-sky-200: #075985;
+    --color-sky-300: #075985;
+    --color-sky-400: #0369a1;
   }
 }
 
@@ -227,7 +261,8 @@ html.light .hover\:text-white:hover {
   color: #0f172a;
 }
 
-html.light .hover\:text-slate-100:hover {
+html.light .hover\:text-slate-100:hover,
+html.light .group:hover .group-hover\:text-white {
   color: #0f172a;
 }
 
@@ -236,10 +271,6 @@ html.light .hover\:border-slate-700:hover {
 }
 
 /* Active navigation items in light mode */
-html.light .text-indigo-300 {
-  color: #4f46e5;
-}
-
 html.light .bg-indigo-600\/20 {
   background-color: rgba(79, 70, 229, 0.1);
 }
@@ -248,14 +279,18 @@ html.light .border-indigo-500\/30 {
   border-color: rgba(79, 70, 229, 0.25);
 }
 
-/* Headings and generic text that had text-white */
-html.light h1.text-white,
-html.light h2.text-white,
-html.light h3.text-white,
-html.light h4.text-white,
-html.light p.text-white,
-html.light strong.text-white {
+/* Any text-white (headings, spans, stat numbers, inputs…) would be white-on-white in light mode */
+html.light .text-white {
   color: #0f172a;
+}
+
+/* Toasts use near-black tinted surfaces; give them light tinted surfaces instead */
+html.light .bg-emerald-950\/90 {
+  background-color: rgba(236, 253, 245, 0.97);
+}
+
+html.light .bg-rose-950\/90 {
+  background-color: rgba(255, 241, 242, 0.97);
 }
 
 /* Ensure button and colored badge text stays crisp white */
