@@ -148,6 +148,104 @@ export class FastApiAiServiceClient implements AiClient {
     )) as { content?: string };
     return typeof data?.content === 'string' ? data.content : '';
   }
+
+  /**
+   * Streams answer tokens from /api/v1/llm/chat/stream (Server-Sent Events). Failures are mapped to the
+   * same errors as `post()`: unreachable/timeout/5xx/429 -> ServiceUnavailableError, other 4xx -> Error.
+   */
+  public async *streamAnswer(
+    systemPrompt: string,
+    userPrompt: string,
+    history: Array<{ role: string; content: string }> = []
+  ): AsyncIterable<string> {
+    const path = '/api/v1/llm/chat/stream';
+    let resp: Response;
+    try {
+      resp = await fetch(`${this.baseUrl}${path}`, {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify({ prompt: userPrompt, system_prompt: systemPrompt, history }),
+        signal: AbortSignal.timeout(CHAT_TIMEOUT_MS),
+      });
+    } catch (err) {
+      logger.error({ err, path }, 'AI Service request failed (network or timeout)');
+      throw new ServiceUnavailableError(
+        'The AI assistant is not reachable right now. Please try again in a moment.'
+      );
+    }
+
+    if (!resp.ok || !resp.body) {
+      const errorText = await resp.text().catch(() => '');
+      let serverMessage = '';
+      try {
+        const parsed = JSON.parse(errorText);
+        serverMessage = parsed.message || parsed.error || '';
+      } catch {
+        // Not JSON
+      }
+      logger.error({ errorText: errorText.slice(0, 500), status: resp.status, path }, 'AI Service call failed');
+      if (resp.status === 429 || resp.status >= 500) {
+        throw new ServiceUnavailableError(
+          serverMessage || 'The AI assistant is temporarily unavailable. Please try again shortly.'
+        );
+      }
+      throw new Error(serverMessage || `AI Service call to ${path} failed with HTTP ${resp.status}`);
+    }
+
+    const decoder = new TextDecoder();
+    const reader = resp.body.getReader();
+    let buffer = '';
+    try {
+      while (true) {
+        let chunk: ReadableStreamReadResult<Uint8Array>;
+        try {
+          chunk = await reader.read();
+        } catch (err) {
+          logger.error({ err, path }, 'AI Service stream interrupted (network or timeout)');
+          throw new ServiceUnavailableError(
+            'The AI assistant stopped responding. Please try again in a moment.'
+          );
+        }
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+
+        let boundary: number;
+        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+          const rawEvent = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+
+          let eventName = 'message';
+          let data = '';
+          for (const line of rawEvent.split('\n')) {
+            if (line.startsWith('event:')) eventName = line.slice(6).trim();
+            else if (line.startsWith('data:')) data += line.slice(5).trim();
+          }
+          const payload = data ? (JSON.parse(data) as Record<string, unknown>) : {};
+
+          if (eventName === 'token' && typeof payload.token === 'string') {
+            yield payload.token;
+          } else if (eventName === 'done') {
+            return;
+          } else if (eventName === 'error') {
+            const message = typeof payload.message === 'string' ? payload.message : '';
+            const status = typeof payload.status_code === 'number' ? payload.status_code : 500;
+            logger.error({ status, message, path }, 'AI Service stream reported an error');
+            if (status === 429 || status >= 500) {
+              throw new ServiceUnavailableError(
+                message || 'The AI assistant is temporarily unavailable. Please try again shortly.'
+              );
+            }
+            throw new Error(message || `AI Service stream failed with HTTP ${status}`);
+          }
+        }
+      }
+    } finally {
+      reader.cancel().catch(() => undefined);
+    }
+
+    // Stream closed without a `done` event: treat as an interrupted answer, never as a complete one.
+    throw new ServiceUnavailableError('The AI assistant stopped responding. Please try again in a moment.');
+  }
 }
 
 export const fastApiAiServiceClient = new FastApiAiServiceClient();

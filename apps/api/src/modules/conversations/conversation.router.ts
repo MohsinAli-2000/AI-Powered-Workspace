@@ -105,3 +105,15 @@ conversationRouter.post(
   validateRequest(sendMessageSchema),
   conversationController.sendMessage
 );
+
+/**
+ * Route: POST /api/v1/conversations/:id/messages/stream
+ * Description: Same as POST /:id/messages, but streams the answer tokens via Server-Sent Events
+ * Access: Conversation creator
+ */
+conversationRouter.post(
+  '/:id/messages/stream',
+  requireConversationAccess('id'),
+  validateRequest(sendMessageSchema),
+  conversationController.sendMessageStream
+);

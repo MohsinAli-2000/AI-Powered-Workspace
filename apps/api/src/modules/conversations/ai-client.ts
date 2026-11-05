@@ -9,6 +9,14 @@ export interface AiClient {
     userPrompt: string,
     history?: Array<{ role: string; content: string }>
   ): Promise<string>;
+  /**
+   * Optional token streaming. Clients without it fall back to `generateAnswer` (delivered as one chunk).
+   */
+  streamAnswer?(
+    systemPrompt: string,
+    userPrompt: string,
+    history?: Array<{ role: string; content: string }>
+  ): AsyncIterable<string>;
 }
 
 /**
@@ -170,6 +178,18 @@ export class MockAiClient implements AiClient {
       return `Based on the provided documents: ${excerptsText.slice(0, 200)}... This answers your question: "${userPrompt.slice(0, 100)}"`;
     }
     return `Answer to: ${userPrompt}`;
+  }
+
+  public async *streamAnswer(
+    systemPrompt: string,
+    userPrompt: string,
+    history: Array<{ role: string; content: string }> = []
+  ): AsyncIterable<string> {
+    const full = await this.generateAnswer(systemPrompt, userPrompt, history);
+    const words = full.split(' ');
+    for (let i = 0; i < words.length; i++) {
+      yield words[i] + (i < words.length - 1 ? ' ' : '');
+    }
   }
 }
 

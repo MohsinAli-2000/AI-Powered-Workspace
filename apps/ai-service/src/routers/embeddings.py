@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from ..providers import get_embedding_provider
+from ..langchain_integration import ProviderEmbeddings
 from ..schemas import (
     EmbeddingRequest,
     EmbeddingResponse,
@@ -9,14 +9,16 @@ from ..schemas import (
 
 router = APIRouter(prefix="/api/v1/embeddings", tags=["Embeddings"])
 
+# LangChain Embeddings over the configured provider (resolved per call).
+embeddings = ProviderEmbeddings()
+
 
 @router.post("", response_model=EmbeddingResponse)
 async def generate_embedding(body: EmbeddingRequest) -> EmbeddingResponse:
     """
     Generates a 768-dim normalized embedding vector for a single text.
     """
-    provider = get_embedding_provider()
-    vec = await provider.embed_text(body.text)
+    vec = await embeddings.aembed_query(body.text)
     return EmbeddingResponse(embedding=vec, dimension=len(vec))
 
 
@@ -25,8 +27,7 @@ async def generate_batch_embeddings(body: BatchEmbeddingRequest) -> BatchEmbeddi
     """
     Generates 768-dim normalized embedding vectors for multiple texts.
     """
-    provider = get_embedding_provider()
-    vectors = await provider.embed_batch(body.texts)
+    vectors = await embeddings.aembed_documents(body.texts)
     dim = len(vectors[0]) if vectors else 0
     return BatchEmbeddingResponse(
         embeddings=vectors,

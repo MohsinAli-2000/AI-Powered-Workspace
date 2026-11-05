@@ -6,7 +6,8 @@ import {
   sendMessageBodySchema,
   conversationIdParamSchema,
 } from './conversation.schema.js';
-import { UnauthorizedError } from '../../errors/app-error.js';
+import { AppError, UnauthorizedError } from '../../errors/app-error.js';
+import { logger } from '../../utils/logger.js';
 
 export class ConversationController {
   public async create(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -159,6 +160,65 @@ export class ConversationController {
       });
     } catch (err) {
       next(err);
+    }
+  }
+
+  /**
+   * Streaming send (Server-Sent Events):
+   *   event: token  data: {"token": "..."}           (zero or more)
+   *   event: done   data: {"message": <saved message with sources>}
+   *   event: error  data: {"message": "...", "statusCode": 503}
+   * The SSE response starts with the first token or the final event, so access/validation errors raised
+   * before that still go through the normal JSON error handler with their proper HTTP status.
+   */
+  public async sendMessageStream(req: Request, res: Response, next: NextFunction): Promise<void> {
+    let streamStarted = false;
+    const startStream = () => {
+      if (streamStarted) return;
+      streamStarted = true;
+      res.status(200);
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+    };
+    const send = (event: string, data: unknown) => {
+      startStream();
+      // The browser may have left; the answer is still generated and saved, like the non-streaming route.
+      if (res.writableEnded || res.destroyed) return;
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      if (!req.authenticatedUser || !req.activeOrganization) {
+        throw new UnauthorizedError('Authentication and organization context required.');
+      }
+
+      const { id: conversationId } = conversationIdParamSchema.parse(req.params);
+      const dto = sendMessageBodySchema.parse(req.body);
+      const message = await conversationService.sendMessageStream(
+        conversationId,
+        req.authenticatedUser.id,
+        req.activeOrganization.id,
+        dto,
+        (token) => send('token', { token })
+      );
+
+      send('done', { message });
+      if (!res.writableEnded) res.end();
+    } catch (err) {
+      if (!streamStarted) {
+        next(err);
+        return;
+      }
+      logger.error({ err }, 'Streaming message failed after the response started');
+      const isAppError = err instanceof AppError;
+      send('error', {
+        message: isAppError ? err.message : 'An unexpected error occurred. Please try again.',
+        statusCode: isAppError ? err.statusCode : 500,
+      });
+      if (!res.writableEnded) res.end();
     }
   }
 }

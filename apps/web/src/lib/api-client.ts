@@ -269,6 +269,96 @@ export async function apiClient<T = unknown>(path: string, init: RequestInit = {
 }
 
 /**
+ * POSTs to a Server-Sent Events endpoint, calling `onToken` for each streamed `token` event, and resolves
+ * with the (shaped) payload of the final `done` event's `message`. Errors are thrown as `ApiError` exactly
+ * like `apiClient`: non-2xx responses before the stream starts, plus any `error` event during the stream.
+ */
+export async function apiStream<T = unknown>(
+  path: string,
+  body: unknown,
+  onToken: (token: string) => void
+): Promise<T> {
+  const init: RequestInit = {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { Accept: 'text/event-stream' },
+  };
+  let response: Response;
+  try {
+    response = await authorizedFetch(path, init);
+  } catch (err) {
+    if (isNetworkFailure(err)) {
+      throw new ApiError(
+        'Unable to connect to the backend server. Please verify network connectivity or that the API service is reachable.',
+        503
+      );
+    }
+    throw err;
+  }
+
+  if (!response.ok || !response.body) {
+    const errorBody = await parseBody(response);
+    if (response.status === 401) handleSessionExpired();
+    throw new ApiError(
+      errorBody?.error?.message || errorBody?.message || `Request failed with status ${response.status}`,
+      response.status,
+      errorBody?.error?.details
+    );
+  }
+
+  const interrupted = () =>
+    new ApiError('The connection was interrupted while the answer was being generated. Please try again.', 503);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  try {
+    while (true) {
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read();
+      } catch {
+        throw interrupted();
+      }
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+
+      let boundary: number;
+      while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+        const rawEvent = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+
+        let eventName = 'message';
+        let data = '';
+        for (const line of rawEvent.split('\n')) {
+          if (line.startsWith('event:')) eventName = line.slice(6).trim();
+          else if (line.startsWith('data:')) data += line.slice(5).trim();
+        }
+        const payload = (data ? JSON.parse(data) : {}) as {
+          token?: string;
+          message?: unknown;
+          statusCode?: number;
+        };
+
+        if (eventName === 'token' && typeof payload.token === 'string') {
+          onToken(payload.token);
+        } else if (eventName === 'done') {
+          return shapeResponse<T>(payload.message);
+        } else if (eventName === 'error') {
+          throw new ApiError(
+            typeof payload.message === 'string' ? payload.message : 'The request failed.',
+            payload.statusCode ?? 500
+          );
+        }
+      }
+    }
+  } finally {
+    reader.cancel().catch(() => undefined);
+  }
+  throw interrupted();
+}
+
+/**
  * Downloads a file from an authenticated endpoint and hands it to the browser
  * as a save-as download (the endpoint streams bytes, so it can't go through `apiClient`).
  */

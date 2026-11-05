@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useOrgStore } from '@/stores/org.store';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, apiStream } from '@/lib/api-client';
 import { formatDate } from '@/lib/utils';
 import {
   Conversation,
@@ -66,6 +66,12 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  // Partial assistant answer while it streams in (null when nothing is streaming).
+  const [streaming, setStreaming] = useState<{ conversationId: string; text: string } | null>(null);
+  const streamingText =
+    streaming && streaming.conversationId === activeConversation?.id ? streaming.text : null;
+  const setStreamingText = (text: string | null, conversationId?: string) =>
+    setStreaming(text !== null && conversationId ? { conversationId, text } : null);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [projectsChecked, setProjectsChecked] = useState(false);
   const [conversationSearch, setConversationSearch] = useState('');
@@ -324,12 +330,20 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
     setTimeout(scrollToBottom, 50);
 
     try {
-      const assistantMsg = await apiClient<Message>(`/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ content: question }),
-      });
+      // Tokens are shown live in a temporary bubble; the saved message (with sources) replaces it at the end.
+      let streamed = '';
+      const assistantMsg = await apiStream<Message>(
+        `/conversations/${conversationId}/messages/stream`,
+        { content: question },
+        (token) => {
+          streamed += token;
+          setStreamingText(streamed, conversationId);
+          if (activeIdRef.current === conversationId) scrollToBottom();
+        }
+      );
 
       // Only touch the visible thread if the user is still looking at this conversation.
+      setStreamingText(null);
       if (activeIdRef.current === conversationId) {
         setMessages((prev) => [...prev, assistantMsg]);
         setTimeout(scrollToBottom, 50);
@@ -340,6 +354,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
         )
       );
     } catch (err) {
+      setStreamingText(null);
       const errMsg = err instanceof Error ? err.message : 'Failed to get answer';
       showToast(errMsg, 'error');
       if (activeIdRef.current === conversationId) {
@@ -356,6 +371,7 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
         setTimeout(scrollToBottom, 50);
       }
     } finally {
+      setStreamingText(null);
       setIsSending(false);
     }
   };
@@ -662,7 +678,22 @@ export const ChatView: React.FC<ChatViewProps> = ({ defaultProjectId }) => {
                 />
               ))}
 
-              {isSending && (
+              {isSending && streamingText && activeConversation && (
+                <ChatMessageBubble
+                  key="streaming-answer"
+                  message={{
+                    id: 'streaming-answer',
+                    conversation_id: activeConversation.id,
+                    role: 'ASSISTANT',
+                    content: streamingText,
+                    created_at: new Date().toISOString(),
+                    sources: [],
+                  }}
+                  onCitationClick={(src) => setActiveCitation(src)}
+                />
+              )}
+
+              {isSending && !streamingText && (
                 <div className="flex items-center gap-3" role="status">
                   <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shrink-0 shadow-md">
                     <Loader2 className="w-4 h-4 animate-spin" />
