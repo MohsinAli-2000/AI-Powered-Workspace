@@ -48,7 +48,7 @@ All foundational, core business, AI processing, frontend, audit, platform govern
 - [ ] **Save the base database schema in the repo.** Only migrations 001–003 exist; export the live schema (`pg_dump --schema-only`) as a baseline migration.
 - [ ] **Decide on RabbitMQ:** either implement the publisher or remove the consumer/DLQ code (production uses DB polling, DEC-035).
 - [ ] **Remove the duplicated authorization SQL** (`apps/api/.../rag.repository.ts` and `apps/ai-service/src/db.py`), or keep them strictly in sync.
-- [ ] **Decide where RAG lives:** the AI service's `/rag/query` and `/rag/stream` are unused. Either wire chat to them (enabling streaming) or delete them.
+- [ ] **Decide where RAG lives:** the AI service's `/rag/query` and `/rag/stream` are unused (chat now streams via the Node API and `/llm/chat/stream`). Either move chat onto them or delete them.
 - [ ] **Add automated tests to CI** (the deploy workflow only builds and health-checks).
 
 ---
@@ -297,6 +297,8 @@ The following have been decided, designed, and documented / implemented:
 - [x] `FR-AI-005` insufficient information fallback handling when similarity is below threshold or zero chunks match.
 - [x] Full database-level Phase 13 document access control enforcement with 6-step evaluation and `DENY` precedence.
 - [x] LLM completion endpoint (`POST /api/v1/llm/chat`) and semantic chunking endpoint (`POST /api/v1/utils/chunk`).
+- [x] SSE LLM streaming endpoint (`POST /api/v1/llm/chat/stream`), used by the chat through the Node API's `POST /conversations/:id/messages/stream`.
+- [x] LangChain integration (DEC-037): `ProviderChatModel`, `ProviderEmbeddings`, `AuthorizedPgVectorRetriever`, `BoundaryAwareTextSplitter`; RAG composed with LCEL; behaviour unchanged.
 - [x] Gemini embedding client in `apps/worker` (`EMBEDDING_PROVIDER=gemini`) and `apps/api` routed through ai-service (`AI_PROVIDER=ai-service`), so ingestion and query embeddings share one model.
 - [x] Pluggable AI provider architecture (Gemini API, Ollama `nomic-embed-text` + `qwen2.5`, and deterministic `MockProvider`; selected via `AI_PROVIDER`).
 - [x] Node.js backend client (`FastApiAiServiceClient`) integrated into `apps/api`.
@@ -461,7 +463,7 @@ See the [Conflicts section](#conflicts--decisions-required-detail) below.
 | 20 | Chunking strategy (chunk size, overlap) | ✅ **Resolved** | 1000 characters chunk size, 200 characters overlap with paragraph, sentence, and word boundary snapping (`apps/worker/src/chunker.py`) |
 | 21 | Similarity threshold for "insufficient information" response | ✅ **Resolved** | Configurable similarity threshold (`RAG_SIMILARITY_THRESHOLD`; API code default `0.35`, `.env.example` files `0.45`) with fallback response and citation suppression (`FR-AI-005`) |
 | 22 | Whether historical document versions are searchable by default | ✅ **Resolved** | Default retrieval strictly scopes to `is_current = true` and `status = 'READY'` chunks |
-| 23 | Streaming vs. non-streaming LLM responses | ✅ **Resolved** | Both endpoints exist in the AI service (`POST /api/v1/rag/query`, SSE `POST /api/v1/rag/stream`), but the web app does not stream: it uses a single-response `POST /conversations/:id/messages` |
+| 23 | Streaming vs. non-streaming LLM responses | ✅ **Resolved** | The web chat streams: `POST /conversations/:id/messages/stream` (Node, SSE) → AI service `POST /api/v1/llm/chat/stream`. The single-response `POST /conversations/:id/messages` is kept (DEC-037) |
 | 24 | Whether conversation history is included as LLM context | ✅ **Resolved** | Multi-turn conversational history loaded from database and prepended to prompt context |
 | 25 | Object storage configuration (Dev vs Prod) | ✅ **Resolved** | **MinIO** (`http://localhost:9000`, development only) → **AWS S3** (production standard) via unified `@aws-sdk/client-s3` |
 

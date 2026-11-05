@@ -30,9 +30,9 @@
 
 | Component | Technology | Primary Responsibility |
 |-----------|-----------|----------------------|
-| Frontend | Next.js 16 + TypeScript | User interface, dark-mode styling, chat (single-response, non-streaming), citation drawer |
+| Frontend | Next.js 16 + TypeScript | User interface, dark-mode styling, streaming chat (SSE), citation drawer |
 | Core API | Node.js + Express 5 + TypeScript | SaaS business logic, authorization, rate limiting, audit logging |
-| AI API | Python + FastAPI | Question embeddings and LLM completion (used by the API); RAG query/stream endpoints (implemented, not currently called); internal security token |
+| AI API | Python + FastAPI + LangChain | Question embeddings and LLM completion/streaming (used by the API); RAG query/stream endpoints (implemented, not currently called); internal security token |
 | AI Worker | Python | Asynchronous document processing, chunking, and embedding generation |
 | Relational Database | PostgreSQL (Local / Neon Serverless) | Core relational application data |
 | Vector Store | pgvector | 768-dim embeddings and HNSW similarity search |
@@ -164,7 +164,8 @@ EXTERNAL MANAGED SERVICES
 - Embedding Service (`POST /api/v1/embeddings`, `POST /api/v1/embeddings/batch` — Gemini `gemini-embedding-001` 768-dim default, Ollama `nomic-embed-text` alternative)
 - Synchronous RAG Service (`POST /api/v1/rag/query` — pgvector search, XML prompt isolation, grounded answer generation, citations). *Implemented but not called by the API; the API does retrieval itself.*
 - Streaming RAG Service (`POST /api/v1/rag/stream` — real-time token streaming via Server-Sent Events `text/event-stream`). *Implemented but not used by the web app.*
-- LLM Service (`POST /api/v1/llm/chat` — Gemini `gemini-3.6-flash` default, Ollama `qwen2.5:1.5b` alternative)
+- LLM Service (`POST /api/v1/llm/chat` and SSE `POST /api/v1/llm/chat/stream` — Gemini `gemini-3.6-flash` default, Ollama `qwen2.5:1.5b` alternative)
+- LangChain layer (`src/langchain_integration/`): chat model, embeddings, authorized retriever and text splitter wrapping the providers; RAG composed with LCEL (DEC-037)
 - Utility Service (`POST /api/v1/utils/chunk` — semantic sliding-window chunking)
 - Database Pooling — Async PostgreSQL connection pool (`asyncpg`) with native pgvector type registration
 

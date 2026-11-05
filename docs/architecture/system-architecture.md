@@ -6,7 +6,7 @@
 > **Implementation status (as built, 2026-10-09).** The diagrams below show the original design. Where the code differs:
 > - **Job pickup:** the API leaves `document_versions.status = 'QUEUED'` and the worker **polls the database** (DEC-035). RabbitMQ publishing was never implemented; the consumer is optional and unused in production.
 > - **Retrieval:** the Node API embeds the question (via the AI service), runs the permission-filtered pgvector search itself, builds the prompt, and calls the AI service only for LLM generation. The AI service's `/rag/*` endpoints exist but are not called.
-> - **Streaming:** the web chat is non-streaming.
+> - **Streaming:** the web chat streams over SSE: `POST /conversations/:id/messages/stream` (Node) → AI service `/llm/chat/stream`. The message is saved after the full answer (DEC-037).
 
 ## 1. High-Level Architecture
 
@@ -318,15 +318,17 @@ sequenceDiagram
     DB-->>API: Relevant chunks + metadata
 
     API->>API: Build grounded prompt (excerpts fenced as untrusted data)
-    API->>AI: Generate answer (/llm/chat)
+    API->>AI: Generate answer (/llm/chat/stream, SSE)
     AI->>LLM: Question + retrieved context
-    LLM-->>AI: Generated answer
-    AI-->>API: Answer text
+    LLM-->>AI: Tokens
+    AI-->>API: event: token (repeated)
+    API-->>FE: event: token (repeated)
+    FE-->>User: Render answer live
 
     API->>DB: Save messages + source citations
 
-    API-->>FE: Final response
-    FE-->>User: Display answer + sources
+    API-->>FE: event: done (saved message + sources)
+    FE-->>User: Display final answer + sources
 ```
 
 ---
@@ -388,7 +390,7 @@ document is accessible to the current user
 | ------------------- | -------------------- | ------------------------------------- |
 | Frontend            | Next.js + TypeScript | User interface and user experience    |
 | Core API            | Node.js + TypeScript | SaaS business logic, authorization, rate limiting |
-| AI API              | Python + FastAPI     | Question embeddings and LLM completion (RAG/SSE endpoints exist but are unused) |
+| AI API              | Python + FastAPI + LangChain | Question embeddings, LLM completion and SSE streaming (RAG endpoints exist but are unused) |
 | AI Worker           | Python               | Asynchronous document processing      |
 | Relational Database | PostgreSQL (Local / Neon Serverless) | Core application data                 |
 | Vector Store        | pgvector             | 768-dim embeddings and similarity search |

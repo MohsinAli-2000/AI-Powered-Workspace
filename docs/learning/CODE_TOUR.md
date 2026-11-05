@@ -45,7 +45,7 @@ Two flows carry almost the whole product:
 |---|---|
 | `apps/web` | Next.js 16 (App Router), React 19, Tailwind v4, Zustand |
 | `apps/api` | Express 5 + TypeScript (ESM). Feature folders under `src/modules/*` |
-| `apps/ai-service` | FastAPI: `/embeddings`, `/llm/chat`, `/rag/*`, providers (Gemini/Ollama/mock) |
+| `apps/ai-service` | FastAPI + LangChain: `/embeddings`, `/llm/chat`, `/llm/chat/stream`, `/rag/*`, providers (Gemini/Ollama/mock), `langchain_integration/` adapters |
 | `apps/worker` | Python document pipeline: extractors → chunker → embeddings → DB |
 | `docker-compose.yml` | Runs **api + ai-service + worker only** (DB is external Neon; web is on Vercel) |
 | `.github/workflows/deploy-backend.yml` | rsync to EC2 → `docker compose up -d --build` → health check |
@@ -72,7 +72,7 @@ The README/docs describe the *intended* design. The code differs in places. Don'
 | # | Docs say | Code actually does |
 |---|---|---|
 | 1 | API publishes jobs to **RabbitMQ**; worker consumes | `queue.service.ts` never touches RabbitMQ. Locally it **spawns** `python -m src.process_job <versionId>` ([queue.service.ts:119](../../apps/api/src/modules/queue/queue.service.ts)); in Docker there's no `.venv`, so it leaves the row `QUEUED` and the worker's **DB poller** picks it up ([db_poller.py:26](../../apps/worker/src/db_poller.py)). The RabbitMQ consumer is optional. (The README's "Current implementation note" admits this.) |
-| 2 | Chat goes through the AI service's **`/rag/query`** or **`/rag/stream`** (SSE) | The API runs the vector search itself ([rag.repository.ts](../../apps/api/src/modules/conversations/rag.repository.ts)), then calls ai-service only for `/api/v1/embeddings` and `/api/v1/llm/chat` ([ai-service.client.ts:115,139](../../apps/api/src/modules/conversations/ai-service.client.ts)). `queryRag()` exists but nothing calls it, and the web app never streams (plain `POST /conversations/:id/messages`). |
+| 2 | Chat goes through the AI service's **`/rag/query`** or **`/rag/stream`** (SSE) | The API runs the vector search itself ([rag.repository.ts](../../apps/api/src/modules/conversations/rag.repository.ts)), then calls ai-service only for `/api/v1/embeddings` and `/api/v1/llm/chat` ([ai-service.client.ts:115,139](../../apps/api/src/modules/conversations/ai-service.client.ts)). `queryRag()` exists but nothing calls it. The web app streams via `POST /conversations/:id/messages/stream`, which uses `/api/v1/llm/chat/stream` (`streamAnswer()`). |
 | 3 | State mgmt: "Zustand + **React Query**" | `apps/web/package.json` has Zustand only; no React Query. Data fetching is manual `useEffect` + `apiClient`. |
 | 4 | UI: "**shadcn/ui**" | `components/ui/*` are hand-written (no Radix deps). Same look/feel, not the shadcn library. |
 | 5 | Local AI with Ollama | Ollama code is **commented out** in `ai-client.ts` and kept as reference; Gemini is the only live provider besides `mock`. |
@@ -224,7 +224,7 @@ The README/docs describe the *intended* design. The code differs in places. Don'
 
 ## Stop 8 — Ask: RAG chat (2 h) ← the "AI" part
 
-**Open (follow the request):** `apps/web/.../chat-view.tsx` (`handleSendMessage`, [:276](../../apps/web/src/components/chat/chat-view.tsx)) → `conversation.router.ts` → [conversation.service.ts:213](../../apps/api/src/modules/conversations/conversation.service.ts) (`sendMessage`) → [ai-service.client.ts](../../apps/api/src/modules/conversations/ai-service.client.ts) → ai-service `routers/embeddings.py`, `routers/llm.py`, `providers/gemini.py` → [rag.repository.ts](../../apps/api/src/modules/conversations/rag.repository.ts)
+**Open (follow the request):** `apps/web/.../chat-view.tsx` (`handleSendMessage`, [:276](../../apps/web/src/components/chat/chat-view.tsx)) → `conversation.router.ts` → [conversation.service.ts](../../apps/api/src/modules/conversations/conversation.service.ts) (`sendMessageStream` → `prepareAnswer` → `runLlm` → `persistExchange`) → [ai-service.client.ts](../../apps/api/src/modules/conversations/ai-service.client.ts) → ai-service `routers/embeddings.py`, `routers/llm.py`, `langchain_integration/`, `providers/gemini.py` → [rag.repository.ts](../../apps/api/src/modules/conversations/rag.repository.ts)
 
 **`sendMessage`, step by step**
 1. Load the conversation; **only its creator may send/read** (admins can rename/delete but not read) — `assertCreator`.

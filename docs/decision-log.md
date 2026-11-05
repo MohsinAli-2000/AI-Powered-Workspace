@@ -681,3 +681,34 @@ Phase:      Documentation reconciliation
 Affected:   apps/api/src/modules/conversations/*, apps/ai-service/src/routers/rag.py,
             apps/ai-service/src/services/rag_service.py, apps/ai-service/src/db.py
 ```
+
+---
+
+```text
+Decision:   DEC-037: LangChain for the AI Service Pipeline and Streaming Chat
+Date:       2026-11-05
+Context:    The AI service's RAG code was hand-wired (provider calls, prompt strings, custom
+            chunker), which made adding rerankers, other models or tracing harder. Chat answers
+            were also single-response, so users waited for the whole answer.
+Decision:   1. The AI service exposes its providers and search as LangChain components
+               (ProviderChatModel, ProviderEmbeddings, AuthorizedPgVectorRetriever,
+               BoundaryAwareTextSplitter) and composes RAG with LCEL. The existing providers stay
+               the source of truth, so Gemini retry/fallback, prompts, access-control SQL and
+               chunk output are byte-for-byte unchanged (verified by before/after comparison).
+            2. New SSE endpoint POST /api/v1/llm/chat/stream in the AI service.
+            3. New SSE route POST /api/v1/conversations/:id/messages/stream in the Node API. It
+               reuses the same access checks, retrieval, prompts and diagnostic answers as
+               POST /messages, streams tokens, then persists the message. Nothing is saved if
+               generation fails. The non-streaming route is kept.
+            4. The web chat uses the streaming route and renders tokens live; citations arrive
+               with the final `done` event.
+Why:        Easier to extend (swap retriever/model/prompt, add tracing) without changing the API
+            contract, and faster perceived answers. Wrapping instead of adopting
+            langchain-google-genai preserves the tuned resilience behaviour and error messages.
+Status:     Confirmed & Implemented. Retrieval still runs in the Node API (DEC-036).
+Phase:      AI service refactor
+Affected:   apps/ai-service/src/langchain_integration/*, apps/ai-service/src/services/rag_service.py,
+            apps/ai-service/src/routers/{llm,embeddings}.py, apps/ai-service/requirements.txt,
+            apps/api/src/modules/conversations/*, apps/web/src/lib/api-client.ts,
+            apps/web/src/components/chat/chat-view.tsx
+```

@@ -36,7 +36,7 @@
 - **Chat Interface (`ChatView`)**:
   - Conversational message bubbles with rich markdown rendering (`react-markdown` + `remark-gfm`).
   - Project scope filtering ("All Accessible Projects" vs. specific project boundaries).
-  - Single-response answers (non-streaming): the chat posts to `POST /conversations/:id/messages`, shows a "thinking" indicator, then renders the answer with its citations.
+  - Streaming answers (SSE): the chat posts to `POST /conversations/:id/messages/stream` via `apiStream()` (`src/lib/api-client.ts`), shows a "thinking" indicator until the first token, renders tokens live, then swaps in the saved message with its citations.
   - `FR-AI-005` Insufficient Information warning callouts when documents lack supporting evidence.
   - Interactive citation pills (`[1]`, `[2]`) with cosine similarity confidence percentages.
   - Off-canvas **Source Citation Drawer (`SourceCitationDrawer`)** revealing document title, chunk index, page number, confidence meter, and exact grounded chunk excerpts.

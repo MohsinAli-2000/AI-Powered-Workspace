@@ -242,7 +242,25 @@ Documents support multiple versions.
 
 ---
 
-## 11. Design Decisions & Implementation Status
+## 11. LangChain Integration (AI Service)
+
+The AI service builds its AI pipeline from **LangChain** components (`langchain-core`, `langchain-text-splitters`). These wrap the existing, hardened code and don't replace it. Gemini retries/backoff/model fallback, the permission-aware SQL, prompts and chunk output are unchanged (DEC-037).
+
+| LangChain component | Class (`apps/ai-service/src/langchain_integration/`) | Wraps |
+|---|---|---|
+| `BaseChatModel` | `ProviderChatModel` (`chat_model.py`) | `providers/*` `generate` / `generate_stream` |
+| `Embeddings` | `ProviderEmbeddings` (`embeddings.py`) | `providers/*` `embed_text` / `embed_batch` |
+| `BaseRetriever` | `AuthorizedPgVectorRetriever` (`retriever.py`) | `db.search_authorized_chunks` (tenant + access filters) |
+| `TextSplitter` | `BoundaryAwareTextSplitter` (`text_splitter.py`) | Original paragraph/sentence/word boundary chunker |
+
+- `services/rag_service.py` composes **retriever → `ChatPromptTemplate` → `ProviderChatModel` → `StrOutputParser`** (LCEL). The chat model, embeddings and prompt are constructor-injectable.
+- `routers/llm.py` (`/llm/chat`, `/llm/chat/stream`), `routers/embeddings.py` and `utils/chunk` run through the same components.
+- **Extending:** add reranking or hybrid search by wrapping/replacing the retriever, switch models by passing another LangChain chat model, and add tracing (e.g. LangSmith) via LangChain callbacks. The API contract does not change.
+- Tests: `apps/ai-service/tests/test_langchain_integration.py`.
+
+---
+
+## 12. Design Decisions & Implementation Status
  
 | Item | Status | Implementation Details |
 |------|--------|------------------------|
@@ -252,5 +270,6 @@ Documents support multiple versions.
 | Chunking strategy | ✅ Confirmed | 1000 characters chunk window, 200 characters overlap with paragraph/sentence/word boundary snapping (`apps/worker/src/chunker.py`) |
 | Similarity threshold | ✅ Confirmed | Configurable cosine threshold (`RAG_SIMILARITY_THRESHOLD`; the API's code default is `0.35`, the `.env.example` files use `0.45`) with an insufficient-evidence fallback (`FR-AI-005`). The API's value is the one that governs chat |
 | Historical versions search | ✅ Confirmed | By default, vector retrieval strictly filters `v.is_current = true` and `v.status = 'READY'` chunks |
-| Streaming vs. non-streaming | ⚠️ Partially implemented | The AI service has `POST /api/v1/rag/query` and an SSE `POST /api/v1/rag/stream`, but neither is called. The web app uses a single-response `POST /conversations/:id/messages` |
+| Streaming vs. non-streaming | ✅ Implemented | Web chat streams via SSE: `POST /conversations/:id/messages/stream` (Node) → AI service `POST /api/v1/llm/chat/stream`; citations arrive in the final `done` event. The single-response `POST /conversations/:id/messages` is kept. `/rag/query` and `/rag/stream` remain unused |
+| Orchestration framework | ✅ Confirmed | LangChain (`langchain-core`) in the AI service, wrapping the existing providers and search (§11, DEC-037) |
 | Conversation history context | ✅ Confirmed | Chronological message history loaded from database and supplied as context in the prompt builder |

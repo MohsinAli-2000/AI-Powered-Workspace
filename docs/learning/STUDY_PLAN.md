@@ -44,7 +44,7 @@ You can reorder, but **keep Security (week 3) before AI (week 6)** — the most 
   - [ ] Idempotency (GET/PUT/DELETE vs POST) — why `api-client.ts` only retries some methods
   - [ ] Same-origin policy and **CORS** (preflight, `credentials`, allowed origins)
   - [ ] Headers used here: `Authorization: Bearer`, `Content-Type`, `X-Organization-Id`, `X-Internal-Token`, `Content-Disposition`
-  - [ ] Server-Sent Events (what `/rag/stream` does, even though the UI doesn't use it)
+  - [ ] Server-Sent Events (the chat streams: `/messages/stream` in the API, `apiStream()` in the web app)
 - **Study:** MDN "HTTP overview", MDN "CORS", MDN "HTTP response status codes", MDN "Using server-sent events".
 - **Exercise:** With `curl` (or Postman), call `/health`, then `/auth/login`, then a protected route with and without the token. Write down each status code and why.
 
@@ -377,7 +377,7 @@ You can reorder, but **keep Security (week 3) before AI (week 6)** — the most 
 
 ## 27. Testing
 
-- **Where:** [auth.test.ts](../../apps/api/src/modules/auth/auth.test.ts) (`tsx --test`, the Node built-in runner), `ai-service/tests/test_gemini_resilience.py`, `pytest.ini`.
+- **Where:** [auth.test.ts](../../apps/api/src/modules/auth/auth.test.ts) (`tsx --test`, the Node built-in runner), `ai-service/tests/test_gemini_resilience.py`, `ai-service/tests/test_langchain_integration.py`, `pytest.ini`.
 - **Concepts**
   - [ ] Unit vs integration vs end-to-end; the testing pyramid
   - [ ] Mocks/fakes (the `mock` AI provider and `MockAiClient` are test doubles)
@@ -392,7 +392,7 @@ You can reorder, but **keep Security (week 3) before AI (week 6)** — the most 
 Do at least three. Each one forces you to touch several layers:
 
 1. **Add document tags** — new column + migration, API endpoint, include tags in retrieval filter, UI chips. (DB + API + AI filter + UI)
-2. **Make chat stream** — wire the web chat to Server-Sent Events end to end, using the existing `/rag/stream` shape as a guide (decide where retrieval should live — Node or Python — and remove the duplicate SQL). (HTTP + async + React + security)
+2. **Remove the duplicate retrieval SQL** — chat now streams end to end (DEC-037); next decide where retrieval should live (Node or Python, e.g. the LangChain `AuthorizedPgVectorRetriever`) and delete the other copy. (HTTP + async + React + security)
 3. **Add re-embedding** — a CLI/admin action that safely re-embeds all chunks when the embedding model changes. (Worker + DB + ops)
 4. **Authz regression suite** — automated tests for the cross-tenant and DENY-precedence scenarios from Week 3. (Testing + security)
 5. **Hybrid search** — add Postgres full-text search alongside vector search and merge the results. (SQL + RAG)
